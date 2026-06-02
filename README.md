@@ -66,7 +66,7 @@ icdesign-lab/
 - `/research`
 - `/documents`
 - `/recruitment`
-- `/admin/login`
+- `/login`
 - `/admin/dashboard`
 
 ## Deployment guide (step-by-step)

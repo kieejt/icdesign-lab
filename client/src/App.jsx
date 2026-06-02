@@ -107,7 +107,7 @@ function App() {
 
   const token = localStorage.getItem('token')
   const isLoggedIn = !!token
-  const navItems = publicNavItems.filter(item => item.to !== '/admin/login')
+  const navItems = publicNavItems.filter(item => item.to !== '/login')
 
   React.useEffect(() => {
     setIsMenuOpen(false)
@@ -251,7 +251,7 @@ function App() {
               </div>
             ) : (
               <NavLink
-                to="/admin/login"
+                to="/login"
                 className="px-4 py-2 text-sm font-semibold text-slate-900 border border-slate-200 hover:border-slate-900 transition-colors ml-2"
               >
                 Login
@@ -285,7 +285,7 @@ function App() {
           <Route path="/lab-recruitment" element={<LabRecruitmentPage />} />
           <Route path="/contact" element={<ContactPage />} />
 
-          <Route path="/admin/login" element={<LoginPage />} />
+          <Route path="/login" element={<LoginPage />} />
 
           <Route element={<ProtectedAdminRoute />}>
             <Route path="/admin" element={<AdminLayout />}>

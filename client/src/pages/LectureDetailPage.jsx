@@ -150,7 +150,7 @@ export default function LectureDetailPage() {
             </div>
 
             <button
-              onClick={() => navigate('/admin/login')}
+              onClick={() => navigate('/login')}
               className="inline-flex items-center justify-center px-6 py-3 w-full text-xs font-bold uppercase tracking-widest text-white bg-slate-900 hover:bg-slate-800 transition-colors"
             >
               Sign In to Lab Console →
