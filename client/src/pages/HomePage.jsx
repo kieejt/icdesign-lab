@@ -5,7 +5,8 @@ export default function HomePage() {
   const [research, setResearch] = useState([])
   const [members, setMembers] = useState([])
   const [recruitments, setRecruitments] = useState([])
-  const [news, setNews] = useState([])
+  const [worldNews, setWorldNews] = useState([])
+  const [vietnamNews, setVietnamNews] = useState([])
 
   useEffect(() => {
     const fetchData = async () => {
@@ -19,7 +20,12 @@ export default function HomePage() {
         setResearch(resResearch.data.slice(0, 3));
         setMembers(resMembers.data.slice(0, 4));
         setRecruitments(resRecruitment.data.slice(0, 3));
-        setNews(resNews.data.slice(0, 4));
+        
+        const approvedNews = resNews.data || [];
+        const world = approvedNews.filter(item => item.category === 'World News');
+        const vietnam = approvedNews.filter(item => item.category === 'Vietnam News');
+        setWorldNews(world.slice(0, 3));
+        setVietnamNews(vietnam.slice(0, 3));
       } catch (error) {
         console.error('Failed to fetch homepage data', error);
       }
@@ -54,40 +60,98 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* News Section - Editorial List */}
-      {news.length > 0 && (
-        <section className="w-full py-24 md:py-32">
-          <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
-            <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 border-b border-slate-900 pb-6">
-              <h2 className="text-3xl md:text-5xl font-medium tracking-tight text-slate-900">Latest Insights</h2>
-              <a href="/news/world-news" className="text-sm font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors mt-6 md:mt-0">View All Updates →</a>
+      {/* News Sections (World News & Vietnam News Side-by-Side) */}
+      <section className="w-full py-24 md:py-32">
+        <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-24">
+            
+            {/* World News Column */}
+            <div className="space-y-12">
+              <div className="flex items-end justify-between border-b border-slate-900 pb-6">
+                <h2 className="text-2xl md:text-4xl font-medium tracking-tight text-slate-900">Tin tức Thế giới</h2>
+                <a href="/news/world-news" className="text-xs font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors">Xem tất cả →</a>
+              </div>
+              
+              <div className="space-y-8">
+                {worldNews.length > 0 ? (
+                  worldNews.map(item => (
+                    <article key={item._id} className="group flex gap-6 hover:bg-slate-50 transition-colors -mx-4 p-4 rounded-lg">
+                      {item.thumbnail && (
+                        <div className="w-24 h-24 sm:w-32 sm:h-32 shrink-0 bg-slate-100 overflow-hidden border border-slate-200">
+                          <img src={item.thumbnail} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        </div>
+                      )}
+                      <div className="space-y-2 flex-1 min-w-0">
+                        <div className="flex items-center gap-3">
+                          <span className="text-[9px] font-bold uppercase tracking-widest text-slate-500 bg-slate-100 px-1.5 py-0.5 border border-slate-200">
+                            {item.source}
+                          </span>
+                          <span className="text-xs font-light text-slate-400">
+                            {new Date(item.publishedAt).toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric', year: 'numeric' })}
+                          </span>
+                        </div>
+                        <h3 className="text-base sm:text-lg font-semibold text-slate-900 leading-snug group-hover:text-blue-600 transition-colors line-clamp-2">
+                          <a href={item.url} target="_blank" rel="noopener noreferrer">
+                            {item.title}
+                          </a>
+                        </h3>
+                        <p className="text-slate-500 text-xs font-light leading-relaxed line-clamp-2">
+                          {item.summary}
+                        </p>
+                      </div>
+                    </article>
+                  ))
+                ) : (
+                  <p className="text-sm font-light text-slate-400">Không có tin tức thế giới mới.</p>
+                )}
+              </div>
             </div>
 
-            <div className="flex flex-col">
-              {news.map(item => (
-                <article key={item._id} className="group flex flex-col md:flex-row gap-6 md:gap-12 py-10 border-b border-slate-200 hover:bg-slate-50 transition-colors -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-                  <div className="md:w-1/4 shrink-0">
-                    <p className="text-sm font-medium text-slate-500">{new Date(item.publishedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
-                    <span className="inline-block mt-2 text-xs font-semibold uppercase tracking-widest text-slate-400">{item.source}</span>
-                  </div>
-                  <div className="md:w-2/4">
-                    <h3 className="text-2xl md:text-3xl font-medium text-slate-900 leading-tight group-hover:text-blue-600 transition-colors">
-                      <a href={item.url} target="_blank" rel="noopener noreferrer">
-                        {item.title}
-                      </a>
-                    </h3>
-                  </div>
-                  <div className="md:w-1/4 hidden md:block">
-                    <p className="text-slate-500 font-light leading-relaxed line-clamp-3">
-                      {item.summary}
-                    </p>
-                  </div>
-                </article>
-              ))}
+            {/* Vietnam News Column */}
+            <div className="space-y-12">
+              <div className="flex items-end justify-between border-b border-slate-900 pb-6">
+                <h2 className="text-2xl md:text-4xl font-medium tracking-tight text-slate-900">Tin tức Việt Nam</h2>
+                <a href="/news/vietnam-news" className="text-xs font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors">Xem tất cả →</a>
+              </div>
+              
+              <div className="space-y-8">
+                {vietnamNews.length > 0 ? (
+                  vietnamNews.map(item => (
+                    <article key={item._id} className="group flex gap-6 hover:bg-slate-50 transition-colors -mx-4 p-4 rounded-lg">
+                      {item.thumbnail && (
+                        <div className="w-24 h-24 sm:w-32 sm:h-32 shrink-0 bg-slate-100 overflow-hidden border border-slate-200">
+                          <img src={item.thumbnail} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        </div>
+                      )}
+                      <div className="space-y-2 flex-1 min-w-0">
+                        <div className="flex items-center gap-3">
+                          <span className="text-[9px] font-bold uppercase tracking-widest text-slate-500 bg-slate-100 px-1.5 py-0.5 border border-slate-200">
+                            {item.source}
+                          </span>
+                          <span className="text-xs font-light text-slate-400">
+                            {new Date(item.publishedAt).toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric', year: 'numeric' })}
+                          </span>
+                        </div>
+                        <h3 className="text-base sm:text-lg font-semibold text-slate-900 leading-snug group-hover:text-blue-600 transition-colors line-clamp-2">
+                          <a href={item.url} target="_blank" rel="noopener noreferrer">
+                            {item.title}
+                          </a>
+                        </h3>
+                        <p className="text-slate-500 text-xs font-light leading-relaxed line-clamp-2">
+                          {item.summary}
+                        </p>
+                      </div>
+                    </article>
+                  ))
+                ) : (
+                  <p className="text-sm font-light text-slate-400">Không có tin tức Việt Nam mới.</p>
+                )}
+              </div>
             </div>
+
           </div>
-        </section>
-      )}
+        </div>
+      </section>
 
       {/* Research Section - Asymmetric / Split Layout */}
       {research.length > 0 && (
@@ -123,13 +187,19 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* Members Section - Editorial Masonry/Grid without boxes */}
+      {/* Featured Members Section */}
       {members.length > 0 && (
         <section className="w-full py-24 md:py-32">
           <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 border-b border-slate-900 pb-6">
-              <h2 className="text-3xl md:text-5xl font-medium tracking-tight text-slate-900">Our People</h2>
-              <a href="/people/students" className="text-sm font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors mt-6 md:mt-0">View Directory →</a>
+              <h2 className="text-3xl md:text-5xl font-medium tracking-tight text-slate-900">Thành viên nổi bật</h2>
+              <div className="flex flex-wrap gap-4 mt-6 md:mt-0 text-sm font-semibold uppercase tracking-widest text-slate-500">
+                <a href="/people/professor" className="hover:text-slate-900 transition-colors">Giáo sư</a>
+                <span className="text-slate-300">|</span>
+                <a href="/people/students" className="hover:text-slate-900 transition-colors">Học viên & Sinh viên</a>
+                <span className="text-slate-300">|</span>
+                <a href="/people/alumni" className="hover:text-slate-900 transition-colors">Cựu thành viên</a>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-16 lg:gap-x-10">
@@ -153,13 +223,13 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* Recruitments Section - Immersive Typography */}
+      {/* Recruitments Section */}
       {recruitments.length > 0 && (
-        <section className="w-full py-24 md:py-32">
+        <section className="w-full py-24 md:py-32 border-t border-slate-150">
           <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 border-b border-slate-900 pb-6">
-              <h2 className="text-3xl md:text-5xl font-medium tracking-tight text-slate-900">Join the Lab</h2>
-              <a href="/lab-recruitment" className="text-sm font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors mt-6 md:mt-0">All Openings →</a>
+              <h2 className="text-3xl md:text-5xl font-medium tracking-tight text-slate-900">Tuyển dụng Lab</h2>
+              <a href="/lab-recruitment" className="text-sm font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors mt-6 md:mt-0">Xem tất cả vị trí tuyển dụng →</a>
             </div>
 
             <div className="flex flex-col">
@@ -172,10 +242,10 @@ export default function HomePage() {
                         {isActive ? <span className="w-2 h-2 rounded-full bg-emerald-500"></span> : null}
                         {item.status}
                       </span>
-                      <p className="text-sm font-medium text-slate-500 mt-6">Deadline: {new Date(item.deadline).toLocaleDateString()}</p>
+                      <p className="text-sm font-medium text-slate-500 mt-6">Hạn nộp: {new Date(item.deadline).toLocaleDateString('vi-VN')}</p>
                     </div>
                     <div className="md:w-3/4 flex flex-col">
-                      <h3 className="text-3xl md:text-4xl font-medium text-slate-900 leading-tight mb-6">{item.title}</h3>
+                      <h3 className="text-2xl md:text-3xl font-medium text-slate-900 leading-tight mb-6">{item.title}</h3>
                       <p className="text-slate-600 font-light leading-relaxed max-w-3xl mb-8">{item.description}</p>
                       <a
                         href={item.googleFormUrl}
@@ -184,7 +254,7 @@ export default function HomePage() {
                         className={`inline-flex w-fit items-center text-sm font-semibold uppercase tracking-widest ${isActive ? 'text-blue-600 hover:text-blue-800' : 'cursor-not-allowed text-slate-400'} transition-colors`}
                         onClick={(e) => { if (!isActive) e.preventDefault() }}
                       >
-                        Apply Now →
+                        Ứng tuyển ngay →
                       </a>
                     </div>
                   </article>
