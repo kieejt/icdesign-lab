@@ -7,6 +7,7 @@ export default function HomePage() {
   const [recruitments, setRecruitments] = useState([])
   const [worldNews, setWorldNews] = useState([])
   const [vietnamNews, setVietnamNews] = useState([])
+  const [jobsNews, setJobsNews] = useState([])
 
   useEffect(() => {
     const fetchData = async () => {
@@ -24,8 +25,10 @@ export default function HomePage() {
         const approvedNews = resNews.data || [];
         const world = approvedNews.filter(item => item.category === 'World News');
         const vietnam = approvedNews.filter(item => item.category === 'Vietnam News');
+        const jobs = approvedNews.filter(item => item.category === 'Jobs');
         setWorldNews(world.slice(0, 3));
         setVietnamNews(vietnam.slice(0, 3));
+        setJobsNews(jobs.slice(0, 3));
       } catch (error) {
         console.error('Failed to fetch homepage data', error);
       }
@@ -216,6 +219,47 @@ export default function HomePage() {
                   </div>
                   <h3 className="text-xl font-medium text-slate-900">{member.name}</h3>
                   <p className="text-sm font-light text-slate-500 mt-1">{member.role}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Jobs & Internships Section */}
+      {jobsNews.length > 0 && (
+        <section className="w-full py-24 md:py-32 bg-slate-50 border-t border-slate-200">
+          <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
+            <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 border-b border-slate-900 pb-6">
+              <h2 className="text-3xl md:text-5xl font-medium tracking-tight text-slate-900">Cơ hội Nghề nghiệp</h2>
+              <a href="/news/jobs" className="text-sm font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors mt-6 md:mt-0">Xem tất cả cơ hội →</a>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {jobsNews.map(item => (
+                <article key={item._id} className="group bg-white p-6 border border-slate-200 hover:border-slate-900 transition-all flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 bg-slate-100 px-2 py-0.5 border border-slate-200">
+                        {item.source}
+                      </span>
+                      <span className="text-xs font-light text-slate-400">
+                        {new Date(item.publishedAt).toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric', year: 'numeric' })}
+                      </span>
+                    </div>
+                    <h3 className="text-lg font-semibold text-slate-900 leading-snug group-hover:text-blue-600 transition-colors line-clamp-2">
+                      <a href={item.url} target="_blank" rel="noopener noreferrer">
+                        {item.title}
+                      </a>
+                    </h3>
+                    <p className="text-slate-500 text-xs font-light leading-relaxed line-clamp-3">
+                      {item.summary}
+                    </p>
+                  </div>
+                  <div className="pt-6 border-t border-slate-100 mt-6 flex justify-between items-center">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Jobs & Internships</span>
+                    <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold uppercase tracking-widest text-slate-900 group-hover:text-blue-600 transition-colors">Chi tiết →</a>
+                  </div>
                 </article>
               ))}
             </div>
