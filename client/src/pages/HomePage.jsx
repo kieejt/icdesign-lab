@@ -71,8 +71,8 @@ export default function HomePage() {
             {/* World News Column */}
             <div className="space-y-12">
               <div className="flex items-end justify-between border-b border-slate-900 pb-6">
-                <h2 className="text-2xl md:text-4xl font-medium tracking-tight text-slate-900">Tin tức Thế giới</h2>
-                <a href="/news/world-news" className="text-xs font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors">Xem tất cả →</a>
+                <h2 className="text-2xl md:text-4xl font-medium tracking-tight text-slate-900">World News</h2>
+                <a href="/news/world-news" className="text-xs font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors">View All →</a>
               </div>
               
               <div className="space-y-8">
@@ -90,7 +90,7 @@ export default function HomePage() {
                             {item.source}
                           </span>
                           <span className="text-xs font-light text-slate-400">
-                            {new Date(item.publishedAt).toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric', year: 'numeric' })}
+                            {new Date(item.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                           </span>
                         </div>
                         <h3 className="text-base sm:text-lg font-semibold text-slate-900 leading-snug group-hover:text-blue-600 transition-colors line-clamp-2">
@@ -105,7 +105,7 @@ export default function HomePage() {
                     </article>
                   ))
                 ) : (
-                  <p className="text-sm font-light text-slate-400">Không có tin tức thế giới mới.</p>
+                  <p className="text-sm font-light text-slate-400">No world news available.</p>
                 )}
               </div>
             </div>
@@ -113,8 +113,8 @@ export default function HomePage() {
             {/* Vietnam News Column */}
             <div className="space-y-12">
               <div className="flex items-end justify-between border-b border-slate-900 pb-6">
-                <h2 className="text-2xl md:text-4xl font-medium tracking-tight text-slate-900">Tin tức Việt Nam</h2>
-                <a href="/news/vietnam-news" className="text-xs font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors">Xem tất cả →</a>
+                <h2 className="text-2xl md:text-4xl font-medium tracking-tight text-slate-900">Vietnam News</h2>
+                <a href="/news/vietnam-news" className="text-xs font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors">View All →</a>
               </div>
               
               <div className="space-y-8">
@@ -132,7 +132,7 @@ export default function HomePage() {
                             {item.source}
                           </span>
                           <span className="text-xs font-light text-slate-400">
-                            {new Date(item.publishedAt).toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric', year: 'numeric' })}
+                            {new Date(item.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                           </span>
                         </div>
                         <h3 className="text-base sm:text-lg font-semibold text-slate-900 leading-snug group-hover:text-blue-600 transition-colors line-clamp-2">
@@ -147,7 +147,7 @@ export default function HomePage() {
                     </article>
                   ))
                 ) : (
-                  <p className="text-sm font-light text-slate-400">Không có tin tức Việt Nam mới.</p>
+                  <p className="text-sm font-light text-slate-400">No Vietnam news available.</p>
                 )}
               </div>
             </div>
@@ -195,13 +195,13 @@ export default function HomePage() {
         <section className="w-full py-24 md:py-32">
           <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 border-b border-slate-900 pb-6">
-              <h2 className="text-3xl md:text-5xl font-medium tracking-tight text-slate-900">Thành viên nổi bật</h2>
+              <h2 className="text-3xl md:text-5xl font-medium tracking-tight text-slate-900">Featured Members</h2>
               <div className="flex flex-wrap gap-4 mt-6 md:mt-0 text-sm font-semibold uppercase tracking-widest text-slate-500">
-                <a href="/people/professor" className="hover:text-slate-900 transition-colors">Giáo sư</a>
+                <a href="/people/professor" className="hover:text-slate-900 transition-colors">Professors</a>
                 <span className="text-slate-300">|</span>
-                <a href="/people/students" className="hover:text-slate-900 transition-colors">Học viên & Sinh viên</a>
+                <a href="/people/students" className="hover:text-slate-900 transition-colors">Students</a>
                 <span className="text-slate-300">|</span>
-                <a href="/people/alumni" className="hover:text-slate-900 transition-colors">Cựu thành viên</a>
+                <a href="/people/alumni" className="hover:text-slate-900 transition-colors">Alumni</a>
               </div>
             </div>
 
@@ -231,8 +231,8 @@ export default function HomePage() {
         <section className="w-full py-24 md:py-32 bg-slate-50 border-t border-slate-200">
           <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 border-b border-slate-900 pb-6">
-              <h2 className="text-3xl md:text-5xl font-medium tracking-tight text-slate-900">Cơ hội Nghề nghiệp</h2>
-              <a href="/news/jobs" className="text-sm font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors mt-6 md:mt-0">Xem tất cả cơ hội →</a>
+              <h2 className="text-3xl md:text-5xl font-medium tracking-tight text-slate-900">Jobs & Internships</h2>
+              <a href="/news/jobs" className="text-sm font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors mt-6 md:mt-0">View All Opportunities →</a>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -244,7 +244,7 @@ export default function HomePage() {
                         {item.source}
                       </span>
                       <span className="text-xs font-light text-slate-400">
-                        {new Date(item.publishedAt).toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric', year: 'numeric' })}
+                        {new Date(item.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                       </span>
                     </div>
                     <h3 className="text-lg font-semibold text-slate-900 leading-snug group-hover:text-blue-600 transition-colors line-clamp-2">
@@ -258,7 +258,7 @@ export default function HomePage() {
                   </div>
                   <div className="pt-6 border-t border-slate-100 mt-6 flex justify-between items-center">
                     <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Jobs & Internships</span>
-                    <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold uppercase tracking-widest text-slate-900 group-hover:text-blue-600 transition-colors">Chi tiết →</a>
+                    <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold uppercase tracking-widest text-slate-900 group-hover:text-blue-600 transition-colors">Details →</a>
                   </div>
                 </article>
               ))}
@@ -272,8 +272,8 @@ export default function HomePage() {
         <section className="w-full py-24 md:py-32 border-t border-slate-150">
           <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 border-b border-slate-900 pb-6">
-              <h2 className="text-3xl md:text-5xl font-medium tracking-tight text-slate-900">Tuyển dụng Lab</h2>
-              <a href="/lab-recruitment" className="text-sm font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors mt-6 md:mt-0">Xem tất cả vị trí tuyển dụng →</a>
+              <h2 className="text-3xl md:text-5xl font-medium tracking-tight text-slate-900">Lab Recruitment</h2>
+              <a href="/lab-recruitment" className="text-sm font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors mt-6 md:mt-0">View All Positions →</a>
             </div>
 
             <div className="flex flex-col">
@@ -286,7 +286,7 @@ export default function HomePage() {
                         {isActive ? <span className="w-2 h-2 rounded-full bg-emerald-500"></span> : null}
                         {item.status}
                       </span>
-                      <p className="text-sm font-medium text-slate-500 mt-6">Hạn nộp: {new Date(item.deadline).toLocaleDateString('vi-VN')}</p>
+                      <p className="text-sm font-medium text-slate-500 mt-6">Deadline: {new Date(item.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
                     </div>
                     <div className="md:w-3/4 flex flex-col">
                       <h3 className="text-2xl md:text-3xl font-medium text-slate-900 leading-tight mb-6">{item.title}</h3>
@@ -298,7 +298,7 @@ export default function HomePage() {
                         className={`inline-flex w-fit items-center text-sm font-semibold uppercase tracking-widest ${isActive ? 'text-blue-600 hover:text-blue-800' : 'cursor-not-allowed text-slate-400'} transition-colors`}
                         onClick={(e) => { if (!isActive) e.preventDefault() }}
                       >
-                        Ứng tuyển ngay →
+                        Apply Now →
                       </a>
                     </div>
                   </article>
