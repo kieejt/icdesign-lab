@@ -1,8 +1,6 @@
 import { fetchVietnamWorks } from './sources/vietnamworks.js'
 import { fetchLinkedIn } from './sources/linkedin.js'
-import { fetchRemotive } from './sources/remotive.js'
-import { fetchRemoteOk } from './sources/remoteok.js'
-import { fetchGreenhouse } from './sources/greenhouse.js'
+import { fetchCareerlink } from './sources/careerlink.js'
 import { dedupeJobs } from './utils.js'
 
 export const fetchJobs = async () => {
@@ -11,15 +9,15 @@ export const fetchJobs = async () => {
   const results = await Promise.allSettled([
     fetchVietnamWorks(),
     fetchLinkedIn(),
-    fetchRemotive(),
-    fetchRemoteOk(),
-    fetchGreenhouse(),
+    fetchCareerlink(),
   ])
 
   let articles = []
   for (const result of results) {
     if (result.status === 'fulfilled') {
-      articles.push(...result.value)
+      // Limit each source to max 15 jobs to prevent one source (like LinkedIn) from dominating the top scores
+      const sourceArticles = result.value.slice(0, 15)
+      articles.push(...sourceArticles)
     } else {
       console.error('Job source failed:', result.reason?.message || result.reason)
     }

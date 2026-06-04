@@ -2,8 +2,8 @@ import { scoreArticle } from '../utils/scorer.js'
 import { rankAndSummarize } from './aiRanker.js'
 import News from '../models/News.js'
 import { ARTICLES_PER_CATEGORY } from '../constants/news.js'
-import { fetchWorldNews } from './scrapers/worldNews.js'
-import { fetchVietnamNews } from './scrapers/vietnamNews.js'
+import { fetchWorldNews } from './scrapers/worldNews/index.js'
+import { fetchVietnamNews } from './scrapers/vietnamNews/index.js'
 import { fetchJobs } from './scrapers/jobs.js'
 
 const CATEGORIES = ['World News', 'Vietnam News', 'Jobs']

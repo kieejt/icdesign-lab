@@ -7,6 +7,27 @@ import {
   CATEGORY_SECTION_STYLES,
 } from '../../constants/newsCategories'
 
+const getTimeGroup = (dateString) => {
+  const date = new Date(dateString)
+  const now = new Date()
+  
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const itemDay = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  
+  const diffTime = today - itemDay
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+  
+  if (diffDays <= 0) return 'Hôm nay'
+  if (diffDays === 1) return 'Hôm qua'
+  if (diffDays > 1 && diffDays <= 7) return 'Tuần này'
+  
+  if (date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()) {
+    return 'Tháng này'
+  }
+  
+  return 'Cũ hơn'
+}
+
 function NewsTable({ items, activeTab, onEdit, onAction, onDelete }) {
   if (items.length === 0) {
     return (
@@ -16,6 +37,113 @@ function NewsTable({ items, activeTab, onEdit, onAction, onDelete }) {
     )
   }
 
+  let groupedItems = { 'Tất cả': items }
+  if (activeTab === 'pending') {
+    groupedItems = {
+      'Hôm nay': [],
+      'Hôm qua': [],
+      'Tuần này': [],
+      'Tháng này': [],
+      'Cũ hơn': []
+    }
+    items.forEach(item => {
+      const group = getTimeGroup(item.createdAt || item.publishedAt)
+      if (groupedItems[group]) {
+        groupedItems[group].push(item)
+      } else {
+        groupedItems['Cũ hơn'].push(item)
+      }
+    })
+  }
+
+  const renderTableRows = (itemList) => {
+    return itemList.map((item) => (
+      <tr key={item._id} className="hover:bg-slate-50/80">
+        <td className="px-6 py-4 max-w-lg">
+          <div className="font-medium text-slate-900 mb-1 flex items-start gap-2">
+            {item.thumbnail && (
+              <img src={item.thumbnail} alt="" className="w-8 h-8 object-cover shrink-0" />
+            )}
+            <a
+              href={item.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-blue-600 hover:underline"
+            >
+              {item.title}
+            </a>
+          </div>
+          <div className="text-slate-500 text-xs mt-2 line-clamp-3 bg-slate-50 p-2 border border-slate-100">
+            {item.summary}
+          </div>
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap">
+          <span className="inline-flex items-center bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+            {item.source}
+          </span>
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap">
+          <div className="text-xs text-slate-500 font-medium">
+            {new Date(item.createdAt || item.publishedAt).toLocaleString('vi-VN')}
+          </div>
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap">
+          <span className="font-semibold text-emerald-600">{item.score}</span>
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap">
+          <div className="flex flex-col gap-2 min-w-[140px]">
+            <button
+              type="button"
+              onClick={() => onEdit(item)}
+              className="rounded bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-200 text-center"
+            >
+              Edit Detail
+            </button>
+            {activeTab === 'pending' ? (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => onAction(item._id, 'approve')}
+                  className="flex-1 rounded bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+                >
+                  Approve
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onAction(item._id, 'reject')}
+                  className="flex-1 rounded bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700"
+                >
+                  Reject
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2 items-center">
+                {activeTab === 'published' && (
+                  <button
+                    type="button"
+                    onClick={() => onDelete(item._id)}
+                    className="flex-1 rounded px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-200"
+                  >
+                    Delete
+                  </button>
+                )}
+                {activeTab === 'rejected' && (
+                  <button
+                    type="button"
+                    onClick={() => onAction(item._id, 'restore')}
+                    className="flex-1 rounded px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100"
+                  >
+                    Restore
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </td>
+      </tr>
+    ))
+  }
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left text-sm">
@@ -23,91 +151,29 @@ function NewsTable({ items, activeTab, onEdit, onAction, onDelete }) {
           <tr>
             <th className="px-6 py-3 font-medium">Title & AI Summary</th>
             <th className="px-6 py-3 font-medium">Source</th>
+            <th className="px-6 py-3 font-medium">Crawl Time</th>
             <th className="px-6 py-3 font-medium">AI Score</th>
             <th className="px-6 py-3 font-medium">Action</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200">
-          {items.map((item) => (
-            <tr key={item._id} className="hover:bg-slate-50/80">
-              <td className="px-6 py-4 max-w-lg">
-                <div className="font-medium text-slate-900 mb-1 flex items-start gap-2">
-                  {item.thumbnail && (
-                    <img src={item.thumbnail} alt="" className="w-8 h-8 object-cover shrink-0" />
-                  )}
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hover:text-blue-600 hover:underline"
-                  >
-                    {item.title}
-                  </a>
-                </div>
-                <div className="text-slate-500 text-xs mt-2 line-clamp-3 bg-slate-50 p-2 border border-slate-100">
-                  {item.summary}
-                </div>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <span className="inline-flex items-center bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-                  {item.source}
-                </span>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <span className="font-semibold text-emerald-600">{item.score}</span>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <div className="flex flex-col gap-2 min-w-[140px]">
-                  <button
-                    type="button"
-                    onClick={() => onEdit(item)}
-                    className="rounded bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-200 text-center"
-                  >
-                    Edit Detail
-                  </button>
-                  {activeTab === 'pending' ? (
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => onAction(item._id, 'approve')}
-                        className="flex-1 rounded bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
-                      >
-                        Approve
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onAction(item._id, 'reject')}
-                        className="flex-1 rounded bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700"
-                      >
-                        Reject
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2 items-center">
-                      {activeTab === 'published' && (
-                        <button
-                          type="button"
-                          onClick={() => onDelete(item._id)}
-                          className="flex-1 rounded px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-200"
-                        >
-                          Delete
-                        </button>
-                      )}
-                      {activeTab === 'rejected' && (
-                        <button
-                          type="button"
-                          onClick={() => onAction(item._id, 'restore')}
-                          className="flex-1 rounded px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100"
-                        >
-                          Restore
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </td>
-            </tr>
-          ))}
+          {activeTab === 'pending' ? (
+            Object.entries(groupedItems).map(([groupName, groupItems]) => {
+              if (groupItems.length === 0) return null
+              return (
+                <React.Fragment key={groupName}>
+                  <tr className="bg-slate-100/50">
+                    <td colSpan="5" className="px-6 py-2 font-semibold text-indigo-700 text-xs uppercase tracking-wider">
+                      {groupName} ({groupItems.length})
+                    </td>
+                  </tr>
+                  {renderTableRows(groupItems)}
+                </React.Fragment>
+              )
+            })
+          ) : (
+            renderTableRows(items)
+          )}
         </tbody>
       </table>
     </div>
@@ -234,7 +300,7 @@ const AdminNewsPage = () => {
   const handleManualFetch = async () => {
     setIsFetching(true)
     try {
-      const res = await api.post('/news/fetch')
+      const res = await api.post('/news/fetch', {}, { timeout: 60000 })
       const stats = res.data?.perCategory
       const summary = stats
         ? NEWS_CATEGORIES.map((c) => `${c.shortLabel}: ${stats[c.id]?.saved ?? 0} saved`).join('\n')
@@ -242,7 +308,11 @@ const AdminNewsPage = () => {
       alert(summary ? `Fetch completed.\n${summary}` : 'News aggregation successful!')
       fetchData()
     } catch (err) {
-      alert('Error during news aggregation.')
+      if (err.code === 'ECONNABORTED' || err.message.includes('timeout')) {
+        alert('Aggregation is taking longer than expected and is still running in the background. Please check back in a minute.')
+      } else {
+        alert('Error during news aggregation.')
+      }
     } finally {
       setIsFetching(false)
     }

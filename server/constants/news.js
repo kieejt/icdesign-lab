@@ -2,4 +2,4 @@
 export const ARTICLES_PER_CATEGORY = 5
 
 /** Minimum raw articles each scraper should aim to collect before scoring. */
-export const SCRAPER_MIN_POOL = 8
+export const SCRAPER_MIN_POOL = 20
