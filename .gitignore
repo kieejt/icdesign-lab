@@ -1,3 +1,6 @@
+# Uploads
+server/uploads/
+
 # Node dependencies
 node_modules/
 npm-debug.log*

@@ -15,7 +15,12 @@ import labEventRoutes from './routes/labEventRoutes.js'
 import galleryRoutes from './routes/galleryRoutes.js'
 import lectureRoutes from './routes/lectureRoutes.js'
 import analyticsRoutes from './routes/analyticsRoutes.js'
+import uploadRoutes from './routes/uploadRoutes.js'
+import path from 'path'
+import { fileURLToPath } from 'url'
 
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 import { startNewsCronJob } from './jobs/cron.js'
 
 dotenv.config()
@@ -84,6 +89,10 @@ app.use('/api/lab-events', labEventRoutes)
 app.use('/api/gallery', galleryRoutes)
 app.use('/api/lectures', lectureRoutes)
 app.use('/api/analytics', analyticsRoutes)
+app.use('/api/upload', uploadRoutes)
+
+// Serve uploads folder statically
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
 
 const PORT = process.env.PORT || 5000
 

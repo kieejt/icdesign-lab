@@ -55,6 +55,24 @@ export default function AdminPeoplePage() {
     }
   }
 
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    const formData = new FormData()
+    formData.append('image', file)
+
+    try {
+      // Show loading indicator in real implementation, for now just await
+      const { data } = await api.post('/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      setMemberForm({ ...memberForm, image: data.url })
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to upload image')
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <h2 className="text-2xl font-semibold tracking-tight text-slate-900 border-b border-slate-200 pb-4">Manage People</h2>
@@ -69,7 +87,21 @@ export default function AdminPeoplePage() {
         </select>
         <input type="email" value={memberForm.email} onChange={(e) => setMemberForm({ ...memberForm, email: e.target.value })} className="w-full rounded border px-3 py-2" placeholder="Email" required />
         <input value={memberForm.research} onChange={(e) => setMemberForm({ ...memberForm, research: e.target.value })} className="w-full rounded border px-3 py-2" placeholder="Research" />
-        <input value={memberForm.image} onChange={(e) => setMemberForm({ ...memberForm, image: e.target.value })} className="w-full rounded border px-3 py-2" placeholder="Image URL" />
+        
+        <div className="flex items-center gap-4 border rounded p-3 bg-slate-50">
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-slate-700 mb-1">Profile Image</label>
+            <input type="file" accept="image/*" onChange={handleImageUpload} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+            <div className="mt-2 text-xs text-slate-500">Or enter URL manually:</div>
+            <input value={memberForm.image} onChange={(e) => setMemberForm({ ...memberForm, image: e.target.value })} className="w-full rounded border px-3 py-1.5 text-sm mt-1" placeholder="Image URL" />
+          </div>
+          {memberForm.image && (
+            <div className="w-16 h-16 rounded overflow-hidden border bg-white shrink-0">
+              <img src={memberForm.image.startsWith('/') ? `http://localhost:5000${memberForm.image}` : memberForm.image} alt="Preview" className="w-full h-full object-cover" onError={(e) => { e.target.src = 'https://via.placeholder.com/64?text=Error' }} />
+            </div>
+          )}
+        </div>
+
         <button className="rounded bg-blue-600 px-4 py-2 text-white">{editingId ? 'Update' : 'Create'}</button>
       </form>
       <div className="mt-4 space-y-2">
