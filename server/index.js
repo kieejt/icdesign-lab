@@ -16,6 +16,7 @@ import galleryRoutes from './routes/galleryRoutes.js'
 import lectureRoutes from './routes/lectureRoutes.js'
 import analyticsRoutes from './routes/analyticsRoutes.js'
 import uploadRoutes from './routes/uploadRoutes.js'
+import settingRoutes from './routes/settingRoutes.js'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
@@ -90,6 +91,7 @@ app.use('/api/gallery', galleryRoutes)
 app.use('/api/lectures', lectureRoutes)
 app.use('/api/analytics', analyticsRoutes)
 app.use('/api/upload', uploadRoutes)
+app.use('/api/settings', settingRoutes)
 
 // Serve uploads folder statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')))

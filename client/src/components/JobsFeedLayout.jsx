@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import api from '../lib/api';
 
 function formatDate(dateString) {
@@ -19,6 +20,7 @@ function formatDate(dateString) {
 }
 
 export default function JobsFeedLayout({ title, subtitle, category, eyebrow }) {
+  const { t } = useTranslation();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -71,66 +73,92 @@ export default function JobsFeedLayout({ title, subtitle, category, eyebrow }) {
                 </svg>
               </div>
               <p className="text-slate-500 text-lg">
-                No active jobs or internships at the moment.
+                {t('jobs.noActiveJobs')}
               </p>
             </div>
           ) : (
-            <div className="flex flex-col gap-6">
-              {jobs.map((job) => (
-                <article
-                  key={job._id}
-                  className="group bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md hover:border-blue-200 transition-all duration-300 flex flex-col sm:flex-row gap-6 items-start"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
-                        {job.source || 'Company'}
-                      </span>
-                      <span className="text-sm text-slate-400 flex items-center gap-1">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                        {formatDate(job.publishedAt)}
-                      </span>
-                    </div>
-                    
-                    <h2 className="text-2xl font-bold text-slate-900 mt-2 mb-3 group-hover:text-blue-600 transition-colors">
-                      <a href={job.url} target="_blank" rel="noopener noreferrer" className="focus:outline-none">
-                        <span className="absolute inset-0" aria-hidden="true" />
-                        {job.title}
-                      </a>
-                    </h2>
-                    
-                    <p className="text-slate-600 line-clamp-2 md:line-clamp-3 font-light mb-4 text-base">
-                      {job.summary}
-                    </p>
-                  </div>
-                  
-                  <div className="w-full sm:w-auto flex-shrink-0 mt-4 sm:mt-0 flex flex-col items-center sm:items-end justify-center">
-                    {job.thumbnail && (
-                      <div className="w-20 h-20 sm:w-24 sm:h-24 hidden sm:block rounded-xl border border-slate-100 overflow-hidden mb-4 bg-white p-2">
-                        <img 
-                          src={job.thumbnail} 
-                          alt={`${job.source} logo`} 
-                          className="w-full h-full object-contain"
-                        />
+            <>
+              {(() => {
+                const hanoiJobs = jobs.filter(job => {
+                  const text = (job.title + ' ' + job.summary + ' ' + (job.tags || []).join(' ')).toLowerCase();
+                  return text.includes('hanoi') || text.includes('hà nội') || text.includes('ha noi') || /\bhn\b/.test(text);
+                });
+                const otherJobs = jobs.filter(job => !hanoiJobs.includes(job));
+
+                const renderJobList = (jobList, sectionTitle) => (
+                  <div className="mb-16">
+                    <h2 className="text-2xl font-bold text-slate-900 mb-6 border-b border-slate-200 pb-4">{sectionTitle}</h2>
+                    {jobList.length === 0 ? (
+                      <p className="text-slate-500 text-lg">{t('jobs.noActiveJobs')}</p>
+                    ) : (
+                      <div className="flex flex-col gap-6">
+                        {jobList.map((job) => (
+                          <article
+                            key={job._id}
+                            className="group relative bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md hover:border-blue-200 transition-all duration-300 flex flex-col sm:flex-row gap-6 items-start"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-3 mb-2">
+                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                                  {job.source || t('jobs.company')}
+                                </span>
+                                <span className="text-sm text-slate-400 flex items-center gap-1">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                  </svg>
+                                  {formatDate(job.publishedAt)}
+                                </span>
+                              </div>
+                              
+                              <h2 className="text-2xl font-bold text-slate-900 mt-2 mb-3 group-hover:text-blue-600 transition-colors">
+                                <a href={job.url} target="_blank" rel="noopener noreferrer" className="focus:outline-none">
+                                  <span className="absolute inset-0" aria-hidden="true" />
+                                  {job.title}
+                                </a>
+                              </h2>
+                              
+                              <p className="text-slate-600 line-clamp-2 md:line-clamp-3 font-light mb-4 text-base">
+                                {job.summary}
+                              </p>
+                            </div>
+                            
+                            <div className="w-full sm:w-auto flex-shrink-0 mt-4 sm:mt-0 flex flex-col items-center sm:items-end justify-center">
+                              {job.thumbnail && (
+                                <div className="w-20 h-20 sm:w-24 sm:h-24 hidden sm:block rounded-xl border border-slate-100 overflow-hidden mb-4 bg-white p-2">
+                                  <img 
+                                    src={job.thumbnail} 
+                                    alt={`${job.source} logo`} 
+                                    className="w-full h-full object-contain"
+                                  />
+                                </div>
+                              )}
+                              <a
+                                href={job.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 border border-transparent text-sm font-medium rounded-xl shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors relative z-10"
+                              >
+                                {t('jobs.applyNow')}
+                                <svg className="ml-2 -mr-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                                </svg>
+                              </a>
+                            </div>
+                          </article>
+                        ))}
                       </div>
                     )}
-                    <a
-                      href={job.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 border border-transparent text-sm font-medium rounded-xl shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors relative z-10"
-                    >
-                      Apply Now
-                      <svg className="ml-2 -mr-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
-                      </svg>
-                    </a>
                   </div>
-                </article>
-              ))}
-            </div>
+                );
+
+                return (
+                  <>
+                    {renderJobList(hanoiJobs, t('jobs.hanoiJobs'))}
+                    {renderJobList(otherJobs, t('jobs.otherCityJobs'))}
+                  </>
+                );
+              })()}
+            </>
           )}
         </div>
       </section>

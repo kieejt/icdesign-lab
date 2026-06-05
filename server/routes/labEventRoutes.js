@@ -2,6 +2,7 @@ import express from 'express'
 import verifyToken from '../middleware/verifyToken.js'
 import verifyAdmin from '../middleware/verifyAdmin.js'
 import LabEvent from '../models/LabEvent.js'
+import { logAdminAction } from '../utils/auditLogger.js'
 
 const router = express.Router()
 
@@ -22,6 +23,7 @@ router.post('/', verifyToken, verifyAdmin, async (req, res) => {
     }
 
     const newEvent = await LabEvent.create({ title, date, location, status, description })
+    await logAdminAction(req, 'CREATE_EVENT', `Created lab event: ${title}`)
     return res.status(201).json(newEvent)
   } catch (error) {
     return res.status(500).json({ message: 'Failed to create event' })
@@ -40,6 +42,7 @@ router.put('/:id', verifyToken, verifyAdmin, async (req, res) => {
     if (!updatedEvent) {
       return res.status(404).json({ message: 'Event not found' })
     }
+    await logAdminAction(req, 'UPDATE_EVENT', `Updated lab event: ${title}`)
     return res.json(updatedEvent)
   } catch (error) {
     return res.status(500).json({ message: 'Failed to update event' })
@@ -52,6 +55,7 @@ router.delete('/:id', verifyToken, verifyAdmin, async (req, res) => {
     if (!deletedEvent) {
       return res.status(404).json({ message: 'Event not found' })
     }
+    await logAdminAction(req, 'DELETE_EVENT', `Deleted lab event: ${deletedEvent.title}`)
     return res.json({ message: 'Event deleted' })
   } catch (error) {
     return res.status(500).json({ message: 'Failed to delete event' })

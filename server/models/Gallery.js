@@ -4,7 +4,8 @@ const gallerySchema = new mongoose.Schema(
   {
     title: { type: String, required: true, trim: true },
     category: { type: String, required: true, trim: true },
-    imageUrl: { type: String, required: true, trim: true },
+    coverImage: { type: String, trim: true },
+    images: [{ type: String }],
   },
   { timestamps: true }
 )

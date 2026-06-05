@@ -196,9 +196,6 @@ export default function AdminOverviewPage() {
         <div className="p-6 bg-white border border-slate-200/80 rounded-2xl flex flex-col justify-between shadow-sm hover:shadow-md hover:border-slate-350 transition-all duration-300">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Page Views</span>
-            <div className="p-2 bg-slate-50 border border-slate-100 rounded-lg text-slate-800">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
-            </div>
           </div>
           <div className="mt-4">
             <h3 className="text-3xl font-semibold text-slate-900 tracking-tight">{metrics.totalPageViews.toLocaleString()}</h3>
@@ -210,9 +207,6 @@ export default function AdminOverviewPage() {
         <div className="p-6 bg-white border border-slate-200/80 rounded-2xl flex flex-col justify-between shadow-sm hover:shadow-md hover:border-slate-350 transition-all duration-300">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Unique Visitors</span>
-            <div className="p-2 bg-slate-50 border border-slate-100 rounded-lg text-slate-800">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-            </div>
           </div>
           <div className="mt-4">
             <h3 className="text-3xl font-semibold text-slate-900 tracking-tight">{metrics.uniqueVisitors.toLocaleString()}</h3>
@@ -221,16 +215,13 @@ export default function AdminOverviewPage() {
         </div>
 
         {/* Visitors Today */}
-        <div className="p-6 bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-900 rounded-2xl flex flex-col justify-between shadow-md hover:shadow-xl hover:scale-[1.01] transition-all duration-300 text-white">
+        <div className="p-6 bg-white border border-slate-200/80 rounded-2xl flex flex-col justify-between shadow-sm hover:shadow-md hover:border-slate-350 transition-all duration-300">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-widest text-slate-300">Active Today</span>
-            <div className="p-2 bg-white/10 border border-white/20 rounded-lg text-white">
-              <svg className="w-4 h-4 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-            </div>
+            <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Active Today</span>
           </div>
           <div className="mt-4">
-            <h3 className="text-3xl font-semibold tracking-tight">{metrics.visitorsToday.toLocaleString()}</h3>
-            <p className="text-[10px] text-slate-300 font-semibold uppercase tracking-wider mt-1.5">Visitors today</p>
+            <h3 className="text-3xl font-semibold text-slate-900 tracking-tight">{metrics.visitorsToday.toLocaleString()}</h3>
+            <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mt-1.5">Visitors today</p>
           </div>
         </div>
 
@@ -238,9 +229,6 @@ export default function AdminOverviewPage() {
         <div className="p-6 bg-white border border-slate-200/80 rounded-2xl flex flex-col justify-between shadow-sm hover:shadow-md hover:border-slate-350 transition-all duration-300">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Reach Statistics</span>
-            <div className="p-2 bg-slate-50 border border-slate-100 rounded-lg text-slate-800">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-            </div>
           </div>
           <div className="grid grid-cols-2 gap-2 mt-4 pt-1 border-t border-slate-100">
             <div>

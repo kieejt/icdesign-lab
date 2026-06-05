@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import api from '../lib/api';
 
 export default function LecturesPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const token = localStorage.getItem('token');
 
@@ -51,7 +53,7 @@ export default function LecturesPage() {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 bg-white">
         <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-slate-900"></div>
-        <p className="text-slate-500 font-light tracking-wide animate-pulse">Entering Classroom...</p>
+        <p className="text-slate-500 font-light tracking-wide animate-pulse">{t('education.loadingClass')}</p>
       </div>
     );
   }
@@ -64,9 +66,9 @@ export default function LecturesPage() {
         {/* Page Header */}
         <section className="w-full pt-16 pb-24 border-b border-slate-200">
           <div className="max-w-[80rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
-            <h1 className="text-5xl md:text-7xl font-medium tracking-tighter text-slate-900">Lab Classroom</h1>
+            <h1 className="text-5xl md:text-7xl font-medium tracking-tighter text-slate-900">{t('education.classTitle')}</h1>
             <p className="mt-6 md:mt-8 max-w-2xl text-xl text-slate-600 leading-relaxed font-light">
-              Advanced computer engineering and IC Design video lecture portal. Restricted access for registered students and lab staff.
+              {t('education.classSubtitleRestricted')}
             </p>
           </div>
         </section>
@@ -81,9 +83,9 @@ export default function LecturesPage() {
             </div>
 
             <div className="space-y-3">
-              <h3 className="text-2xl font-semibold tracking-tight text-slate-900">Access Restricted</h3>
+              <h3 className="text-2xl font-semibold tracking-tight text-slate-900">{t('education.accessRestricted')}</h3>
               <p className="text-sm font-light text-slate-500 leading-relaxed">
-                Please log in with your lab credentials to access educational modules, watch course videos, download slides, and ask the professor questions.
+                {t('education.accessRestrictedDesc')}
               </p>
             </div>
 
@@ -91,7 +93,7 @@ export default function LecturesPage() {
               onClick={() => navigate('/login')}
               className="inline-flex items-center justify-center px-6 py-3 w-full text-xs font-bold uppercase tracking-widest text-white bg-slate-900 hover:bg-slate-800 transition-colors"
             >
-              Sign In to Lab Console →
+              {t('education.signIn')}
             </button>
           </div>
         </section>
@@ -107,13 +109,13 @@ export default function LecturesPage() {
       <section className="w-full pt-16 pb-20 border-b border-slate-200 bg-slate-50/50">
         <div className="max-w-[80rem] mx-auto px-4 sm:px-6 lg:px-8 w-full flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 text-left">
           <div className="space-y-4">
-            <h1 className="text-5xl md:text-7xl font-medium tracking-tighter text-slate-900">Lab Classroom</h1>
+            <h1 className="text-5xl md:text-7xl font-medium tracking-tighter text-slate-900">{t('education.classTitle')}</h1>
             <p className="text-lg text-slate-550 font-light max-w-xl">
-              Study professional lecture content, review lecture slides, and discuss computer engineering details with our professor.
+              {t('education.classSubtitle')}
             </p>
           </div>
           <div className="shrink-0 flex items-center gap-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Identity:</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">{t('education.identity')}</span>
             <span className="inline-flex items-center border border-slate-900 bg-slate-900 text-white px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded select-none">
               {currentUser.role}
             </span>
@@ -129,7 +131,7 @@ export default function LecturesPage() {
 
           {lectures.length === 0 ? (
             <div className="text-center py-24 border border-dashed border-slate-200 rounded-2xl">
-              <p className="text-slate-500 font-light text-sm">No lecture modules have been uploaded yet. Check back soon.</p>
+              <p className="text-slate-500 font-light text-sm">{t('education.noLectures')}</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -186,12 +188,12 @@ export default function LecturesPage() {
                       {/* Lecture Card Footer Metrics */}
                       <div className="flex items-center justify-between border-t border-slate-100 pt-4 text-xs font-semibold text-slate-450 uppercase tracking-wider">
                         <div className="flex items-center gap-3">
-                          <span>{lec.views || 0} views</span>
+                          <span>{lec.views || 0} {t('education.views')}</span>
                           <span>•</span>
-                          <span>{lec.comments?.length || 0} QA</span>
+                          <span>{lec.comments?.length || 0} {t('education.qa')}</span>
                         </div>
                         <span className="text-slate-900 group-hover:translate-x-1.5 transition-transform duration-300">
-                          Study Module →
+                          {t('education.studyModule')}
                         </span>
                       </div>
                     </div>

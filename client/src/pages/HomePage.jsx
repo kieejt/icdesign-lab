@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import api from '../lib/api';
 
 export default function HomePage() {
+  const { t } = useTranslation();
   const [research, setResearch] = useState([])
   const [members, setMembers] = useState([])
   const [recruitments, setRecruitments] = useState([])
@@ -48,14 +50,14 @@ export default function HomePage() {
           />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/20 to-transparent flex flex-col justify-end pointer-events-none">
             <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 w-full pb-16 md:pb-24 pointer-events-auto">
-              <p className="text-sm font-semibold tracking-widest uppercase text-white/60 mb-4">IC Design Lab</p>
+              <p className="text-sm font-semibold tracking-widest uppercase text-white/60 mb-4">{t('home.heroSubtitle')}</p>
               <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8">
                 <p className="max-w-2xl text-2xl md:text-3xl text-white leading-relaxed font-light">
-                  A premier research facility dedicated to advanced IC technology solutions, embedded systems, and computer engineering.
+                  {t('home.heroDesc')}
                 </p>
                 <div className="flex gap-4">
-                  <a href="/research/project" className="inline-flex items-center justify-center px-6 py-3 text-sm font-semibold text-slate-900 bg-white hover:bg-slate-100 transition-colors">Explore Research</a>
-                  <a href="/contact" className="inline-flex items-center justify-center px-6 py-3 text-sm font-semibold text-white border border-white/30 hover:border-white hover:bg-white/10 transition-colors">Contact Us</a>
+                  <a href="/research/project" className="inline-flex items-center justify-center px-6 py-3 text-sm font-semibold text-slate-900 bg-white hover:bg-slate-100 transition-colors">{t('home.exploreResearch')}</a>
+                  <a href="/contact" className="inline-flex items-center justify-center px-6 py-3 text-sm font-semibold text-white border border-white/30 hover:border-white hover:bg-white/10 transition-colors">{t('home.contactUs')}</a>
                 </div>
               </div>
             </div>
@@ -71,8 +73,8 @@ export default function HomePage() {
             {/* World News Column */}
             <div className="space-y-12">
               <div className="flex items-end justify-between border-b border-slate-900 pb-6">
-                <h2 className="text-2xl md:text-4xl font-medium tracking-tight text-slate-900">World News</h2>
-                <a href="/news/world-news" className="text-xs font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors">View All →</a>
+                <h2 className="text-2xl md:text-4xl font-medium tracking-tight text-slate-900">{t('home.worldNews')}</h2>
+                <a href="/news/world-news" className="text-xs font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors">{t('home.viewAll')}</a>
               </div>
               
               <div className="space-y-8">
@@ -105,7 +107,7 @@ export default function HomePage() {
                     </article>
                   ))
                 ) : (
-                  <p className="text-sm font-light text-slate-400">No world news available.</p>
+                  <p className="text-sm font-light text-slate-400">{t('home.noWorldNews')}</p>
                 )}
               </div>
             </div>
@@ -113,8 +115,8 @@ export default function HomePage() {
             {/* Vietnam News Column */}
             <div className="space-y-12">
               <div className="flex items-end justify-between border-b border-slate-900 pb-6">
-                <h2 className="text-2xl md:text-4xl font-medium tracking-tight text-slate-900">Vietnam News</h2>
-                <a href="/news/vietnam-news" className="text-xs font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors">View All →</a>
+                <h2 className="text-2xl md:text-4xl font-medium tracking-tight text-slate-900">{t('home.vietnamNews')}</h2>
+                <a href="/news/vietnam-news" className="text-xs font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors">{t('home.viewAll')}</a>
               </div>
               
               <div className="space-y-8">
@@ -147,7 +149,7 @@ export default function HomePage() {
                     </article>
                   ))
                 ) : (
-                  <p className="text-sm font-light text-slate-400">No Vietnam news available.</p>
+                  <p className="text-sm font-light text-slate-400">{t('home.noVietnamNews')}</p>
                 )}
               </div>
             </div>
@@ -161,8 +163,8 @@ export default function HomePage() {
         <section className="w-full py-24 md:py-32 bg-slate-50">
           <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 md:mb-24 border-b border-slate-900 pb-6">
-              <h2 className="text-3xl md:text-5xl font-medium tracking-tight text-slate-900">Research Focus</h2>
-              <a href="/research/project" className="text-sm font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors mt-6 md:mt-0">Explore Projects →</a>
+              <h2 className="text-3xl md:text-5xl font-medium tracking-tight text-slate-900">{t('home.researchFocus')}</h2>
+              <a href="/research/project" className="text-sm font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors mt-6 md:mt-0">{t('home.exploreProjects')}</a>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-12 gap-y-16 md:gap-x-12 lg:gap-x-16">
@@ -195,13 +197,13 @@ export default function HomePage() {
         <section className="w-full py-24 md:py-32">
           <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 border-b border-slate-900 pb-6">
-              <h2 className="text-3xl md:text-5xl font-medium tracking-tight text-slate-900">Featured Members</h2>
+              <h2 className="text-3xl md:text-5xl font-medium tracking-tight text-slate-900">{t('home.featuredMembers')}</h2>
               <div className="flex flex-wrap gap-4 mt-6 md:mt-0 text-sm font-semibold uppercase tracking-widest text-slate-500">
-                <a href="/people/professor" className="hover:text-slate-900 transition-colors">Professors</a>
+                <a href="/people/professor" className="hover:text-slate-900 transition-colors">{t('home.professors')}</a>
                 <span className="text-slate-300">|</span>
-                <a href="/people/students" className="hover:text-slate-900 transition-colors">Students</a>
+                <a href="/people/students" className="hover:text-slate-900 transition-colors">{t('home.students')}</a>
                 <span className="text-slate-300">|</span>
-                <a href="/people/alumni" className="hover:text-slate-900 transition-colors">Alumni</a>
+                <a href="/people/alumni" className="hover:text-slate-900 transition-colors">{t('home.alumni')}</a>
               </div>
             </div>
 
@@ -231,8 +233,8 @@ export default function HomePage() {
         <section className="w-full py-24 md:py-32 bg-slate-50 border-t border-slate-200">
           <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 border-b border-slate-900 pb-6">
-              <h2 className="text-3xl md:text-5xl font-medium tracking-tight text-slate-900">Jobs & Internships</h2>
-              <a href="/news/jobs" className="text-sm font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors mt-6 md:mt-0">View All Opportunities →</a>
+              <h2 className="text-3xl md:text-5xl font-medium tracking-tight text-slate-900">{t('home.jobsAndInternships')}</h2>
+              <a href="/news/jobs" className="text-sm font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors mt-6 md:mt-0">{t('home.viewAllOpportunities')}</a>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -257,8 +259,8 @@ export default function HomePage() {
                     </p>
                   </div>
                   <div className="pt-6 border-t border-slate-100 mt-6 flex justify-between items-center">
-                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Jobs & Internships</span>
-                    <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold uppercase tracking-widest text-slate-900 group-hover:text-blue-600 transition-colors">Details →</a>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">{t('home.jobsAndInternships')}</span>
+                    <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold uppercase tracking-widest text-slate-900 group-hover:text-blue-600 transition-colors">{t('home.details')}</a>
                   </div>
                 </article>
               ))}
@@ -272,8 +274,8 @@ export default function HomePage() {
         <section className="w-full py-24 md:py-32 border-t border-slate-150">
           <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 border-b border-slate-900 pb-6">
-              <h2 className="text-3xl md:text-5xl font-medium tracking-tight text-slate-900">Lab Recruitment</h2>
-              <a href="/lab-recruitment" className="text-sm font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors mt-6 md:mt-0">View All Positions →</a>
+              <h2 className="text-3xl md:text-5xl font-medium tracking-tight text-slate-900">{t('home.labRecruitment')}</h2>
+              <a href="/lab-recruitment" className="text-sm font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors mt-6 md:mt-0">{t('home.viewAllPositions')}</a>
             </div>
 
             <div className="flex flex-col">
@@ -286,7 +288,7 @@ export default function HomePage() {
                         {isActive ? <span className="w-2 h-2 rounded-full bg-emerald-500"></span> : null}
                         {item.status}
                       </span>
-                      <p className="text-sm font-medium text-slate-500 mt-6">Deadline: {new Date(item.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                      <p className="text-sm font-medium text-slate-500 mt-6">{t('home.deadline')}{new Date(item.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
                     </div>
                     <div className="md:w-3/4 flex flex-col">
                       <h3 className="text-2xl md:text-3xl font-medium text-slate-900 leading-tight mb-6">{item.title}</h3>
@@ -298,7 +300,7 @@ export default function HomePage() {
                         className={`inline-flex w-fit items-center text-sm font-semibold uppercase tracking-widest ${isActive ? 'text-blue-600 hover:text-blue-800' : 'cursor-not-allowed text-slate-400'} transition-colors`}
                         onClick={(e) => { if (!isActive) e.preventDefault() }}
                       >
-                        Apply Now →
+                        {t('home.applyNow')}
                       </a>
                     </div>
                   </article>

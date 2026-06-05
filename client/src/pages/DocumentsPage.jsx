@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import api from '../lib/api';
 
 export default function DocumentsPage() {
+  const { t } = useTranslation();
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -61,7 +63,7 @@ export default function DocumentsPage() {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
         <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-slate-900"></div>
-        <p className="text-slate-500 font-light tracking-wide animate-pulse">Loading academic catalog...</p>
+        <p className="text-slate-500 font-light tracking-wide animate-pulse">{t('education.loadingDocs')}</p>
       </div>
     );
   }
@@ -72,9 +74,9 @@ export default function DocumentsPage() {
       {/* Editorial Minimal Header */}
       <section className="w-full pt-16 pb-24 border-b border-slate-200">
         <div className="max-w-[80rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
-          <h1 className="text-5xl md:text-7xl font-medium tracking-tighter text-slate-900">Books & Documents</h1>
+          <h1 className="text-5xl md:text-7xl font-medium tracking-tighter text-slate-900">{t('education.docsTitle')}</h1>
           <p className="mt-6 md:mt-8 max-w-2xl text-xl text-slate-600 leading-relaxed font-light">
-            Explore our comprehensive collection of textbook references, research manuals, tutorials, and lab-curated digital guides.
+            {t('education.docsSubtitle')}
           </p>
         </div>
       </section>
@@ -91,7 +93,7 @@ export default function DocumentsPage() {
               <input
                 type="text"
                 className="block w-full border border-slate-200 py-3 px-4 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-0 sm:text-sm bg-transparent"
-                placeholder="Search by book title or subject..."
+                placeholder={t('education.searchDocs')}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -112,7 +114,7 @@ export default function DocumentsPage() {
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                       }`}
                   >
-                    {type === 'All' ? 'All Access' : type === 'Free' ? 'Free' : 'Paid'}
+                    {type === 'All' ? t('education.allAccess') : type === 'Free' ? t('education.free') : t('education.paid')}
                   </button>
                 ))}
               </div>
@@ -120,8 +122,8 @@ export default function DocumentsPage() {
               {/* GDrive Ownership Filter */}
               <div className="flex border border-slate-200 p-0.5" role="group">
                 {[
-                  { key: 'All', label: 'All Sources' },
-                  { key: 'Owned', label: 'Lab Owned' }
+                  { key: 'All', label: t('education.allSources') },
+                  { key: 'Owned', label: t('education.labOwned') }
                 ].map(opt => (
                   <button
                     key={opt.key}
@@ -145,16 +147,16 @@ export default function DocumentsPage() {
               <thead>
                 <tr className="bg-slate-50/50">
                   <th scope="col" className="py-5 pl-4 pr-4 text-xs font-semibold uppercase tracking-widest text-slate-500 w-1/2">
-                    Book Title & Resource Info
+                    {t('education.bookTitleInfo')}
                   </th>
                   <th scope="col" className="px-4 py-5 text-xs font-semibold uppercase tracking-widest text-slate-500 w-1/4">
-                    Subject
+                    {t('education.subject')}
                   </th>
                   <th scope="col" className="px-4 py-5 text-xs font-semibold uppercase tracking-widest text-slate-500 w-1/8">
-                    Reference
+                    {t('education.reference')}
                   </th>
                   <th scope="col" className="py-5 pl-4 pr-4 text-right text-xs font-semibold uppercase tracking-widest text-slate-500 w-1/8">
-                    Download
+                    {t('education.download')}
                   </th>
                 </tr>
               </thead>
@@ -171,17 +173,17 @@ export default function DocumentsPage() {
                         <div className="flex flex-wrap items-center gap-2">
                           {book.type === 'Free' ? (
                             <span className="inline-flex items-center border border-emerald-200 px-2.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-emerald-800 bg-emerald-50/10">
-                              Free Access
+                              {t('education.freeAccess')}
                             </span>
                           ) : (
                             <span className="inline-flex items-center border border-amber-200 px-2.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-800 bg-amber-50/10">
-                              Purchase Required
+                              {t('education.purchaseReq')}
                             </span>
                           )}
 
                           {book.isLabOwned && (
                             <span className="inline-flex items-center border border-slate-900 px-2.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-slate-900 bg-slate-900/5">
-                              Lab Owned Edition
+                              {t('education.labOwnedEd')}
                             </span>
                           )}
                         </div>
@@ -192,7 +194,7 @@ export default function DocumentsPage() {
                     {/* Subject */}
                     <td className="px-4 py-6 whitespace-nowrap">
                       <span className="text-sm font-light text-slate-650">
-                        {book.subject || 'General'}
+                        {book.subject || t('education.general')}
                       </span>
                     </td>
 
@@ -204,7 +206,7 @@ export default function DocumentsPage() {
                         rel="noopener noreferrer"
                         className="text-xs font-semibold uppercase tracking-wider text-slate-800 hover:text-slate-600 transition-colors underline decoration-slate-200 underline-offset-4"
                       >
-                        Details →
+                        {t('education.details')}
                       </a>
                     </td>
 
@@ -216,7 +218,7 @@ export default function DocumentsPage() {
                           onClick={() => handleDownload(book)}
                           className="inline-flex items-center justify-center px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-white bg-slate-900 hover:bg-slate-800 transition-colors"
                         >
-                          Download GDrive
+                          {t('education.downloadGDrive')}
                         </button>
                       ) : (
                         <span className="text-xs text-slate-400 italic font-light">-</span>
@@ -232,9 +234,9 @@ export default function DocumentsPage() {
           {/* Empty Catalog State */}
           {filteredBooks.length === 0 && (
             <div className="text-center py-20 px-4">
-              <h3 className="text-lg font-medium text-slate-900 mb-1">No books matched your criteria</h3>
+              <h3 className="text-lg font-medium text-slate-900 mb-1">{t('education.noBooksTitle')}</h3>
               <p className="text-slate-500 text-sm max-w-sm mx-auto font-light">
-                Try adjusting your search terms, selection filters, or explore all materials instead.
+                {t('education.noBooksDesc')}
               </p>
             </div>
           )}

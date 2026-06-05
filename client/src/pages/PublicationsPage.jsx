@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import api from '../lib/api';
 
 export default function PublicationsPage() {
+  const { t } = useTranslation();
   const [publications, setPublications] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -34,9 +36,9 @@ export default function PublicationsPage() {
     <div className="w-full flex flex-col items-center">
       <section className="w-full pt-16 pb-24 border-b border-slate-200">
         <div className="max-w-[80rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
-          <h1 className="text-5xl md:text-7xl font-medium tracking-tighter text-slate-900">Publications Archive</h1>
+          <h1 className="text-5xl md:text-7xl font-medium tracking-tighter text-slate-900">{t('research.pubsTitle')}</h1>
           <p className="mt-6 md:mt-8 max-w-2xl text-xl text-slate-600 leading-relaxed font-light">
-            A comprehensive record of our academic contributions, peer-reviewed research papers, and technical reports.
+            {t('research.pubsSubtitle')}
           </p>
         </div>
       </section>
@@ -106,7 +108,7 @@ export default function PublicationsPage() {
               
               {sortedYears.length === 0 && (
                 <div className="text-center py-24 text-slate-500 font-light">
-                  No publications archived yet.
+                  {t('research.noPubs')}
                 </div>
               )}
             </div>

@@ -2,6 +2,7 @@ import express from 'express'
 import verifyToken from '../middleware/verifyToken.js'
 import verifyAdmin from '../middleware/verifyAdmin.js'
 import Recruitment from '../models/Recruitment.js'
+import { logAdminAction } from '../utils/auditLogger.js'
 
 const router = express.Router()
 
@@ -38,6 +39,9 @@ router.post('/', verifyToken, verifyAdmin, async (req, res) => {
       deadline,
       status: status || 'active',
     })
+    
+    await logAdminAction(req, 'CREATE_RECRUITMENT', `Created recruitment post: ${title}`)
+    
     return res.status(201).json(item)
   } catch (error) {
     return res.status(500).json({ message: 'Failed to create recruitment' })
@@ -72,6 +76,8 @@ router.put('/:id', verifyToken, verifyAdmin, async (req, res) => {
       return res.status(404).json({ message: 'Recruitment not found' })
     }
 
+    await logAdminAction(req, 'UPDATE_RECRUITMENT', `Updated recruitment post: ${title}`)
+
     return res.json(item)
   } catch (error) {
     return res.status(500).json({ message: 'Failed to update recruitment' })
@@ -84,6 +90,9 @@ router.delete('/:id', verifyToken, verifyAdmin, async (req, res) => {
     if (!item) {
       return res.status(404).json({ message: 'Recruitment not found' })
     }
+    
+    await logAdminAction(req, 'DELETE_RECRUITMENT', `Deleted recruitment post: ${item.title}`)
+    
     return res.json({ message: 'Recruitment deleted' })
   } catch (error) {
     return res.status(500).json({ message: 'Failed to delete recruitment' })

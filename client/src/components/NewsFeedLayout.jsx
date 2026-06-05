@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import api from '../lib/api';
 
 function formatDate(dateString) {
@@ -10,6 +11,7 @@ function formatDate(dateString) {
 }
 
 export default function NewsFeedLayout({ title, subtitle, category, eyebrow }) {
+  const { t } = useTranslation();
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -84,7 +86,7 @@ export default function NewsFeedLayout({ title, subtitle, category, eyebrow }) {
             </div>
           ) : news.length === 0 ? (
             <p className="text-center py-24 text-slate-500 font-light text-lg">
-              No published articles in this category yet. Check back soon.
+              {t('media.newsEmpty')}
             </p>
           ) : (
             <div className="w-full space-y-16">
@@ -93,15 +95,15 @@ export default function NewsFeedLayout({ title, subtitle, category, eyebrow }) {
                 <div className="space-y-12">
                   <div className="border-b border-slate-900 pb-6">
                     <h2 className="text-3xl md:text-4xl font-medium tracking-tight text-slate-900">
-                      Latest Updates
+                      {t('media.latestUpdates')}
                     </h2>
                     <p className="text-xs text-slate-400 mt-1 font-light uppercase tracking-wider">
-                      The 20 newest stories in {category}
+                      {t('media.newestStories', { category })}
                     </p>
                   </div>
                   
                   {newestArticles.length === 0 ? (
-                    <p className="text-slate-500 font-light py-8">No updates in this category.</p>
+                    <p className="text-slate-500 font-light py-8">{t('media.noUpdates')}</p>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-16">
                       {newestArticles.map((item) => (
@@ -148,15 +150,15 @@ export default function NewsFeedLayout({ title, subtitle, category, eyebrow }) {
                 <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b border-slate-200 pb-6 gap-4">
                   <div>
                     <h2 className="text-2xl md:text-3xl font-medium tracking-tight text-slate-900">
-                      News Archive
+                      {t('media.newsArchive')}
                     </h2>
                     <p className="text-xs text-slate-400 mt-1 font-light uppercase tracking-wider">
-                      Older articles in {category}
+                      {t('media.olderArticles', { category })}
                     </p>
                   </div>
                   {totalPages > 1 && (
                     <span className="text-xs font-light text-slate-500 uppercase tracking-widest">
-                      Page {currentPage} of {totalPages}
+                      {t('media.pageOf', { current: currentPage, total: totalPages })}
                     </span>
                   )}
                 </div>
@@ -164,8 +166,8 @@ export default function NewsFeedLayout({ title, subtitle, category, eyebrow }) {
                 {paginatedOlder.length === 0 ? (
                   <p className="text-slate-500 font-light py-8 text-sm">
                     {currentPage === 1 
-                      ? "No older articles in this category." 
-                      : "No more articles found."}
+                      ? t('media.noOlder') 
+                      : t('media.noMore')}
                   </p>
                 ) : (
                   <div className="divide-y divide-slate-100">
@@ -203,7 +205,7 @@ export default function NewsFeedLayout({ title, subtitle, category, eyebrow }) {
                       disabled={currentPage === 1}
                       className="inline-flex items-center px-4 py-2 border border-slate-200 text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50 disabled:opacity-40 transition-colors"
                     >
-                      ← Previous
+                      {t('media.prev')}
                     </button>
 
                     <div className="hidden md:flex gap-1.5">
@@ -227,7 +229,7 @@ export default function NewsFeedLayout({ title, subtitle, category, eyebrow }) {
                       disabled={currentPage === totalPages}
                       className="inline-flex items-center px-4 py-2 border border-slate-200 text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50 disabled:opacity-40 transition-colors"
                     >
-                      Next →
+                      {t('media.next')}
                     </button>
                   </div>
                 )}

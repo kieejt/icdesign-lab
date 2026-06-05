@@ -9,10 +9,11 @@ export const publicNavItems = [
     ]
   },
   {
-    label: 'Research',
+    label: 'Research and Teaching',
     children: [
       { to: '/research/project', label: 'Project' },
       { to: '/research/publications', label: 'Publications' },
+      { to: '/lectures', label: 'Lectures' },
     ]
   },
   {
@@ -31,8 +32,6 @@ export const publicNavItems = [
     ]
   },
   { to: '/news/jobs', label: 'Jobs & Internship' },
-  { to: '/lab-recruitment', label: 'Join the Lab' },
-  { to: '/lectures', label: 'Lectures' },
   { to: '/contact', label: 'Contact' },
 ]
 
@@ -43,7 +42,6 @@ export const adminNavItems = [
   { to: '/admin/lab-event', label: 'Lab Event' },
   { to: '/admin/documents', label: 'Documents' },
   { to: '/admin/news', label: 'News' },
-  { to: '/admin/recruitment', label: 'Lab Recruitment' },
   { to: '/admin/contact', label: 'Contact' },
   { to: '/admin/lectures', label: 'Upload Lectures' },
   { to: '/admin/accounts', label: 'Manage Accounts' },

@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import api from '../lib/api';
 import ErrorText from '../components/ErrorText';
 
 export default function LectureDetailPage() {
+  const { t } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const token = localStorage.getItem('token');
@@ -35,9 +37,9 @@ export default function LectureDetailPage() {
     } catch (err) {
       console.error('Failed to load lecture details:', err);
       if (err.response?.status === 404) {
-        setError('Lecture module not found.');
+        setError(t('education.errorNotFound'));
       } else {
-        setError('Failed to validate session token or load lecture contents.');
+        setError(t('education.errorLoad'));
       }
     } finally {
       setLoading(false);
@@ -113,7 +115,7 @@ export default function LectureDetailPage() {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 bg-white">
         <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-slate-900"></div>
-        <p className="text-slate-550 font-light tracking-wide animate-pulse">Entering Classroom...</p>
+        <p className="text-slate-550 font-light tracking-wide animate-pulse">{t('education.loadingClass')}</p>
       </div>
     );
   }
@@ -126,9 +128,9 @@ export default function LectureDetailPage() {
         {/* Page Header */}
         <section className="w-full pt-16 pb-24 border-b border-slate-200">
           <div className="max-w-[80rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
-            <h1 className="text-5xl md:text-7xl font-medium tracking-tighter text-slate-900">Lab Classroom</h1>
+            <h1 className="text-5xl md:text-7xl font-medium tracking-tighter text-slate-900">{t('education.classTitle')}</h1>
             <p className="mt-6 md:mt-8 max-w-2xl text-xl text-slate-650 leading-relaxed font-light">
-              Advanced computer engineering and IC Design video lecture portal. Restricted access for registered students and lab staff.
+              {t('education.classSubtitleRestricted')}
             </p>
           </div>
         </section>
@@ -143,9 +145,9 @@ export default function LectureDetailPage() {
             </div>
             
             <div className="space-y-3">
-              <h3 className="text-2xl font-semibold tracking-tight text-slate-900">Access Restricted</h3>
+              <h3 className="text-2xl font-semibold tracking-tight text-slate-900">{t('education.accessRestricted')}</h3>
               <p className="text-sm font-light text-slate-500 leading-relaxed">
-                Please log in with your lab credentials to access educational modules, watch course videos, download slides, and ask the professor questions.
+                {t('education.accessRestrictedDesc')}
               </p>
             </div>
 
@@ -153,7 +155,7 @@ export default function LectureDetailPage() {
               onClick={() => navigate('/login')}
               className="inline-flex items-center justify-center px-6 py-3 w-full text-xs font-bold uppercase tracking-widest text-white bg-slate-900 hover:bg-slate-800 transition-colors"
             >
-              Sign In to Lab Console →
+              {t('education.signIn')}
             </button>
           </div>
         </section>
@@ -173,7 +175,7 @@ export default function LectureDetailPage() {
             to="/lectures"
             className="inline-flex items-center justify-center border border-slate-900 hover:bg-slate-900 hover:text-white px-6 py-3 text-xs font-bold uppercase tracking-widest text-slate-900 transition-colors"
           >
-            ← Back to Classroom
+            {t('education.backToClass')}
           </Link>
         </div>
       </div>
@@ -191,7 +193,7 @@ export default function LectureDetailPage() {
               to="/lectures"
               className="inline-flex items-center text-xs font-bold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors gap-1.5"
             >
-              ← Back to Classroom
+              {t('education.backToClass')}
             </Link>
           </div>
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
@@ -200,13 +202,13 @@ export default function LectureDetailPage() {
                 {lecture.title}
               </h1>
               <div className="flex items-center gap-4 text-xs font-semibold text-slate-450 uppercase tracking-wider">
-                <span>Published: {new Date(lecture.createdAt).toLocaleDateString()}</span>
+                <span>{t('education.published')} {new Date(lecture.createdAt).toLocaleDateString()}</span>
                 <span>•</span>
-                <span>👁 {lecture.views} views</span>
+                <span>👁 {lecture.views} {t('education.views')}</span>
               </div>
             </div>
             <div className="shrink-0 flex items-center gap-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Identity:</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">{t('education.identity')}</span>
               <span className="inline-flex items-center border border-slate-900 bg-slate-900 text-white px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded">
                 {currentUser.role}
               </span>
@@ -237,7 +239,7 @@ export default function LectureDetailPage() {
               <svg className="w-8 h-8 opacity-45" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
               </svg>
-              <span>No lecture video provided.</span>
+              <span>{t('education.noVideo')}</span>
             </div>
           )}
 
@@ -246,13 +248,13 @@ export default function LectureDetailPage() {
             
             {/* Description */}
             <div className="flex-1 space-y-4 text-left">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">Lecture Summary</h3>
+              <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">{t('education.lecSummary')}</h3>
               {lecture.description ? (
                 <p className="text-slate-700 font-light leading-relaxed whitespace-pre-wrap text-base">
                   {lecture.description}
                 </p>
               ) : (
-                <p className="text-slate-400 italic font-light text-sm">No lecture overview provided.</p>
+                <p className="text-slate-400 italic font-light text-sm">{t('education.noOverview')}</p>
               )}
             </div>
 
@@ -260,8 +262,8 @@ export default function LectureDetailPage() {
             {lecture.materialUrl && (
               <div className="w-full md:w-80 p-6 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col gap-4 text-left">
                 <div className="space-y-1">
-                  <h4 className="text-sm font-semibold text-slate-900">Lecture Handouts</h4>
-                  <p className="text-xs text-slate-500 font-light">Download lecture slides and pdf documents.</p>
+                  <h4 className="text-sm font-semibold text-slate-900">{t('education.lecHandouts')}</h4>
+                  <p className="text-xs text-slate-500 font-light">{t('education.lecHandoutsDesc')}</p>
                 </div>
                 <a
                   href={lecture.materialUrl}
@@ -269,7 +271,7 @@ export default function LectureDetailPage() {
                   rel="noopener noreferrer"
                   className="w-full inline-flex items-center justify-center bg-slate-900 hover:bg-slate-800 px-4 py-3 text-xs font-bold uppercase tracking-widest text-white transition-colors rounded-lg shadow-sm"
                 >
-                  Download PDF Slides →
+                  {t('education.downloadPdf')}
                 </a>
               </div>
             )}
@@ -280,9 +282,9 @@ export default function LectureDetailPage() {
           <div className="pt-12 border-t border-slate-200 space-y-8 text-left">
             
             <div>
-              <h3 className="text-2xl font-semibold tracking-tight text-slate-900">Classroom Discussion</h3>
+              <h3 className="text-2xl font-semibold tracking-tight text-slate-900">{t('education.classDiscussion')}</h3>
               <p className="text-xs text-slate-500 font-light mt-1">
-                Post conceptual questions regarding this lecture module. Replies will be reviewed by the professor.
+                {t('education.classDiscussionDesc')}
               </p>
             </div>
 
@@ -294,7 +296,7 @@ export default function LectureDetailPage() {
                   onChange={(e) => setCommentText(e.target.value)}
                   rows={3}
                   className="block w-full border border-slate-200 rounded-xl py-3 px-4 text-slate-900 focus:border-slate-900 focus:ring-0 sm:text-sm bg-transparent placeholder:text-slate-450 resize-none transition-colors"
-                  placeholder="Ask a conceptual question about this lecture..."
+                  placeholder={t('education.askQuestion')}
                   required
                 />
                 <div className="flex justify-end">
@@ -303,7 +305,7 @@ export default function LectureDetailPage() {
                     disabled={actionLoading || !commentText.trim()}
                     className="inline-flex items-center justify-center px-6 py-3 text-xs font-bold uppercase tracking-widest text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 transition-colors rounded-lg shadow-sm"
                   >
-                    {actionLoading ? 'Posting...' : 'Ask Question'}
+                    {actionLoading ? t('education.posting') : t('education.askBtn')}
                   </button>
                 </div>
               </form>
@@ -336,7 +338,7 @@ export default function LectureDetailPage() {
                               onClick={() => handleDeleteComment(comment._id)}
                               className="text-red-650 hover:text-red-800 transition-colors uppercase font-bold text-xs tracking-wider shrink-0"
                             >
-                              Delete
+                              {t('education.delete')}
                             </button>
                           )}
                         </div>
@@ -358,7 +360,7 @@ export default function LectureDetailPage() {
                             <div className="flex items-center gap-2 text-xs font-bold text-slate-550">
                               <span>{reply.email}</span>
                               <span className="inline-flex items-center px-2 py-0.5 text-[9px] font-bold tracking-widest uppercase border border-slate-900 text-slate-900 bg-transparent select-none">
-                                PROFESSOR
+                                {t('education.professorRole')}
                               </span>
                               <span>•</span>
                               <span>{new Date(reply.createdAt).toLocaleDateString()}</span>
@@ -377,14 +379,14 @@ export default function LectureDetailPage() {
                             value={replyText[comment._id] || ''}
                             onChange={(e) => setReplyText(prev => ({ ...prev, [comment._id]: e.target.value }))}
                             className="block flex-1 border-b border-slate-200 py-2.5 px-0 text-sm text-slate-900 focus:border-slate-900 focus:ring-0 bg-transparent placeholder:text-slate-450 transition-colors"
-                            placeholder="Type official professor response..."
+                            placeholder={t('education.replyPlaceholder')}
                           />
                           <button
                             onClick={() => handlePostReply(comment._id)}
                             disabled={actionLoading || !replyText[comment._id]?.trim()}
                             className="inline-flex items-center justify-center px-5 py-2.5 text-xs font-bold uppercase tracking-widest text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 transition-colors shrink-0"
                           >
-                            Reply
+                            {t('education.replyBtn')}
                           </button>
                         </div>
                       </div>
@@ -396,7 +398,7 @@ export default function LectureDetailPage() {
 
               {(!lecture.comments || lecture.comments.length === 0) && (
                 <div className="text-center py-12 border-t border-slate-100">
-                  <p className="text-slate-400 italic font-light text-xs">No conceptual questions asked yet on this lecture module.</p>
+                  <p className="text-slate-400 italic font-light text-xs">{t('education.noQuestions')}</p>
                 </div>
               )}
             </div>

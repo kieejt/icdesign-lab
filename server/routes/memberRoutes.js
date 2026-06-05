@@ -2,6 +2,7 @@ import express from 'express'
 import verifyToken from '../middleware/verifyToken.js'
 import verifyAdmin from '../middleware/verifyAdmin.js'
 import Member from '../models/Member.js'
+import { logAdminAction } from '../utils/auditLogger.js'
 
 const router = express.Router()
 
@@ -23,6 +24,7 @@ router.post('/', verifyToken, verifyAdmin, async (req, res) => {
     }
 
     const member = await Member.create({ name, role, category: category || 'Students', email, research, image })
+    await logAdminAction(req, 'CREATE_MEMBER', `Added team member: ${name}`)
     return res.status(201).json(member)
   } catch (error) {
     return res.status(500).json({ message: 'Failed to create member' })
@@ -46,6 +48,8 @@ router.put('/:id', verifyToken, verifyAdmin, async (req, res) => {
       return res.status(404).json({ message: 'Member not found' })
     }
 
+    await logAdminAction(req, 'UPDATE_MEMBER', `Updated team member: ${name}`)
+
     return res.json(member)
   } catch (error) {
     return res.status(500).json({ message: 'Failed to update member' })
@@ -58,6 +62,8 @@ router.delete('/:id', verifyToken, verifyAdmin, async (req, res) => {
     if (!member) {
       return res.status(404).json({ message: 'Member not found' })
     }
+
+    await logAdminAction(req, 'DELETE_MEMBER', `Deleted team member: ${member.name}`)
 
     return res.json({ message: 'Member deleted' })
   } catch (error) {

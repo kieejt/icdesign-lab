@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import api from '../lib/api';
 
 export default function AlumniPage() {
+  const { t } = useTranslation();
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -23,9 +25,9 @@ export default function AlumniPage() {
     <div className="w-full flex flex-col items-center">
       <section className="w-full pt-16 pb-24 border-b border-slate-200">
         <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
-          <h1 className="text-5xl md:text-7xl font-medium tracking-tighter text-slate-900">Alumni</h1>
+          <h1 className="text-5xl md:text-7xl font-medium tracking-tighter text-slate-900">{t('people.alumniTitle')}</h1>
           <p className="mt-6 md:mt-8 max-w-2xl text-xl text-slate-600 leading-relaxed font-light">
-            Our proud graduates making an impact in the semiconductor industry and academia globally.
+            {t('people.alumniSubtitle')}
           </p>
         </div>
       </section>
@@ -68,7 +70,7 @@ export default function AlumniPage() {
               ))}
               {members.length === 0 && (
                 <div className="col-span-full text-center py-24 text-slate-500 font-light">
-                  No alumni found.
+                  {t('people.noAlumni')}
                 </div>
               )}
             </div>

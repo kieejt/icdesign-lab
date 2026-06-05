@@ -71,4 +71,28 @@ router.post('/', verifyToken, verifyAdmin, (req, res) => {
   })
 })
 
+// @route   POST /api/upload/batch
+// @desc    Upload multiple images (max 50)
+// @access  Private/Admin
+router.post('/batch', verifyToken, verifyAdmin, (req, res) => {
+  upload.array('images', 50)(req, res, function (err) {
+    if (err instanceof multer.MulterError) {
+      return res.status(400).json({ message: err.message })
+    } else if (err) {
+      return res.status(400).json({ message: err.message })
+    }
+
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: 'No files uploaded' })
+    }
+
+    const urls = req.files.map(file => `/uploads/${file.filename}`)
+
+    res.json({
+      message: 'Images uploaded successfully',
+      urls: urls
+    })
+  })
+})
+
 export default router

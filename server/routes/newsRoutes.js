@@ -4,6 +4,7 @@ import verifyToken from '../middleware/verifyToken.js'
 import verifyAdmin from '../middleware/verifyAdmin.js'
 import { fetchAndProcessNews } from '../services/agent.service.js'
 import { getCronTime, updateCronTime } from '../jobs/cron.js'
+import { logAdminAction } from '../utils/auditLogger.js'
 
 const router = express.Router()
 
@@ -51,6 +52,7 @@ router.post('/:id/approve', async (req, res) => {
   try {
     const news = await News.findByIdAndUpdate(req.params.id, { status: 'approved' }, { returnDocument: 'after' })
     if (!news) return res.status(404).json({ message: 'News not found' })
+    await logAdminAction(req, 'APPROVE_NEWS', `Approved news: ${news.summary?.substring(0, 30)}...`)
     res.json(news)
   } catch (error) {
     res.status(500).json({ message: 'Server error' })
@@ -62,6 +64,7 @@ router.post('/:id/reject', async (req, res) => {
   try {
     const news = await News.findByIdAndUpdate(req.params.id, { status: 'rejected' }, { returnDocument: 'after' })
     if (!news) return res.status(404).json({ message: 'News not found' })
+    await logAdminAction(req, 'REJECT_NEWS', `Rejected news: ${news.summary?.substring(0, 30)}...`)
     res.json(news)
   } catch (error) {
     res.status(500).json({ message: 'Server error' })
@@ -73,6 +76,7 @@ router.post('/:id/restore', async (req, res) => {
   try {
     const news = await News.findByIdAndUpdate(req.params.id, { status: 'pending' }, { returnDocument: 'after' })
     if (!news) return res.status(404).json({ message: 'News not found' })
+    await logAdminAction(req, 'RESTORE_NEWS', `Restored news to pending: ${news.summary?.substring(0, 30)}...`)
     res.json(news)
   } catch (error) {
     res.status(500).json({ message: 'Server error' })
@@ -84,6 +88,7 @@ router.delete('/:id', async (req, res) => {
   try {
     const news = await News.findByIdAndDelete(req.params.id)
     if (!news) return res.status(404).json({ message: 'News not found' })
+    await logAdminAction(req, 'DELETE_NEWS', `Deleted news: ${news.summary?.substring(0, 30)}...`)
     res.json({ message: 'News deleted successfully' })
   } catch (error) {
     res.status(500).json({ message: 'Server error' })
@@ -100,6 +105,7 @@ router.patch('/:id', async (req, res) => {
 
     const news = await News.findByIdAndUpdate(req.params.id, updateData, { new: true })
     if (!news) return res.status(404).json({ message: 'News not found' })
+    await logAdminAction(req, 'UPDATE_NEWS', `Updated news: ${news.summary?.substring(0, 30)}...`)
     res.json(news)
   } catch (error) {
     res.status(500).json({ message: 'Server error' })
@@ -115,6 +121,7 @@ router.post('/fetch', async (req, res) => {
       totalSaved: result?.totalSaved ?? 0,
       perCategory: result?.perCategoryStats ?? {},
     })
+    await logAdminAction(req, 'FETCH_NEWS', `Manually triggered AI news fetcher. Fetched ${result?.totalSaved ?? 0} news.`)
   } catch (error) {
     res.status(500).json({ message: 'Server error during fetch' })
   }
@@ -126,13 +133,14 @@ router.get('/cron-time', (req, res) => {
 })
 
 // POST /api/news/cron-time (Admin)
-router.post('/cron-time', (req, res) => {
+router.post('/cron-time', async (req, res) => {
   const { hour, minute } = req.body
   if (typeof hour !== 'number' || typeof minute !== 'number') {
     return res.status(400).json({ message: 'Invalid time format' })
   }
   const success = updateCronTime(hour, minute)
   if (success) {
+    await logAdminAction(req, 'UPDATE_CRON', `Updated News Agent cron schedule to ${hour}:${minute}`)
     res.json({ message: 'Cron time updated', hour, minute })
   } else {
     res.status(500).json({ message: 'Failed to update cron time' })
