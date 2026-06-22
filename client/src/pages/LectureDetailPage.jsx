@@ -3,14 +3,14 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import api from '../lib/api';
 import ErrorText from '../components/ErrorText';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function LectureDetailPage() {
   const { t } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
-  const token = localStorage.getItem('token');
+  const { currentUser, loading: authLoading } = useAuth();
 
-  const [currentUser, setCurrentUser] = useState(null);
   const [lecture, setLecture] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -20,18 +20,14 @@ export default function LectureDetailPage() {
   const [replyText, setReplyText] = useState({});
   const [actionLoading, setActionLoading] = useState(false);
 
-  const fetchProfileAndLecture = async () => {
-    if (!token) {
+  const fetchLecture = async () => {
+    if (!currentUser) {
       setLoading(false);
       return;
     }
 
     try {
-      // 1. Fetch current user identity & role
-      const resProfile = await api.get('/auth/me');
-      setCurrentUser(resProfile.data.user);
-
-      // 2. Fetch single lecture details (which increments views count on server)
+      // Fetch single lecture details (which increments views count on server)
       const resLecture = await api.get(`/lectures/${id}`);
       setLecture(resLecture.data);
     } catch (err) {
@@ -47,8 +43,10 @@ export default function LectureDetailPage() {
   };
 
   useEffect(() => {
-    fetchProfileAndLecture();
-  }, [id, token]);
+    if (!authLoading) {
+      fetchLecture();
+    }
+  }, [id, currentUser, authLoading]);
 
   // Parse YouTube video ID from URL
   const getYoutubeEmbedUrl = (url) => {
@@ -121,7 +119,7 @@ export default function LectureDetailPage() {
   }
 
   // Gatekeeper: restrict access to logged-in members
-  if (!token || !currentUser) {
+  if (!currentUser) {
     return (
       <div className="w-full flex flex-col items-center bg-white selection:bg-slate-900 selection:text-white">
         

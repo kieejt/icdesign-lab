@@ -58,9 +58,16 @@ router.post('/login', async (req, res) => {
     }
 
     const token = generateToken(user)
+    
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 24 * 60 * 60 * 1000 // 1 day
+    })
+
     return res.json({
       message: 'Login successful',
-      token,
       user: { id: user._id, email: user.email, role: user.role },
     })
   } catch (error) {
@@ -70,6 +77,11 @@ router.post('/login', async (req, res) => {
 
 router.get('/me', verifyToken, (req, res) => {
   return res.json({ user: req.user })
+})
+
+router.post('/logout', (req, res) => {
+  res.clearCookie('token')
+  return res.json({ message: 'Logged out successfully' })
 })
 
 // Get all student accounts (Admin only)

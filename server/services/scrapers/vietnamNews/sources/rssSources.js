@@ -9,7 +9,6 @@ const VIETNAM_RSS_FEEDS = [
   { name: 'VietnamNet', url: 'https://vietnamnet.vn/rss/cong-nghe.rss' },
   { name: 'Dân trí (Công nghệ)', url: 'https://dantri.com.vn/rss/cong-nghe.rss' },
   { name: 'Dân trí (Khoa học)', url: 'https://dantri.com.vn/rss/khoa-hoc.rss' },
-  { name: 'Thanh Nien', url: 'https://thanhnien.vn/rss/cong-nghe.rss' },
   { name: 'VnEconomy', url: 'https://vneconomy.vn/cong-nghe-startup.rss' },
 ]
 

@@ -26,9 +26,12 @@ export const fetchWorldNewsHtml = async () => {
       
       const $ = cheerio.load(response.data)
       const seenLinks = new Set()
+      let count = 0
       
       // Generic heuristic: look for links with substantial text content (likely article titles)
       $('a').each((i, el) => {
+        if (count >= 4) return // LIMIT: Only take top 4 articles per HTML source to prevent crowding out RSS
+        
         let title = $(el).find('h2, h3, .title, .article-name').first().text().trim()
         if (!title) {
           title = $(el).text().trim()
@@ -41,6 +44,7 @@ export const fetchWorldNewsHtml = async () => {
         
         if (title && title.length > 30 && link && !seenLinks.has(link)) {
           seenLinks.add(link)
+          count++
           
           if (link.startsWith('/')) {
             const baseUrl = new URL(source.url)
@@ -53,7 +57,8 @@ export const fetchWorldNewsHtml = async () => {
             url: link,
             source: source.name,
             category: 'World News',
-            publishedAt: new Date(),
+            // Subtract 12 hours so it doesn't always automatically win the "newest" sort against actual RSS feeds today
+            publishedAt: new Date(Date.now() - 12 * 60 * 60 * 1000),
             strictMatch: true // These are specific semiconductor pages, so they are strict matches
           })
         }

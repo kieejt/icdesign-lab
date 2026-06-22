@@ -2,6 +2,7 @@ import cors from 'cors'
 import dotenv from 'dotenv'
 import express from 'express'
 import helmet from 'helmet'
+import cookieParser from 'cookie-parser'
 import { rateLimit } from 'express-rate-limit'
 import connectDB from './config/db.js'
 import authRoutes from './routes/authRoutes.js'
@@ -46,10 +47,12 @@ app.use(
       }
       return callback(new Error('CORS not allowed by security policy'))
     },
+    credentials: true,
   }),
 )
 
 app.use(express.json())
+app.use(cookieParser())
 
 // 3. Configure Rate Limiting to prevent brute-forcing and Denial of Service (DoS)
 const apiLimiter = rateLimit({

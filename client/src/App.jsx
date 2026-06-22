@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { NavLink, Route, Routes, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import api from './lib/api'
+import { useAuth } from './contexts/AuthContext'
 
 import { publicNavItems } from './constants/navigation'
 import HomePage from './pages/HomePage'
@@ -103,11 +104,10 @@ function App() {
   const { t, i18n } = useTranslation()
 
   const [isMenuOpen, setIsMenuOpen] = React.useState(false)
-  const [currentUser, setCurrentUser] = React.useState(null)
   const [isDropdownOpen, setIsDropdownOpen] = React.useState(false)
 
-  const token = localStorage.getItem('token')
-  const isLoggedIn = !!token
+  const { currentUser, logout } = useAuth()
+  const isLoggedIn = !!currentUser
   const navItems = publicNavItems.filter(item => item.to !== '/login')
 
   React.useEffect(() => {
@@ -129,28 +129,8 @@ function App() {
     trackPageView()
   }, [location.pathname])
 
-  React.useEffect(() => {
-    const fetchUser = async () => {
-      const storedToken = localStorage.getItem('token')
-      if (storedToken) {
-        try {
-          const { data } = await api.get('/auth/me')
-          setCurrentUser(data.user)
-        } catch (err) {
-          console.error('Failed to validate session token:', err)
-          localStorage.removeItem('token')
-          setCurrentUser(null)
-        }
-      } else {
-        setCurrentUser(null)
-      }
-    }
-    fetchUser()
-  }, [token])
-
-  const handleSignOut = () => {
-    localStorage.removeItem('token')
-    setCurrentUser(null)
+  const handleSignOut = async () => {
+    await logout()
     setIsDropdownOpen(false)
     navigate('/')
   }

@@ -1,12 +1,14 @@
 import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { adminNavItems } from '../constants/navigation';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function AdminLayout() {
   const navigate = useNavigate()
+  const { logout } = useAuth()
 
-  const handleLogout = () => {
-    localStorage.removeItem('token')
+  const handleLogout = async () => {
+    await logout()
     navigate('/login')
   }
 

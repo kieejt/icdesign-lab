@@ -1,29 +1,32 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../../lib/api';
+import { useAuth } from '../../contexts/AuthContext';
 import ErrorText from '../../components/ErrorText';
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const { currentUser, login } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   React.useEffect(() => {
-    if (localStorage.getItem('token')) {
-      navigate('/admin/dashboard')
+    if (currentUser) {
+      if (currentUser.role === 'admin') {
+        navigate('/admin/dashboard')
+      } else {
+        navigate('/')
+      }
     }
-  }, [navigate])
+  }, [currentUser, navigate])
 
   const handleSubmit = async (event) => {
     event.preventDefault()
     setError('')
     setLoading(true)
     try {
-      const response = await api.post('/auth/login', { email, password })
-      localStorage.setItem('token', response.data.token)
-      navigate('/admin/dashboard')
+      await login(email, password)
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed')
     } finally {

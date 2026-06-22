@@ -2,43 +2,39 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import api from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function LecturesPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const token = localStorage.getItem('token');
+  const { currentUser, loading: authLoading } = useAuth();
 
-  const [currentUser, setCurrentUser] = useState(null);
   const [lectures, setLectures] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const fetchProfileAndLectures = async () => {
-    if (!token) {
+  const fetchLectures = async () => {
+    if (!currentUser) {
       setLoading(false);
       return;
     }
 
     try {
-      // 1. Fetch current user identity & role
-      const resProfile = await api.get('/auth/me');
-      setCurrentUser(resProfile.data.user);
-
-      // 2. Fetch course lecture modules
       const resLectures = await api.get('/lectures');
       setLectures(resLectures.data);
     } catch (err) {
-      console.error('Session validation failed:', err);
-      localStorage.removeItem('token');
-      setCurrentUser(null);
+      console.error('Failed to fetch lectures:', err);
+      setError('Failed to fetch lectures.');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchProfileAndLectures();
-  }, [token]);
+    if (!authLoading) {
+      fetchLectures();
+    }
+  }, [currentUser, authLoading]);
 
   // Extract YouTube ID to get thumbnail image
   const getYoutubeThumbnailUrl = (url) => {
@@ -59,7 +55,7 @@ export default function LecturesPage() {
   }
 
   // Gatekeeper: restrict access to logged-in members
-  if (!token || !currentUser) {
+  if (!currentUser) {
     return (
       <div className="w-full flex flex-col items-center bg-white selection:bg-slate-900 selection:text-white">
 
