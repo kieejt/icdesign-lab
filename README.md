@@ -101,6 +101,7 @@ icdesign-lab/
    - `MONGO_URI=<your atlas uri>`
    - `JWT_SECRET=<strong random secret>`
    - `CORS_ORIGINS=<your frontend domain>`
+   - `GROQ_API_KEY=<your groq api key>`
 
 5. After deploy, test:
 
@@ -148,5 +149,6 @@ icdesign-lab/
   - `MONGO_URI`
   - `JWT_SECRET`
   - `CORS_ORIGINS`
+  - `GROQ_API_KEY`
 - `client/.env.example` includes:
   - `VITE_API_URL`
