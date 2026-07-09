@@ -148,13 +148,41 @@ router.get('/dashboard', verifyToken, verifyAdmin, async (req, res) => {
   }
 })
 
-// 3. Fetch Admin Audit Logs (Admin only)
+// 3. Fetch Admin Audit Logs (Admin only) - paginated, filtered server-side so the
+// dashboard never has to load the full log history to show one page.
 router.get('/audit-logs', verifyToken, verifyAdmin, async (req, res) => {
   try {
-    const logs = await AuditLog.find({})
-      .sort({ createdAt: -1 })
-      .limit(150) // reasonable limit for overview dashboard
-    return res.json(logs)
+    const { page = 1, limit = 10, search = '', action = 'All' } = req.query
+    const pageNum = Math.max(Number(page) || 1, 1)
+    const limitNum = Math.max(Number(limit) || 10, 1)
+    const filter = {}
+
+    if (action && action !== 'All') {
+      filter.action = action
+    }
+
+    if (search) {
+      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const regex = new RegExp(escaped, 'i')
+      filter.$or = [{ adminEmail: regex }, { details: regex }, { action: regex }]
+    }
+
+    const [total, logs, actions] = await Promise.all([
+      AuditLog.countDocuments(filter),
+      AuditLog.find(filter)
+        .sort({ createdAt: -1 })
+        .skip((pageNum - 1) * limitNum)
+        .limit(limitNum),
+      AuditLog.distinct('action'),
+    ])
+
+    return res.json({
+      data: logs,
+      total,
+      totalPages: Math.max(Math.ceil(total / limitNum), 1),
+      currentPage: pageNum,
+      actions: ['All', ...actions.sort()],
+    })
   } catch (error) {
     console.error('Failed to fetch audit logs:', error)
     return res.status(500).json({ message: 'Failed to fetch audit logs' })

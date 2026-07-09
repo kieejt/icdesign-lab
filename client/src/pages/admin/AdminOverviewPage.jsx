@@ -12,20 +12,22 @@ export default function AdminOverviewPage() {
   const [replyingId, setReplyingId] = useState(null);
   const [replySuccess, setReplySuccess] = useState('');
   
-  // State for audit logs filtering
+  // State for audit logs filtering & pagination
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterAction, setFilterAction] = useState('All');
+  const [auditActions, setAuditActions] = useState(['All']);
+  const [auditPage, setAuditPage] = useState(1);
+  const [auditTotalPages, setAuditTotalPages] = useState(1);
+  const [auditLoading, setAuditLoading] = useState(true);
+  const AUDIT_LOGS_PER_PAGE = 10;
 
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
       setError('');
-      const [resDashboard, resLogs] = await Promise.all([
-        api.get('/analytics/dashboard'),
-        api.get('/analytics/audit-logs')
-      ]);
+      const resDashboard = await api.get('/analytics/dashboard');
       setData(resDashboard.data);
-      setAuditLogs(resLogs.data);
     } catch (err) {
       console.error('Failed to fetch admin stats:', err);
       setError('Failed to fetch console statistics. Ensure you have administrator rights.');
@@ -34,9 +36,42 @@ export default function AdminOverviewPage() {
     }
   };
 
+  // Fetch only one page of audit logs at a time - filtering/pagination happens server-side
+  // so the dashboard never has to load the entire log history.
+  const fetchAuditLogs = async (page) => {
+    try {
+      setAuditLoading(true);
+      const res = await api.get('/analytics/audit-logs', {
+        params: { page, limit: AUDIT_LOGS_PER_PAGE, search: debouncedSearch, action: filterAction }
+      });
+      setAuditLogs(res.data.data);
+      setAuditTotalPages(res.data.totalPages || 1);
+      setAuditActions(res.data.actions || ['All']);
+    } catch (err) {
+      console.error('Failed to fetch audit logs:', err);
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchDashboardData();
   }, []);
+
+  // Debounce the free-text search so we don't fire a request on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 400);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Jump back to page 1 whenever the filter/search criteria change
+  useEffect(() => {
+    setAuditPage(1);
+  }, [debouncedSearch, filterAction]);
+
+  useEffect(() => {
+    fetchAuditLogs(auditPage);
+  }, [auditPage, debouncedSearch, filterAction]);
 
   const handlePostReply = async (lectureId, commentId) => {
     const text = replyTexts[commentId];
@@ -62,8 +97,7 @@ export default function AdminOverviewPage() {
       }, 1000);
 
       // Refresh Audit Log to reflect the reply
-      const resLogs = await api.get('/analytics/audit-logs');
-      setAuditLogs(resLogs.data);
+      fetchAuditLogs(auditPage);
     } catch (err) {
       console.error('Failed to post reply:', err);
       setError('Failed to submit professor reply.');
@@ -81,28 +115,13 @@ export default function AdminOverviewPage() {
         ...prev,
         unansweredComments: prev.unansweredComments.filter(c => c.commentId !== commentId)
       }));
-      const resLogs = await api.get('/analytics/audit-logs');
-      setAuditLogs(resLogs.data);
+      fetchAuditLogs(auditPage);
     } catch (err) {
       console.error('Failed to delete comment:', err);
       setError('Failed to delete comment.');
     }
   };
 
-  // Filter audit logs based on search query and action dropdown
-  const filteredLogs = auditLogs.filter(log => {
-    const matchesSearch = 
-      log.adminEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.details.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.action.toLowerCase().includes(searchTerm.toLowerCase());
-      
-    const matchesAction = filterAction === 'All' || log.action === filterAction;
-    
-    return matchesSearch && matchesAction;
-  });
-
-  // Extract unique actions from logs for dropdown filter
-  const uniqueActions = ['All', ...new Set(auditLogs.map(log => log.action))];
 
   // Helper to color-code audit log actions
   const getActionBadgeStyle = (action) => {
@@ -441,7 +460,7 @@ export default function AdminOverviewPage() {
               onChange={(e) => setFilterAction(e.target.value)}
               className="block border border-slate-200 py-2 px-3 rounded-lg text-xs text-slate-700 bg-white focus:border-slate-900 focus:ring-0"
             >
-              {uniqueActions.map(action => (
+              {auditActions.map(action => (
                 <option key={action} value={action}>
                   {action === 'All' ? 'All System Actions' : action}
                 </option>
@@ -472,12 +491,16 @@ export default function AdminOverviewPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white text-xs font-light text-slate-800">
-              {filteredLogs.length === 0 ? (
+              {auditLoading ? (
+                <tr>
+                  <td colSpan={5} className="py-12 text-center text-slate-400 italic">Loading audit records...</td>
+                </tr>
+              ) : auditLogs.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-12 text-center text-slate-400 italic">No audit records found matching your filters.</td>
                 </tr>
               ) : (
-                filteredLogs.map((log) => (
+                auditLogs.map((log) => (
                   <tr key={log._id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="py-4 pl-4 pr-3 whitespace-nowrap text-slate-500">
                       {new Date(log.createdAt).toLocaleString(undefined, {
@@ -501,6 +524,29 @@ export default function AdminOverviewPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Audit Log Pagination Controls */}
+        {auditTotalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 pt-2">
+            <button
+              onClick={() => setAuditPage(prev => Math.max(prev - 1, 1))}
+              disabled={auditPage === 1 || auditLoading}
+              className="px-4 py-2 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <span className="text-xs text-slate-600 font-medium px-4">
+              Page {auditPage} of {auditTotalPages}
+            </span>
+            <button
+              onClick={() => setAuditPage(prev => Math.min(prev + 1, auditTotalPages))}
+              disabled={auditPage === auditTotalPages || auditLoading}
+              className="px-4 py-2 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        )}
 
       </div>
 
