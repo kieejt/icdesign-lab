@@ -1,14 +1,19 @@
-const KEYWORDS = ['vlsi', 'asic', 'fpga', 'chip', 'semiconductor', 'ic design', 'soc']
+import { hasKeyword } from './textMatch.js'
+
+const KEYWORDS = [
+  'vlsi', 'asic', 'fpga', 'chip', 'semiconductor', 'ic design', 'soc',
+  'bán dẫn', 'vi mạch', 'chip bán dẫn',
+]
 
 export const scoreArticle = (article) => {
   let score = 0
   const title = (article.title || '').toLowerCase()
   const summary = (article.summary || '').toLowerCase()
 
-  // 1. Keyword Relevance
+  // 1. Keyword Relevance (whole-word match to avoid false positives, e.g. 'soc' inside "society")
   KEYWORDS.forEach((keyword) => {
-    if (title.includes(keyword)) score += 3
-    if (summary.includes(keyword)) score += 1
+    if (hasKeyword(title, keyword)) score += 3
+    if (hasKeyword(summary, keyword)) score += 1
   })
 
   // 2. Source Priority

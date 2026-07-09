@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import api from '../lib/api';
 
 function formatDate(dateString) {
@@ -12,15 +13,44 @@ function formatDate(dateString) {
 
 export default function NewsFeedLayout({ title, subtitle, category, eyebrow }) {
   const { t } = useTranslation();
-  const [news, setNews] = useState([]);
+  const { page } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const [featuredNews, setFeaturedNews] = useState([]);
+  const [archiveNews, setArchiveNews] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [totalPages, setTotalPages] = useState(1);
+  const [currentPage, setCurrentPage] = useState(parseInt(page) || 1);
+
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
+  useEffect(() => {
+    setCurrentPage(parseInt(page) || 1);
+  }, [page]);
 
   useEffect(() => {
     const fetchNews = async () => {
       setLoading(true);
       try {
-        const response = await api.get('/news/published', { params: { category } });
-        setNews(response.data);
+        const params = { category };
+        if (startDate) params.startDate = startDate;
+        if (endDate) params.endDate = endDate;
+        
+        const featuredRes = await api.get('/news/published', { 
+          params: { ...params, offset: 0, limit: 20 } 
+        });
+        setFeaturedNews(featuredRes.data.data);
+        
+        const archiveOffset = 20 + (currentPage - 1) * 20;
+        const archiveRes = await api.get('/news/published', {
+          params: { ...params, offset: archiveOffset, limit: 20 }
+        });
+        
+        setArchiveNews(archiveRes.data.data);
+        const totalArchive = Math.max(0, archiveRes.data.total - 20);
+        setTotalPages(Math.ceil(totalArchive / 20) || 1);
       } catch (error) {
         console.error('Failed to fetch news', error);
       } finally {
@@ -28,36 +58,27 @@ export default function NewsFeedLayout({ title, subtitle, category, eyebrow }) {
       }
     };
     fetchNews();
-  }, [category]);
+  }, [category, currentPage, startDate, endDate]);
 
-  const [currentPage, setCurrentPage] = useState(1);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [category]);
-
-  const sortedNews = useMemo(() => {
-    return [...news].sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
-  }, [news]);
-
-  const newestArticles = useMemo(() => {
-    return sortedNews.slice(0, 20);
-  }, [sortedNews]);
-
-  const olderArticles = useMemo(() => {
-    return sortedNews.slice(20);
-  }, [sortedNews]);
-
-  const pageSize = 20;
-  const totalPages = Math.ceil(olderArticles.length / pageSize);
-
-  const paginatedOlder = useMemo(() => {
-    return olderArticles.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  }, [olderArticles, currentPage]);
-
-  const handlePageChange = (page) => {
-    setCurrentPage(page);
+  const handlePageChange = (newPage) => {
+    const basePath = location.pathname.replace(/\/page\/\d+/, '');
+    if (newPage === 1) {
+      navigate(basePath);
+    } else {
+      navigate(`${basePath}/page/${newPage}`);
+    }
     document.getElementById('older-news-section')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleDateFilterChange = (type, value) => {
+    if (type === 'start') setStartDate(value);
+    if (type === 'end') setEndDate(value);
+    
+    // Reset to page 1 on filter change
+    if (currentPage !== 1) {
+      const basePath = location.pathname.replace(/\/page\/\d+/, '');
+      navigate(basePath);
+    }
   };
 
   return (
@@ -80,20 +101,31 @@ export default function NewsFeedLayout({ title, subtitle, category, eyebrow }) {
 
       <section className="w-full py-16 md:py-24">
         <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
-          {loading ? (
+          {loading && featuredNews.length === 0 ? (
             <div className="flex justify-center py-24">
               <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-slate-900" />
             </div>
-          ) : news.length === 0 ? (
-            <p className="text-center py-24 text-slate-500 font-light text-lg">
-              {t('media.newsEmpty')}
-            </p>
+          ) : featuredNews.length === 0 && archiveNews.length === 0 ? (
+            <div className="text-center py-24 space-y-4">
+              <p className="text-slate-500 font-light text-lg">
+                {t('media.newsEmpty')}
+              </p>
+              {/* Optional Date filter can still be shown here to clear filters */}
+              <div className="flex items-center justify-center gap-4 mt-4">
+                <button 
+                  onClick={() => { setStartDate(''); setEndDate(''); }}
+                  className="text-sm font-medium text-blue-600 hover:underline"
+                >
+                  Clear Filters
+                </button>
+              </div>
+            </div>
           ) : (
             <div className="w-full space-y-16">
-              {/* 20 newest news with full details - only shown on page 1 */}
-              {currentPage === 1 && (
-                <div className="space-y-12">
-                  <div className="border-b border-slate-900 pb-6">
+              {/* Featured News Grid (Always visible) */}
+              <div className="space-y-12">
+                <div className="border-b border-slate-900 pb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                  <div>
                     <h2 className="text-3xl md:text-4xl font-medium tracking-tight text-slate-900">
                       {t('media.latestUpdates')}
                     </h2>
@@ -101,53 +133,53 @@ export default function NewsFeedLayout({ title, subtitle, category, eyebrow }) {
                       {t('media.newestStories', { category })}
                     </p>
                   </div>
-                  
-                  {newestArticles.length === 0 ? (
-                    <p className="text-slate-500 font-light py-8">{t('media.noUpdates')}</p>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-16">
-                      {newestArticles.map((item) => (
-                        <article
-                          key={item._id}
-                          className="group flex flex-col justify-between border-b border-slate-100 pb-10 hover:bg-slate-50/50 transition-colors p-4 -m-4"
-                        >
-                          <div className="space-y-4">
-                            {item.thumbnail && (
-                              <div className="w-full aspect-[16/10] bg-slate-100 overflow-hidden border border-slate-200">
-                                <img
-                                  src={item.thumbnail}
-                                  alt=""
-                                  className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500 ease-out"
-                                />
-                              </div>
-                            )}
-                            <div className="flex items-center gap-3">
-                              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 bg-slate-100 px-2 py-0.5 border border-slate-200">
-                                {item.source}
-                              </span>
-                              <span className="text-xs font-light text-slate-400">
-                                {formatDate(item.publishedAt)}
-                              </span>
-                            </div>
-                            <h3 className="text-xl md:text-2xl font-semibold text-slate-900 leading-snug group-hover:text-blue-600 transition-colors">
-                              <a href={item.url} target="_blank" rel="noopener noreferrer">
-                                {item.title}
-                              </a>
-                            </h3>
-                            <p className="text-slate-500 text-sm font-light leading-relaxed line-clamp-3">
-                              {item.summary}
-                            </p>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  )}
                 </div>
-              )}
+                
+                {featuredNews.length === 0 ? (
+                  <p className="text-slate-500 font-light py-8">{t('media.noUpdates')}</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-16">
+                    {featuredNews.map((item) => (
+                      <article
+                        key={item._id}
+                        className="group flex flex-col justify-between border-b border-slate-100 pb-10 hover:bg-slate-50/50 transition-colors p-4 -m-4"
+                      >
+                        <div className="space-y-4">
+                          {item.thumbnail && (
+                            <div className="w-full aspect-[16/10] bg-slate-100 overflow-hidden border border-slate-200">
+                              <img
+                                src={item.thumbnail}
+                                alt=""
+                                className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500 ease-out"
+                              />
+                            </div>
+                          )}
+                          <div className="flex items-center gap-3">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 bg-slate-100 px-2 py-0.5 border border-slate-200">
+                              {item.source}
+                            </span>
+                            <span className="text-xs font-light text-slate-400">
+                              {formatDate(item.publishedAt)}
+                            </span>
+                          </div>
+                          <h3 className="text-xl md:text-2xl font-semibold text-slate-900 leading-snug group-hover:text-blue-600 transition-colors">
+                            <a href={item.url} target="_blank" rel="noopener noreferrer">
+                              {item.title}
+                            </a>
+                          </h3>
+                          <p className="text-slate-500 text-sm font-light leading-relaxed line-clamp-3">
+                            {item.summary}
+                          </p>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-              {/* Older news section displayed as a list of simple, small text lines with pagination */}
+              {/* Archive News List */}
               <div id="older-news-section" className="pt-16 border-t border-slate-900 space-y-8">
-                <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b border-slate-200 pb-6 gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b border-slate-200 pb-6 gap-6">
                   <div>
                     <h2 className="text-2xl md:text-3xl font-medium tracking-tight text-slate-900">
                       {t('media.newsArchive')}
@@ -156,6 +188,39 @@ export default function NewsFeedLayout({ title, subtitle, category, eyebrow }) {
                       {t('media.olderArticles', { category })}
                     </p>
                   </div>
+                  
+                  {/* Date Filter */}
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs font-medium text-slate-500 uppercase tracking-widest">From</label>
+                      <input 
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => handleDateFilterChange('start', e.target.value)}
+                        className="text-sm px-2 py-1.5 border border-slate-300 rounded outline-none focus:border-slate-900 text-slate-700 bg-white"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs font-medium text-slate-500 uppercase tracking-widest">To</label>
+                      <input 
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => handleDateFilterChange('end', e.target.value)}
+                        className="text-sm px-2 py-1.5 border border-slate-300 rounded outline-none focus:border-slate-900 text-slate-700 bg-white"
+                      />
+                    </div>
+                    {(startDate || endDate) && (
+                      <button 
+                        onClick={() => { setStartDate(''); setEndDate(''); }}
+                        className="text-xs font-medium text-slate-500 hover:text-slate-900 uppercase tracking-widest ml-2"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex justify-end w-full">
                   {totalPages > 1 && (
                     <span className="text-xs font-light text-slate-500 uppercase tracking-widest">
                       {t('media.pageOf', { current: currentPage, total: totalPages })}
@@ -163,7 +228,11 @@ export default function NewsFeedLayout({ title, subtitle, category, eyebrow }) {
                   )}
                 </div>
 
-                {paginatedOlder.length === 0 ? (
+                {loading ? (
+                   <div className="flex justify-center py-12">
+                     <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-slate-900" />
+                   </div>
+                ) : archiveNews.length === 0 ? (
                   <p className="text-slate-500 font-light py-8 text-sm">
                     {currentPage === 1 
                       ? t('media.noOlder') 
@@ -171,7 +240,7 @@ export default function NewsFeedLayout({ title, subtitle, category, eyebrow }) {
                   </p>
                 ) : (
                   <div className="divide-y divide-slate-100">
-                    {paginatedOlder.map((item) => (
+                    {archiveNews.map((item) => (
                       <div
                         key={item._id}
                         className="group py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/50 transition-colors px-2 -mx-2"
@@ -202,13 +271,13 @@ export default function NewsFeedLayout({ title, subtitle, category, eyebrow }) {
                   <div className="flex items-center justify-between border-t border-slate-200 pt-8 mt-12">
                     <button
                       onClick={() => handlePageChange(currentPage - 1)}
-                      disabled={currentPage === 1}
+                      disabled={currentPage === 1 || loading}
                       className="inline-flex items-center px-4 py-2 border border-slate-200 text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50 disabled:opacity-40 transition-colors"
                     >
                       {t('media.prev')}
                     </button>
 
-                    <div className="hidden md:flex gap-1.5">
+                    <div className="hidden md:flex gap-1.5 flex-wrap justify-center">
                       {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                         <button
                           key={page}
@@ -226,7 +295,7 @@ export default function NewsFeedLayout({ title, subtitle, category, eyebrow }) {
 
                     <button
                       onClick={() => handlePageChange(currentPage + 1)}
-                      disabled={currentPage === totalPages}
+                      disabled={currentPage === totalPages || loading}
                       className="inline-flex items-center px-4 py-2 border border-slate-200 text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50 disabled:opacity-40 transition-colors"
                     >
                       {t('media.next')}

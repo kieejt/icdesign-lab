@@ -32,7 +32,7 @@ function NewsTable({ items, activeTab, onEdit, onAction, onDelete }) {
   if (items.length === 0) {
     return (
       <p className="px-6 py-8 text-center text-sm text-slate-500">
-        No articles in this category.
+        No articles in this view.
       </p>
     )
   }
@@ -180,7 +180,7 @@ function NewsTable({ items, activeTab, onEdit, onAction, onDelete }) {
   )
 }
 
-function CategorySection({ categoryMeta, items, activeTab, onEdit, onAction, onDelete }) {
+function CategorySection({ categoryMeta, items, activeTab, onEdit, onAction, onDelete, totalCount }) {
   const badgeClass =
     CATEGORY_BADGE_STYLES[categoryMeta.id] || 'bg-slate-50 text-slate-800 ring-slate-200'
   const borderClass = CATEGORY_SECTION_STYLES[categoryMeta.id] || 'border-l-slate-400'
@@ -196,7 +196,10 @@ function CategorySection({ categoryMeta, items, activeTab, onEdit, onAction, onD
             <span
               className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${badgeClass}`}
             >
-              {items.length} {items.length === 1 ? 'article' : 'articles'}
+              {totalCount} total {totalCount === 1 ? 'article' : 'articles'}
+            </span>
+            <span className="text-xs text-slate-400 font-medium">
+              (Showing {items.length} on this page)
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">{categoryMeta.description}</p>
@@ -221,30 +224,53 @@ const AdminNewsPage = () => {
   const [activeTab, setActiveTab] = useState('pending')
   const [cronTime, setCronTime] = useState({ hour: 8, minute: 0 })
   const [isSavingCron, setIsSavingCron] = useState(false)
-  const [activeCategory, setActiveCategory] = useState('All')
+  const [activeCategory, setActiveCategory] = useState('World News')
+
+  // Pagination & Filtering
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [stats, setStats] = useState({
+    pending: { All: 0 },
+    approved: { All: 0 },
+    rejected: { All: 0 }
+  })
 
   const [editingItem, setEditingItem] = useState(null)
   const [editSummary, setEditSummary] = useState('')
   const [editCategory, setEditCategory] = useState('')
 
+  // Reset page when tab or category changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [activeTab, activeCategory])
+
   const fetchData = async () => {
     setLoading(true)
     try {
       const endpoint = activeTab === 'pending' ? 'pending' : 'history'
-      const [newsRes, cronRes] = await Promise.all([
-        api.get(`/news/${endpoint}`),
+      const statusParam = activeTab === 'pending' ? undefined : (activeTab === 'published' ? 'approved' : 'rejected')
+      
+      const params = {
+        page: currentPage,
+        limit: 50,
+        category: activeCategory
+      }
+      if (startDate) params.startDate = startDate
+      if (endDate) params.endDate = endDate
+      if (statusParam) params.status = statusParam
+
+      const [newsRes, cronRes, statsRes] = await Promise.all([
+        api.get(`/news/${endpoint}`, { params }),
         api.get('/news/cron-time'),
+        api.get('/news/admin/stats')
       ])
 
-      let filteredNews = newsRes.data
-      if (activeTab === 'published') {
-        filteredNews = newsRes.data.filter((item) => item.status === 'approved')
-      } else if (activeTab === 'rejected') {
-        filteredNews = newsRes.data.filter((item) => item.status === 'rejected')
-      }
-
-      setNews(filteredNews)
+      setNews(newsRes.data.data)
+      setTotalPages(newsRes.data.totalPages || 1)
       setCronTime(cronRes.data)
+      setStats(statsRes.data)
       setError(null)
     } catch (err) {
       setError('Failed to load news data.')
@@ -255,15 +281,12 @@ const AdminNewsPage = () => {
 
   useEffect(() => {
     fetchData()
-  }, [activeTab])
+  }, [activeTab, activeCategory, currentPage, startDate, endDate])
 
   const countByCategory = useMemo(() => {
-    const counts = { All: news.length }
-    NEWS_CATEGORIES.forEach((cat) => {
-      counts[cat.id] = news.filter((n) => n.category === cat.id).length
-    })
-    return counts
-  }, [news])
+    const statKey = activeTab === 'published' ? 'approved' : activeTab;
+    return stats[statKey] || {}
+  }, [stats, activeTab])
 
   const newsByCategory = useMemo(() => {
     const grouped = {}
@@ -272,11 +295,6 @@ const AdminNewsPage = () => {
     })
     return grouped
   }, [news])
-
-  const displayedNews = useMemo(() => {
-    if (activeCategory === 'All') return news
-    return news.filter((n) => n.category === activeCategory)
-  }, [news, activeCategory])
 
   const handleAction = async (id, action) => {
     try {
@@ -350,6 +368,12 @@ const AdminNewsPage = () => {
     }
   }
 
+  const handleDateFilterChange = (type, value) => {
+    if (type === 'start') setStartDate(value)
+    if (type === 'end') setEndDate(value)
+    setCurrentPage(1)
+  }
+
   if (error) {
     return <ErrorCard message={error} />
   }
@@ -406,50 +430,64 @@ const AdminNewsPage = () => {
         </div>
       </div>
 
-      {/* Status tabs */}
-      <div className="flex space-x-1 rounded-xl bg-slate-100 p-1 max-w-xl">
-        {[
-          { id: 'pending', label: 'Pending' },
-          { id: 'published', label: 'Published' },
-          { id: 'rejected', label: 'Rejected' },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 rounded-lg py-2 text-sm font-medium transition-all ${
-              activeTab === tab.id
-                ? 'bg-white text-slate-900 shadow'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      {/* Date Filter & Status tabs row */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex space-x-1 rounded-xl bg-slate-100 p-1 w-full max-w-xl">
+          {[
+            { id: 'pending', label: 'Pending' },
+            { id: 'published', label: 'Published' },
+            { id: 'rejected', label: 'Rejected' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 rounded-lg py-2 text-sm font-medium transition-all ${
+                activeTab === tab.id
+                  ? 'bg-white text-slate-900 shadow'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        
+        <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl px-4 py-2 shadow-sm">
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-slate-500 uppercase tracking-widest">From</label>
+            <input 
+              type="date"
+              value={startDate}
+              onChange={(e) => handleDateFilterChange('start', e.target.value)}
+              className="text-sm px-2 py-1 outline-none text-slate-700"
+            />
+          </div>
+          <div className="w-px h-6 bg-slate-200"></div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-slate-500 uppercase tracking-widest">To</label>
+            <input 
+              type="date"
+              value={endDate}
+              onChange={(e) => handleDateFilterChange('end', e.target.value)}
+              className="text-sm px-2 py-1 outline-none text-slate-700"
+            />
+          </div>
+          {(startDate || endDate) && (
+            <button 
+              onClick={() => { setStartDate(''); setEndDate(''); }}
+              className="text-xs font-bold text-rose-500 hover:text-rose-700 uppercase tracking-widest ml-2"
+            >
+              Clear
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Category tabs */}
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">Category</p>
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setActiveCategory('All')}
-            className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-all ${
-              activeCategory === 'All'
-                ? 'border-slate-900 bg-slate-900 text-white'
-                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400'
-            }`}
-          >
-            All
-            <span
-              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                activeCategory === 'All' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
-              }`}
-            >
-              {countByCategory.All}
-            </span>
-          </button>
           {NEWS_CATEGORIES.map((cat) => (
             <button
               key={cat.id}
@@ -469,7 +507,7 @@ const AdminNewsPage = () => {
                     : 'bg-slate-100 text-slate-600'
                 }`}
               >
-                {countByCategory[cat.id]}
+                {countByCategory[cat.id] || 0}
               </span>
             </button>
           ))}
@@ -483,32 +521,39 @@ const AdminNewsPage = () => {
         </div>
       ) : news.length === 0 ? (
         <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500">
-          No news found for this status.
-        </div>
-      ) : activeCategory === 'All' ? (
-        <div className="space-y-8">
-          {NEWS_CATEGORIES.map((cat) => (
-            <CategorySection
-              key={cat.id}
-              categoryMeta={cat}
-              items={newsByCategory[cat.id]}
-              activeTab={activeTab}
-              {...tableHandlers}
-            />
-          ))}
-        </div>
-      ) : displayedNews.length === 0 ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500">
-          No articles in{' '}
-          {NEWS_CATEGORIES.find((c) => c.id === activeCategory)?.label || activeCategory}.
+          No news found for this criteria.
         </div>
       ) : (
         <CategorySection
           categoryMeta={NEWS_CATEGORIES.find((c) => c.id === activeCategory)}
-          items={displayedNews}
+          items={news}
           activeTab={activeTab}
+          totalCount={countByCategory[activeCategory] || 0}
           {...tableHandlers}
         />
+      )}
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 pt-4 pb-8">
+          <button
+            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1 || loading}
+            className="px-4 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+          >
+            Previous
+          </button>
+          <span className="text-sm text-slate-600 font-medium px-4">
+            Page {currentPage} of {totalPages}
+          </span>
+          <button
+            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+            disabled={currentPage === totalPages || loading}
+            className="px-4 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
       )}
 
       {editingItem && (

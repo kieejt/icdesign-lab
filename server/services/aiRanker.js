@@ -17,7 +17,14 @@ export const rankAndSummarize = async (articles, category = '') => {
 
   const prompt = `You are an expert in IC Design, VLSI, and Semiconductors.
 You are given exactly ${n} articles${categoryLabel}.
-Write an objective, direct summary of each article's content (2-3 sentences per article).
+
+For EACH article:
+1. Write an objective, direct summary of its content (2-3 sentences).
+2. Score its "relevance" from 0 to 10: how related the article actually is to IC design, VLSI,
+   semiconductors, the chip industry, or (for job listings) semiconductor/hardware engineering roles.
+   0-2 means the article is off-topic (e.g. general politics, entertainment, sports, or a keyword
+   match that turned out to be coincidental). 8-10 means it is squarely about chip design or the
+   semiconductor industry. Be an honest judge — do not default to a high score.
 
 You MUST return a JSON array with EXACTLY ${n} objects — one for every article index from 0 to ${n - 1}.
 Do not skip any index. Do not add extra entries.
@@ -29,9 +36,9 @@ DO NOT wrap the response in markdown. Output must be directly parseable by JSON.
 
 Expected JSON format:
 [
-  { "index": 0, "reason": "<summary for article 0>" },
+  { "index": 0, "reason": "<summary for article 0>", "relevance": <0-10> },
   ...
-  { "index": ${n - 1}, "reason": "<summary for article ${n - 1}>" }
+  { "index": ${n - 1}, "reason": "<summary for article ${n - 1}>", "relevance": <0-10> }
 ]
 
 Articles:

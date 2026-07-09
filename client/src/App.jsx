@@ -256,8 +256,11 @@ function App() {
 
 
           <Route path="/news/world-news" element={<WorldNewsPage />} />
+          <Route path="/news/world-news/page/:page" element={<WorldNewsPage />} />
           <Route path="/news/vietnam-news" element={<VietnamNewsPage />} />
+          <Route path="/news/vietnam-news/page/:page" element={<VietnamNewsPage />} />
           <Route path="/news/jobs" element={<JobsInternshipPage />} />
+          <Route path="/news/jobs/page/:page" element={<JobsInternshipPage />} />
 
           <Route path="/contact" element={<ContactPage />} />
 

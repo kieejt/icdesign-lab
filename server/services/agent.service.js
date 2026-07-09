@@ -17,6 +17,11 @@ async function saveRankedArticles(topArticles, rankedResults, category) {
           reason: (article.summary || article.title || '').slice(0, 500),
         }))
 
+  // Quantity is prioritized over pre-filtering: nothing is dropped here, admin review is the
+  // actual relevance gate. AI-judged relevance (when available) only decides display order,
+  // so the most on-topic articles surface first for the admin.
+  resultsToSave.sort((a, b) => (b.relevance ?? 0) - (a.relevance ?? 0))
+
   let savedCount = 0
   for (const result of resultsToSave) {
     const article = topArticles[result.index]

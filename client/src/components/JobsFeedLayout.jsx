@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import api from '../lib/api';
 
 function formatDate(dateString) {
@@ -21,17 +22,38 @@ function formatDate(dateString) {
 
 export default function JobsFeedLayout({ title, subtitle, category, eyebrow }) {
   const { t } = useTranslation();
+  const { page } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const [totalPages, setTotalPages] = useState(1);
+  const [currentPage, setCurrentPage] = useState(parseInt(page) || 1);
+  
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
+  useEffect(() => {
+    setCurrentPage(parseInt(page) || 1);
+  }, [page]);
 
   useEffect(() => {
     const fetchJobs = async () => {
       setLoading(true);
       try {
-        const response = await api.get('/news/published', { params: { category } });
-        // Sort jobs by date descending
-        const sortedJobs = response.data.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
-        setJobs(sortedJobs);
+        const params = { category };
+        if (startDate) params.startDate = startDate;
+        if (endDate) params.endDate = endDate;
+        
+        const offset = (currentPage - 1) * 20;
+        const response = await api.get('/news/published', { 
+          params: { ...params, offset, limit: 20 } 
+        });
+        
+        setJobs(response.data.data);
+        setTotalPages(Math.ceil((response.data.total || 0) / 20) || 1);
       } catch (error) {
         console.error('Failed to fetch jobs', error);
       } finally {
@@ -39,7 +61,27 @@ export default function JobsFeedLayout({ title, subtitle, category, eyebrow }) {
       }
     };
     fetchJobs();
-  }, [category]);
+  }, [category, currentPage, startDate, endDate]);
+
+  const handlePageChange = (newPage) => {
+    const basePath = location.pathname.replace(/\/page\/\d+/, '');
+    if (newPage === 1) {
+      navigate(basePath);
+    } else {
+      navigate(`${basePath}/page/${newPage}`);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDateFilterChange = (type, value) => {
+    if (type === 'start') setStartDate(value);
+    if (type === 'end') setEndDate(value);
+    
+    if (currentPage !== 1) {
+      const basePath = location.pathname.replace(/\/page\/\d+/, '');
+      navigate(basePath);
+    }
+  };
 
   return (
     <div className="w-full flex flex-col items-center bg-slate-50 min-h-screen">
@@ -61,6 +103,41 @@ export default function JobsFeedLayout({ title, subtitle, category, eyebrow }) {
 
       <section className="w-full py-16">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+          {/* Date Filter */}
+          <div className="flex flex-col sm:flex-row items-center justify-between mb-10 gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wider hidden sm:block">
+              Filter by Date
+            </h3>
+            <div className="flex items-center gap-3 flex-wrap justify-center">
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-widest">From</label>
+                <input 
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => handleDateFilterChange('start', e.target.value)}
+                  className="text-sm px-2 py-1.5 border border-slate-300 rounded outline-none focus:border-slate-900 text-slate-700 bg-white"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-widest">To</label>
+                <input 
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => handleDateFilterChange('end', e.target.value)}
+                  className="text-sm px-2 py-1.5 border border-slate-300 rounded outline-none focus:border-slate-900 text-slate-700 bg-white"
+                />
+              </div>
+              {(startDate || endDate) && (
+                <button 
+                  onClick={() => { setStartDate(''); setEndDate(''); }}
+                  className="text-xs font-medium text-blue-600 hover:text-blue-800 uppercase tracking-widest ml-2"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+
           {loading ? (
             <div className="flex justify-center py-24">
               <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600" />
@@ -85,12 +162,11 @@ export default function JobsFeedLayout({ title, subtitle, category, eyebrow }) {
                 });
                 const otherJobs = jobs.filter(job => !hanoiJobs.includes(job));
 
-                const renderJobList = (jobList, sectionTitle) => (
-                  <div className="mb-16">
-                    <h2 className="text-2xl font-bold text-slate-900 mb-6 border-b border-slate-200 pb-4">{sectionTitle}</h2>
-                    {jobList.length === 0 ? (
-                      <p className="text-slate-500 text-lg">{t('jobs.noActiveJobs')}</p>
-                    ) : (
+                const renderJobList = (jobList, sectionTitle) => {
+                  if (jobList.length === 0) return null;
+                  return (
+                    <div className="mb-12">
+                      <h2 className="text-2xl font-bold text-slate-900 mb-6 border-b border-slate-200 pb-4">{sectionTitle}</h2>
                       <div className="flex flex-col gap-6">
                         {jobList.map((job) => (
                           <article
@@ -147,9 +223,9 @@ export default function JobsFeedLayout({ title, subtitle, category, eyebrow }) {
                           </article>
                         ))}
                       </div>
-                    )}
-                  </div>
-                );
+                    </div>
+                  );
+                };
 
                 return (
                   <>
@@ -158,6 +234,43 @@ export default function JobsFeedLayout({ title, subtitle, category, eyebrow }) {
                   </>
                 );
               })()}
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between border-t border-slate-200 pt-8 mt-12">
+                  <button
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1 || loading}
+                    className="inline-flex items-center px-4 py-2 border border-slate-200 text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50 disabled:opacity-40 transition-colors bg-white rounded-lg"
+                  >
+                    {t('media.prev')}
+                  </button>
+
+                  <div className="hidden md:flex gap-1.5 flex-wrap justify-center">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <button
+                        key={page}
+                        onClick={() => handlePageChange(page)}
+                        className={`w-9 h-9 flex items-center justify-center text-xs font-bold transition-colors rounded-lg ${
+                          currentPage === page
+                            ? 'bg-blue-600 text-white'
+                            : 'border border-slate-200 text-slate-700 hover:bg-slate-50 bg-white'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages || loading}
+                    className="inline-flex items-center px-4 py-2 border border-slate-200 text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50 disabled:opacity-40 transition-colors bg-white rounded-lg"
+                  >
+                    {t('media.next')}
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>

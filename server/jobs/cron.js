@@ -29,13 +29,18 @@ export const startNewsCronJob = () => {
 
   const { hour, minute } = getCronTime()
 
-  // Run every day at configured time
-  currentTask = cron.schedule(`${minute} ${hour} * * *`, async () => {
-    console.log(`Running daily news cron job at ${hour}:${minute.toString().padStart(2, '0')}...`)
-    await fetchAndProcessNews()
-  })
+  // Run every day at configured time, interpreted in Vietnam time (GMT+7) regardless of the
+  // server's own local timezone.
+  currentTask = cron.schedule(
+    `${minute} ${hour} * * *`,
+    async () => {
+      console.log(`Running daily news cron job at ${hour}:${minute.toString().padStart(2, '0')} (Asia/Ho_Chi_Minh)...`)
+      await fetchAndProcessNews()
+    },
+    { timezone: 'Asia/Ho_Chi_Minh' }
+  )
 
-  console.log(`News cron job initialized. Scheduled to run every day at ${hour}:${minute.toString().padStart(2, '0')}.`)
+  console.log(`News cron job initialized. Scheduled to run every day at ${hour}:${minute.toString().padStart(2, '0')} Vietnam time (Asia/Ho_Chi_Minh).`)
 }
 
 export const updateCronTime = (hour, minute) => {

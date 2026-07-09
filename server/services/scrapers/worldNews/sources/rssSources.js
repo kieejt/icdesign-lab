@@ -1,6 +1,11 @@
 import Parser from 'rss-parser'
+import { hasKeyword } from '../../../../utils/textMatch.js'
 
-const parser = new Parser()
+// rss-parser defaults to a 60s timeout per feed; combined with fetching feeds sequentially
+// that's several minutes of worst-case stall if one feed goes unresponsive. Fetch feeds in
+// parallel with a tighter per-feed timeout instead.
+const FEED_TIMEOUT_MS = 15000
+const parser = new Parser({ timeout: FEED_TIMEOUT_MS })
 
 const RSS_FEEDS = [
   // Existing
@@ -37,50 +42,50 @@ function getContentString(item) {
   return `${item.title || ''} ${item.contentSnippet || item.content || ''}`.toLowerCase()
 }
 
-function isRelevant(item, feed, strict = true) {
+function computeStrictMatch(item, feed) {
   const contentStr = getContentString(item)
   const feedBoost =
     feed.name.includes('Semiconductor') || feed.name.includes('EE Times') || feed.name.includes('Circuits') || feed.name.includes('Electronics')
 
   if (feedBoost) return true
 
-  const keywordHits = SEMICONDUCTOR_KEYWORDS.filter((kw) => contentStr.includes(kw)).length
-  return strict ? keywordHits >= 1 : keywordHits >= 0
+  const keywordHits = SEMICONDUCTOR_KEYWORDS.filter((kw) => hasKeyword(contentStr, kw)).length
+  return keywordHits >= 1
 }
 
 export const fetchWorldNewsRss = async () => {
-  const articles = []
   const maxScanPerFeed = 25
 
-  for (const feed of RSS_FEEDS) {
-    try {
-      const parsedFeed = await parser.parseURL(feed.url)
-      let scanned = 0
-      for (const item of parsedFeed.items || []) {
-        if (scanned >= maxScanPerFeed) break
-        scanned++
-        
-        // Push every potential article, relevance will be sorted/filtered in index.js or we can filter strictly here.
-        // Let's attach a relevance score or strict flag.
-        const strictMatch = isRelevant(item, feed, true)
-        const relaxedMatch = isRelevant(item, feed, false)
-        
-        if (relaxedMatch || strictMatch) {
-          articles.push({
-            title: item.title,
-            summary: item.contentSnippet || item.content || '',
-            url: item.link,
-            source: feed.name,
-            category: 'World News',
-            publishedAt: new Date(item.pubDate || item.isoDate || Date.now()),
-            strictMatch // store this so index.js can prioritize
-          })
-        }
-      }
-    } catch (err) {
-      console.error(`Error fetching ${feed.name}:`, err.message)
+  // Fetch every feed in parallel — one slow/unresponsive feed no longer blocks the others.
+  const results = await Promise.allSettled(RSS_FEEDS.map((feed) => parser.parseURL(feed.url)))
+
+  const articles = []
+  results.forEach((result, i) => {
+    const feed = RSS_FEEDS[i]
+    if (result.status !== 'fulfilled') {
+      console.error(`Error fetching ${feed.name}:`, result.reason?.message || result.reason)
+      return
     }
-  }
+
+    let scanned = 0
+    for (const item of result.value.items || []) {
+      if (scanned >= maxScanPerFeed) break
+      scanned++
+
+      // Every scraped item is kept — quantity is prioritized over pre-filtering, since
+      // admin review is the actual relevance gate before anything gets published.
+      // strictMatch only decides sort priority so genuinely on-topic articles surface first.
+      articles.push({
+        title: item.title,
+        summary: item.contentSnippet || item.content || '',
+        url: item.link,
+        source: feed.name,
+        category: 'World News',
+        publishedAt: new Date(item.pubDate || item.isoDate || Date.now()),
+        strictMatch: computeStrictMatch(item, feed)
+      })
+    }
+  })
 
   return articles
 }

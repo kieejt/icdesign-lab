@@ -11,12 +11,28 @@ const router = express.Router()
 // GET /api/news/published (Public)
 router.get('/published', async (req, res) => {
   try {
+    const { offset = 0, limit = 20, startDate, endDate, category } = req.query
     const filter = { status: 'approved' }
-    if (req.query.category) {
-      filter.category = req.query.category
+    if (category) {
+      filter.category = category
     }
-    const news = await News.find(filter).sort({ publishedAt: -1 })
-    res.json(news)
+    if (startDate || endDate) {
+      filter.publishedAt = {}
+      if (startDate) filter.publishedAt.$gte = new Date(startDate)
+      if (endDate) {
+        const end = new Date(endDate)
+        end.setHours(23, 59, 59, 999)
+        filter.publishedAt.$lte = end
+      }
+    }
+    
+    const total = await News.countDocuments(filter)
+    const news = await News.find(filter)
+      .sort({ publishedAt: -1 })
+      .skip(Number(offset))
+      .limit(Number(limit))
+      
+    res.json({ data: news, total })
   } catch (error) {
     res.status(500).json({ message: 'Server error' })
   }
@@ -27,11 +43,58 @@ router.get('/published', async (req, res) => {
 // =========================================================================
 router.use(verifyToken, verifyAdmin)
 
+// GET /api/news/admin/stats (Admin)
+router.get('/admin/stats', async (req, res) => {
+  try {
+    const stats = await News.aggregate([
+      {
+        $group: {
+          _id: { category: '$category', status: '$status' },
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+    
+    const result = {
+      pending: { All: 0 },
+      approved: { All: 0 },
+      rejected: { All: 0 },
+    };
+    
+    stats.forEach(item => {
+      const { category, status } = item._id;
+      if (!result[status]) result[status] = { All: 0 };
+      result[status][category] = item.count;
+      result[status].All += item.count;
+    });
+    
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' })
+  }
+})
+
 // GET /api/news/pending (Admin)
 router.get('/pending', async (req, res) => {
   try {
-    const news = await News.find({ status: 'pending' }).sort({ createdAt: -1 })
-    res.json(news)
+    const { page = 1, limit = 50, startDate, endDate, category } = req.query;
+    const filter = { status: 'pending' };
+    if (category && category !== 'All') filter.category = category;
+    if (startDate || endDate) {
+      filter.createdAt = {};
+      if (startDate) filter.createdAt.$gte = new Date(startDate);
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        filter.createdAt.$lte = end;
+      }
+    }
+    const total = await News.countDocuments(filter);
+    const news = await News.find(filter)
+      .sort({ createdAt: -1 })
+      .skip((Number(page) - 1) * Number(limit))
+      .limit(Number(limit));
+    res.json({ data: news, total, totalPages: Math.ceil(total / Number(limit)), currentPage: Number(page) });
   } catch (error) {
     res.status(500).json({ message: 'Server error' })
   }
@@ -40,8 +103,31 @@ router.get('/pending', async (req, res) => {
 // GET /api/news/history (Admin)
 router.get('/history', async (req, res) => {
   try {
-    const news = await News.find({ status: { $ne: 'pending' } }).sort({ updatedAt: -1 })
-    res.json(news)
+    const { page = 1, limit = 50, startDate, endDate, category, status } = req.query;
+    const filter = { status: { $ne: 'pending' } };
+    
+    if (status) {
+      if (status === 'published') filter.status = 'approved';
+      else if (status === 'rejected') filter.status = 'rejected';
+      else filter.status = status;
+    }
+    
+    if (category && category !== 'All') filter.category = category;
+    if (startDate || endDate) {
+      filter.updatedAt = {};
+      if (startDate) filter.updatedAt.$gte = new Date(startDate);
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        filter.updatedAt.$lte = end;
+      }
+    }
+    const total = await News.countDocuments(filter);
+    const news = await News.find(filter)
+      .sort({ updatedAt: -1 })
+      .skip((Number(page) - 1) * Number(limit))
+      .limit(Number(limit));
+    res.json({ data: news, total, totalPages: Math.ceil(total / Number(limit)), currentPage: Number(page) });
   } catch (error) {
     res.status(500).json({ message: 'Server error' })
   }
