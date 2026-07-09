@@ -1,17 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../lib/api';
+import Pagination from '../components/Pagination';
 
 export default function ProfessorPage() {
   const { t } = useTranslation();
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
     const fetchMembers = async () => {
       try {
-        const response = await api.get('/members?category=Professors');
-        setMembers(response.data);
+        setLoading(true);
+        const response = await api.get(`/members?category=Professors&page=${page}&limit=12`);
+        setMembers(response.data.data);
+        setTotalPages(response.data.totalPages || 1);
       } catch (error) {
         console.error('Failed to fetch professors', error);
       } finally {
@@ -19,7 +24,7 @@ export default function ProfessorPage() {
       }
     };
     fetchMembers();
-  }, []);
+  }, [page]);
 
   return (
     <div className="w-full flex flex-col items-center">
@@ -75,6 +80,9 @@ export default function ProfessorPage() {
               )}
             </div>
           )}
+          <div className="mt-12">
+            <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} loading={loading} />
+          </div>
         </div>
       </section>
     </div>

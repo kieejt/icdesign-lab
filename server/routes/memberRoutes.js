@@ -8,9 +8,31 @@ const router = express.Router()
 
 router.get('/', async (req, res) => {
   try {
+    const { page = 1, limit = 12, search = '' } = req.query
+    const pageNum = Math.max(Number(page) || 1, 1)
+    const limitNum = Math.max(Number(limit) || 12, 1)
     const filter = req.query.category ? { category: req.query.category } : {}
-    const members = await Member.find(filter).sort({ createdAt: -1 })
-    return res.json(members)
+
+    if (search) {
+      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const regex = new RegExp(escaped, 'i')
+      filter.$or = [{ name: regex }, { email: regex }]
+    }
+
+    const [total, members] = await Promise.all([
+      Member.countDocuments(filter),
+      Member.find(filter)
+        .sort({ createdAt: -1 })
+        .skip((pageNum - 1) * limitNum)
+        .limit(limitNum),
+    ])
+
+    return res.json({
+      data: members,
+      total,
+      totalPages: Math.max(Math.ceil(total / limitNum), 1),
+      currentPage: pageNum,
+    })
   } catch (error) {
     return res.status(500).json({ message: 'Failed to fetch members' })
   }

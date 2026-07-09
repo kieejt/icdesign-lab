@@ -1,34 +1,42 @@
 import React, { useEffect, useState } from 'react';
 import api from '../../lib/api';
 import ErrorText from '../../components/ErrorText';
+import Pagination from '../../components/Pagination';
 
 export default function AdminResearchPage() {
   const [researchItems, setResearchItems] = useState([])
   const [activeTab, setActiveTab] = useState('Project')
-  const [form, setForm] = useState({ 
-    title: '', 
-    description: '', 
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [loading, setLoading] = useState(false)
+  const [form, setForm] = useState({
+    title: '',
+    description: '',
     authors: '',
     journal: '',
     link: '',
     image: '',
-    date: '' 
+    date: ''
   })
   const [editingId, setEditingId] = useState('')
   const [error, setError] = useState('')
 
   const loadResearch = async () => {
+    setLoading(true)
     try {
-      const { data } = await api.get('/research')
-      setResearchItems(data)
+      const { data } = await api.get('/research', { params: { category: activeTab, page, limit: 10 } })
+      setResearchItems(data.data)
+      setTotalPages(data.totalPages)
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load research')
+    } finally {
+      setLoading(false)
     }
   }
 
   useEffect(() => {
     loadResearch()
-  }, [])
+  }, [activeTab, page])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -72,6 +80,7 @@ export default function AdminResearchPage() {
 
   const handleTabChange = (tab) => {
     setActiveTab(tab)
+    setPage(1)
     resetForm()
     setError('')
   }
@@ -171,7 +180,7 @@ export default function AdminResearchPage() {
       {/* Filtered List */}
       <div className="mt-8 space-y-4">
         <h3 className="font-semibold text-slate-800">Existing {activeTab}s</h3>
-        {researchItems.filter(i => i.category === activeTab).map((item) => (
+        {researchItems.map((item) => (
           <div key={item._id} className="rounded border border-slate-200 bg-white p-5 hover:shadow-sm transition-shadow">
             <div className="flex justify-between items-start">
               <div>
@@ -215,11 +224,13 @@ export default function AdminResearchPage() {
           </div>
         ))}
         
-        {researchItems.filter(i => i.category === activeTab).length === 0 && (
+        {researchItems.length === 0 && (
           <p className="text-slate-500 py-8 text-center bg-slate-50 rounded-lg border border-slate-200 border-dashed">
             No {activeTab.toLowerCase()} records found. Use the form above to add one.
           </p>
         )}
+
+        <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} loading={loading} />
       </div>
     </div>
   )

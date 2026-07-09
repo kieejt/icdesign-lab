@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../../lib/api';
 import ErrorText from '../../components/ErrorText';
+import Pagination from '../../components/Pagination';
 
 export default function AdminLabEventPage() {
   const [activeTab, setActiveTab] = useState('events');
@@ -34,17 +35,24 @@ function EventsManager() {
   const [form, setForm] = useState({ title: '', date: '', location: '', status: 'Upcoming', description: '' });
   const [editingId, setEditingId] = useState('');
   const [error, setError] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(false);
 
   const loadEvents = async () => {
+    setLoading(true);
     try {
-      const { data } = await api.get('/lab-events');
-      setEvents(data);
+      const { data } = await api.get('/lab-events', { params: { page, limit: 10 } });
+      setEvents(data.data);
+      setTotalPages(data.totalPages);
     } catch (err) {
       setError('Failed to load events');
+    } finally {
+      setLoading(false);
     }
   };
 
-  useEffect(() => { loadEvents(); }, []);
+  useEffect(() => { loadEvents(); }, [page]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -117,6 +125,9 @@ function EventsManager() {
           </div>
         ))}
       </div>
+      <div className="pt-4">
+        <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} loading={loading} />
+      </div>
     </div>
   );
 }
@@ -129,17 +140,24 @@ function GalleryManager() {
   const [error, setError] = useState('');
   const [uploadProgress, setUploadProgress] = useState(null);
   const [selectedImages, setSelectedImages] = useState([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(false);
 
   const loadItems = async () => {
+    setLoading(true);
     try {
-      const { data } = await api.get('/gallery');
-      setItems(data);
+      const { data } = await api.get('/gallery', { params: { page, limit: 12 } });
+      setItems(data.data);
+      setTotalPages(data.totalPages);
     } catch (err) {
       setError('Failed to load gallery albums');
+    } finally {
+      setLoading(false);
     }
   };
 
-  useEffect(() => { loadItems(); }, []);
+  useEffect(() => { loadItems(); }, [page]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -342,6 +360,9 @@ function GalleryManager() {
             </div>
           </div>
         ))}
+      </div>
+      <div className="pt-6">
+        <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} loading={loading} />
       </div>
     </div>
   );

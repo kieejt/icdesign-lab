@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../../lib/api';
 import ErrorText from '../../components/ErrorText';
+import Pagination from '../../components/Pagination'
 
 export default function AdminPeoplePage() {
   const [members, setMembers] = useState([])
@@ -14,19 +15,41 @@ export default function AdminPeoplePage() {
   })
   const [editingId, setEditingId] = useState('')
   const [error, setError] = useState('')
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [listLoading, setListLoading] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
 
-  const loadMembers = async () => {
+  const loadMembers = async (pageToLoad = page) => {
     try {
-      const { data } = await api.get('/members')
-      setMembers(data)
+      setListLoading(true)
+      const { data } = await api.get('/members', { params: { page: pageToLoad, limit: 12, search: debouncedSearch } })
+      setMembers(data.data)
+      setTotalPages(data.totalPages || 1)
+      setTotal(data.total || 0)
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load members')
+    } finally {
+      setListLoading(false)
     }
   }
 
+  // Debounce the free-text search so we don't fire a request on every keystroke
   useEffect(() => {
-    loadMembers()
-  }, [])
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 400)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
+  // Jump back to page 1 whenever the search term changes
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch])
+
+  useEffect(() => {
+    loadMembers(page)
+  }, [page, debouncedSearch])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -39,7 +62,7 @@ export default function AdminPeoplePage() {
       }
       setMemberForm({ name: '', role: '', category: 'Students', email: '', research: '', image: '' })
       setEditingId('')
-      loadMembers()
+      loadMembers(page)
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to save member')
     }
@@ -49,7 +72,11 @@ export default function AdminPeoplePage() {
     if (!window.confirm('Delete this member?')) return
     try {
       await api.delete(`/members/${id}`)
-      loadMembers()
+      if (members.length === 1 && page > 1) {
+        setPage(page - 1)
+      } else {
+        loadMembers(page)
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to delete member')
     }
@@ -104,7 +131,17 @@ export default function AdminPeoplePage() {
 
         <button className="rounded bg-blue-600 px-4 py-2 text-white">{editingId ? 'Update' : 'Create'}</button>
       </form>
-      <div className="mt-4 space-y-2">
+      <div className="flex items-center justify-between gap-4 mt-4">
+        <h3 className="text-sm font-medium text-slate-700">Members {total ? `(${total})` : ''}</h3>
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search by name or email..."
+          className="rounded border px-3 py-2 text-sm"
+        />
+      </div>
+      <div className="mt-2 space-y-2">
         {members.map((member) => (
           <div key={member._id} className="flex items-center justify-between rounded bg-slate-100 p-3">
             <div>
@@ -133,6 +170,7 @@ export default function AdminPeoplePage() {
           </div>
         ))}
       </div>
+      <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} loading={listLoading} />
     </div>
   )
 }

@@ -1,20 +1,45 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../lib/api';
+import Pagination from '../components/Pagination';
 
 export default function DocumentsPage() {
   const { t } = useTranslation();
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterType, setFilterType] = useState('All'); // All, Free, Paid
   const [filterOwned, setFilterOwned] = useState('All'); // All, Lab Owned
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
+  // Debounce the search box so we don't fire a request on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Jump back to page 1 whenever the search/filter criteria change
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, filterType, filterOwned]);
 
   useEffect(() => {
     const fetchBooks = async () => {
+      setLoading(true);
       try {
-        const response = await api.get('/documents');
-        setBooks(response.data);
+        const response = await api.get('/documents', {
+          params: {
+            page,
+            limit: 10,
+            search: debouncedSearch,
+            type: filterType === 'All' ? undefined : filterType,
+            owned: filterOwned === 'All' ? undefined : filterOwned,
+          },
+        });
+        setBooks(response.data.data);
+        setTotalPages(response.data.totalPages || 1);
       } catch (error) {
         console.error('Failed to fetch books', error);
       } finally {
@@ -22,7 +47,7 @@ export default function DocumentsPage() {
       }
     };
     fetchBooks();
-  }, []);
+  }, [page, debouncedSearch, filterType, filterOwned]);
 
   const handleDownload = async (book) => {
     try {
@@ -38,28 +63,7 @@ export default function DocumentsPage() {
     }
   };
 
-  // Filter books based on search query, access type, and lab ownership
-  const filteredBooks = books.filter(book => {
-    const title = book.title || '';
-    const subject = book.subject || 'General';
-    const type = book.type || 'Free';
-    const isLabOwned = !!book.isLabOwned;
-
-    const matchesSearch =
-      title.toLowerCase().includes(search.toLowerCase()) ||
-      subject.toLowerCase().includes(search.toLowerCase());
-
-    const matchesType = filterType === 'All' || type === filterType;
-
-    const matchesOwned =
-      filterOwned === 'All' ||
-      (filterOwned === 'Owned' && isLabOwned) ||
-      (filterOwned === 'External' && !isLabOwned);
-
-    return matchesSearch && matchesType && matchesOwned;
-  });
-
-  if (loading) {
+  if (loading && books.length === 0) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
         <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-slate-900"></div>
@@ -161,7 +165,7 @@ export default function DocumentsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
-                {filteredBooks.map((book) => (
+                {books.map((book) => (
                   <tr key={book._id} className="group hover:bg-slate-50/50 transition-colors">
 
                     {/* Document Info & Type Tags */}
@@ -232,7 +236,7 @@ export default function DocumentsPage() {
           </div>
 
           {/* Empty Catalog State */}
-          {filteredBooks.length === 0 && (
+          {books.length === 0 && (
             <div className="text-center py-20 px-4">
               <h3 className="text-lg font-medium text-slate-900 mb-1">{t('education.noBooksTitle')}</h3>
               <p className="text-slate-500 text-sm max-w-sm mx-auto font-light">
@@ -241,6 +245,9 @@ export default function DocumentsPage() {
             </div>
           )}
 
+          <div className="mt-10">
+            <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} loading={loading} />
+          </div>
 
         </div>
       </section>

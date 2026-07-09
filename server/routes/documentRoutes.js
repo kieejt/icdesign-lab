@@ -8,11 +8,35 @@ const router = express.Router()
 
 router.get('/', async (req, res) => {
   try {
+    const { page = 1, limit = 10, search = '', owned } = req.query
+    const pageNum = Math.max(Number(page) || 1, 1)
+    const limitNum = Math.max(Number(limit) || 10, 1)
+
     const filter = {}
     if (req.query.type) filter.type = req.query.type
     if (req.query.subject) filter.subject = req.query.subject
-    const documents = await Document.find(filter).sort({ createdAt: -1 })
-    return res.json(documents)
+    if (owned === 'Owned') filter.isLabOwned = true
+    else if (owned === 'External') filter.isLabOwned = false
+    if (search) {
+      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const regex = new RegExp(escaped, 'i')
+      filter.$or = [{ title: regex }, { subject: regex }]
+    }
+
+    const [total, documents] = await Promise.all([
+      Document.countDocuments(filter),
+      Document.find(filter)
+        .sort({ createdAt: -1 })
+        .skip((pageNum - 1) * limitNum)
+        .limit(limitNum),
+    ])
+
+    return res.json({
+      data: documents,
+      total,
+      totalPages: Math.max(Math.ceil(total / limitNum), 1),
+      currentPage: pageNum,
+    })
   } catch (error) {
     return res.status(500).json({ message: 'Failed to fetch documents' })
   }
@@ -39,6 +63,38 @@ router.post('/', verifyToken, verifyAdmin, async (req, res) => {
     return res.status(201).json(document)
   } catch (error) {
     return res.status(500).json({ message: 'Failed to create document' })
+  }
+})
+
+router.put('/:id', verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const { title, subject, link, isLabOwned, downloadUrl, type } = req.body
+    if (!title || !subject || !link) {
+      return res
+        .status(400)
+        .json({ message: 'Title, subject, and link are required' })
+    }
+
+    const document = await Document.findByIdAndUpdate(
+      req.params.id,
+      {
+        title,
+        subject,
+        link,
+        isLabOwned: !!isLabOwned,
+        downloadUrl: isLabOwned ? downloadUrl : undefined,
+        type: type || 'Free',
+      },
+      { new: true, runValidators: true },
+    )
+
+    if (!document) {
+      return res.status(404).json({ message: 'Document not found' })
+    }
+    await logAdminAction(req, 'UPDATE_DOCUMENT', `Updated document: ${document.title} (${document.subject})`)
+    return res.json(document)
+  } catch (error) {
+    return res.status(500).json({ message: 'Failed to update document' })
   }
 })
 

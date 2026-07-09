@@ -1,17 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../lib/api';
+import Pagination from '../components/Pagination';
 
 export default function PublicationsPage() {
   const { t } = useTranslation();
   const [publications, setPublications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
     const fetchPublications = async () => {
       try {
-        const response = await api.get('/research?category=Publications');
-        setPublications(response.data);
+        const response = await api.get(`/research?category=Publications&page=${page}&limit=15`);
+        setPublications(response.data.data);
+        setTotalPages(response.data.totalPages);
       } catch (error) {
         console.error('Failed to fetch publications', error);
       } finally {
@@ -19,7 +23,7 @@ export default function PublicationsPage() {
       }
     };
     fetchPublications();
-  }, []);
+  }, [page]);
 
   // Group publications by year using the new 'date' field, fallback to createdAt
   const publicationsByYear = publications.reduce((acc, pub) => {
@@ -113,6 +117,9 @@ export default function PublicationsPage() {
               )}
             </div>
           )}
+          <div className="mt-16">
+            <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} loading={loading} />
+          </div>
         </div>
       </section>
     </div>

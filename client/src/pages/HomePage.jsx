@@ -14,23 +14,22 @@ export default function HomePage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [resResearch, resMembers, resRecruitment, resNews] = await Promise.all([
-          api.get('/research'),
-          api.get('/members'),
-          api.get('/recruitment'),
-          api.get('/news/published')
+        // Each request asks the server for only the handful of rows this page actually
+        // renders, instead of downloading full collections and slicing them client-side.
+        const [resResearch, resMembers, resRecruitment, resWorld, resVietnam, resJobs] = await Promise.all([
+          api.get('/research', { params: { limit: 3 } }),
+          api.get('/members', { params: { limit: 4 } }),
+          api.get('/recruitment', { params: { limit: 3 } }),
+          api.get('/news/published', { params: { category: 'World News', limit: 3 } }),
+          api.get('/news/published', { params: { category: 'Vietnam News', limit: 3 } }),
+          api.get('/news/published', { params: { category: 'Jobs', limit: 3 } }),
         ]);
-        setResearch(resResearch.data.slice(0, 3));
-        setMembers(resMembers.data.slice(0, 4));
+        setResearch(resResearch.data.data);
+        setMembers(resMembers.data.data);
         setRecruitments(resRecruitment.data.slice(0, 3));
-        
-        const approvedNews = resNews.data || [];
-        const world = approvedNews.filter(item => item.category === 'World News');
-        const vietnam = approvedNews.filter(item => item.category === 'Vietnam News');
-        const jobs = approvedNews.filter(item => item.category === 'Jobs');
-        setWorldNews(world.slice(0, 3));
-        setVietnamNews(vietnam.slice(0, 3));
-        setJobsNews(jobs.slice(0, 3));
+        setWorldNews(resWorld.data.data || []);
+        setVietnamNews(resVietnam.data.data || []);
+        setJobsNews(resJobs.data.data || []);
       } catch (error) {
         console.error('Failed to fetch homepage data', error);
       }

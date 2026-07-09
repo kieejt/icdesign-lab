@@ -16,7 +16,11 @@ const syncExpiredRecruitments = async () => {
 router.get('/', async (req, res) => {
   try {
     await syncExpiredRecruitments()
-    const items = await Recruitment.find().sort({ createdAt: -1 })
+    let query = Recruitment.find().sort({ createdAt: -1 })
+    if (req.query.limit) {
+      query = query.limit(Math.max(Number(req.query.limit) || 0, 1))
+    }
+    const items = await query
     return res.json(items)
   } catch (error) {
     return res.status(500).json({ message: 'Failed to fetch recruitments' })

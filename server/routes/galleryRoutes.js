@@ -8,9 +8,19 @@ const router = express.Router()
 
 router.get('/', async (req, res) => {
   try {
+    const page = Math.max(Number(req.query.page) || 1, 1)
+    const limit = Math.max(Number(req.query.limit) || 12, 1)
     const filter = req.query.category ? { category: req.query.category } : {}
-    const items = await Gallery.find(filter).sort({ createdAt: -1 })
-    return res.json(items)
+
+    const [total, items] = await Promise.all([
+      Gallery.countDocuments(filter),
+      Gallery.find(filter)
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+    ])
+
+    return res.json({ data: items, total, totalPages: Math.ceil(total / limit), currentPage: page })
   } catch (error) {
     return res.status(500).json({ message: 'Failed to fetch gallery items' })
   }

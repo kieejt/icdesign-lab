@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import * as XLSX from 'xlsx';
 import api from '../../lib/api';
 import ErrorText from '../../components/ErrorText';
+import Pagination from '../../components/Pagination';
 
 export default function AdminDocumentsPage() {
   const [documents, setDocuments] = useState([]);
@@ -13,9 +14,15 @@ export default function AdminDocumentsPage() {
     downloadUrl: '',
     type: 'Free'
   });
+  const [editingId, setEditingId] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  
+
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+
   // States for bulk operation and excel import
   const [selectedIds, setSelectedIds] = useState([]);
   const [showBulkSection, setShowBulkSection] = useState(false);
@@ -23,23 +30,38 @@ export default function AdminDocumentsPage() {
   const [bulkLoading, setBulkLoading] = useState(false);
 
 
-  const loadDocuments = async () => {
+  const loadDocuments = async (targetPage = page) => {
     try {
-      const { data } = await api.get('/documents');
-      setDocuments(data);
+      const { data } = await api.get('/documents', { params: { page: targetPage, limit: 10 } });
+      setDocuments(data.data);
+      setTotalPages(data.totalPages || 1);
+      setTotal(data.total || 0);
+      setPage(data.currentPage || targetPage);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load documents');
     }
   };
 
   useEffect(() => {
-    loadDocuments();
-  }, []);
+    loadDocuments(page);
+  }, [page]);
+
+  const resetForm = () => {
+    setForm({
+      title: '',
+      subject: '',
+      link: '',
+      isLabOwned: false,
+      downloadUrl: '',
+      type: 'Free'
+    });
+    setEditingId('');
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    
+
     // Simple validation for lab-owned books
     if (form.isLabOwned && !form.downloadUrl.trim()) {
       setError('Google Drive download URL is required for lab-owned books.');
@@ -48,31 +70,43 @@ export default function AdminDocumentsPage() {
 
     setLoading(true);
     try {
-      await api.post('/documents', {
+      const payload = {
         ...form,
         downloadUrl: form.isLabOwned ? form.downloadUrl : ''
-      });
-      setForm({
-        title: '',
-        subject: '',
-        link: '',
-        isLabOwned: false,
-        downloadUrl: '',
-        type: 'Free'
-      });
-      loadDocuments();
+      };
+      if (editingId) {
+        await api.put(`/documents/${editingId}`, payload);
+      } else {
+        await api.post('/documents', payload);
+      }
+      resetForm();
+      loadDocuments(editingId ? page : 1);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to create document');
+      setError(err.response?.data?.message || 'Failed to save document');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleEditClick = (doc) => {
+    setEditingId(doc._id);
+    setForm({
+      title: doc.title,
+      subject: doc.subject,
+      link: doc.link,
+      isLabOwned: !!doc.isLabOwned,
+      downloadUrl: doc.downloadUrl || '',
+      type: doc.type || 'Free'
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this book reference?')) return;
     try {
       await api.delete(`/documents/${id}`);
-      loadDocuments();
+      const isLastOnPage = documents.length === 1 && page > 1;
+      loadDocuments(isLastOnPage ? page - 1 : page);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to delete document');
     }
@@ -293,7 +327,7 @@ export default function AdminDocumentsPage() {
       
       setBulkData([]);
       setShowBulkSection(false);
-      loadDocuments();
+      loadDocuments(1);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to bulk import documents.');
     } finally {
@@ -324,7 +358,7 @@ export default function AdminDocumentsPage() {
         {/* Toggle headers */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 border-b border-slate-100 pb-4">
           <div>
-            <h3 className="text-lg font-bold text-slate-900">Add Book & Reference</h3>
+            <h3 className="text-lg font-bold text-slate-900">{editingId ? 'Edit Book & Reference' : 'Add Book & Reference'}</h3>
             <p className="text-xs text-slate-500 font-medium mt-0.5">Add book references manually or upload in bulk from an Excel file.</p>
           </div>
           
@@ -612,13 +646,22 @@ export default function AdminDocumentsPage() {
             </div>
 
             {/* Submit button */}
-            <div className="flex justify-end pt-4">
+            <div className="flex justify-end gap-3 pt-4">
+              {editingId && (
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="inline-flex justify-center rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  Cancel Edit
+                </button>
+              )}
               <button
                 type="submit"
                 disabled={loading}
                 className="inline-flex justify-center rounded-xl bg-indigo-600 px-6 py-3 text-sm font-bold text-white shadow-sm hover:bg-indigo-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50 transition-colors"
               >
-                {loading ? 'Creating...' : 'Add Book Reference'}
+                {loading ? (editingId ? 'Updating...' : 'Creating...') : (editingId ? 'Update Book Reference' : 'Add Book Reference')}
               </button>
             </div>
 
@@ -630,7 +673,7 @@ export default function AdminDocumentsPage() {
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-4">
-            <h3 className="text-xl font-bold text-slate-900">Current Catalog ({documents.length})</h3>
+            <h3 className="text-xl font-bold text-slate-900">Current Catalog ({total})</h3>
             {documents.length > 0 && (
               <button
                 onClick={handleSelectAll}
@@ -676,15 +719,26 @@ export default function AdminDocumentsPage() {
                       </h4>
                     </div>
                     
-                    <button
-                      onClick={() => handleDelete(doc._id)}
-                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
-                      title="Delete book"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => handleEditClick(doc)}
+                        className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                        title="Edit book"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => handleDelete(doc._id)}
+                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Delete book"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
 
                   <div className="pl-7 flex flex-wrap gap-2">
@@ -730,6 +784,8 @@ export default function AdminDocumentsPage() {
             </div>
           )}
         </div>
+
+        <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
       </div>
 
       {/* Floating Bulk Action Bar */}

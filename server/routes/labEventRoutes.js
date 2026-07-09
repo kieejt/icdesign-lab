@@ -8,8 +8,19 @@ const router = express.Router()
 
 router.get('/', async (req, res) => {
   try {
-    const events = await LabEvent.find().sort({ createdAt: -1 })
-    return res.json(events)
+    const page = Math.max(Number(req.query.page) || 1, 1)
+    const limit = Math.max(Number(req.query.limit) || 10, 1)
+    const filter = req.query.status ? { status: req.query.status } : {}
+
+    const [total, events] = await Promise.all([
+      LabEvent.countDocuments(filter),
+      LabEvent.find(filter)
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+    ])
+
+    return res.json({ data: events, total, totalPages: Math.ceil(total / limit), currentPage: page })
   } catch (error) {
     return res.status(500).json({ message: 'Failed to fetch events' })
   }
