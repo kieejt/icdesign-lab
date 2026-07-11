@@ -1,14 +1,20 @@
 import { scoreArticle } from '../utils/scorer.js'
 import { rankAndSummarize } from './aiRanker.js'
 import News from '../models/News.js'
-import { ARTICLES_PER_CATEGORY } from '../constants/news.js'
+import Setting from '../models/Setting.js'
+import AuditLog from '../models/AuditLog.js'
+import {
+  ARTICLES_PER_CATEGORY,
+  AUTO_APPROVE_SETTING_KEY,
+  AUTO_APPROVE_SCORE_THRESHOLD,
+} from '../constants/news.js'
 import { fetchWorldNews } from './scrapers/worldNews/index.js'
 import { fetchVietnamNews } from './scrapers/vietnamNews/index.js'
 import { fetchJobs } from './scrapers/jobs.js'
 
 const CATEGORIES = ['World News', 'Vietnam News', 'Jobs']
 
-async function saveRankedArticles(topArticles, rankedResults, category) {
+async function saveRankedArticles(topArticles, rankedResults, category, autoApproveEnabled) {
   const resultsToSave =
     rankedResults.length > 0
       ? rankedResults
@@ -23,6 +29,7 @@ async function saveRankedArticles(topArticles, rankedResults, category) {
   resultsToSave.sort((a, b) => (b.relevance ?? 0) - (a.relevance ?? 0))
 
   let savedCount = 0
+  let autoApprovedCount = 0
   for (const result of resultsToSave) {
     const article = topArticles[result.index]
     if (!article) continue
@@ -30,6 +37,7 @@ async function saveRankedArticles(topArticles, rankedResults, category) {
     try {
       const exists = await News.findOne({ url: article.url })
       if (!exists) {
+        const shouldAutoApprove = autoApproveEnabled && article.score >= AUTO_APPROVE_SCORE_THRESHOLD
         await News.create({
           title: article.title,
           summary: result.reason,
@@ -39,15 +47,16 @@ async function saveRankedArticles(topArticles, rankedResults, category) {
           thumbnail: article.thumbnail || '',
           publishedAt: article.publishedAt,
           score: article.score,
-          status: 'pending',
+          status: shouldAutoApprove ? 'approved' : 'pending',
         })
         savedCount++
+        if (shouldAutoApprove) autoApprovedCount++
       }
     } catch (dbErr) {
       console.error(`[${category}] Error saving article:`, dbErr.message)
     }
   }
-  return savedCount
+  return { savedCount, autoApprovedCount }
 }
 
 export const fetchAndProcessNews = async () => {
@@ -55,6 +64,9 @@ export const fetchAndProcessNews = async () => {
   const perCategoryStats = {}
 
   try {
+    const autoApproveSetting = await Setting.findOne({ key: AUTO_APPROVE_SETTING_KEY })
+    const autoApproveEnabled = autoApproveSetting?.value === true
+
     console.log('Fetching all sources...')
     const [worldNews, vietnamNews, jobs] = await Promise.all([
       fetchWorldNews(),
@@ -86,6 +98,7 @@ export const fetchAndProcessNews = async () => {
     })
 
     let totalSaved = 0
+    let totalAutoApproved = 0
 
     for (const cat of CATEGORIES) {
       const catArticles = articles.filter((a) => a.category === cat)
@@ -106,7 +119,12 @@ export const fetchAndProcessNews = async () => {
 
       console.log(`[${cat}] Ranking and summarizing ${topPerCat.length} articles with AI...`)
       const rankedResults = await rankAndSummarize(topPerCat, cat)
-      const savedCount = await saveRankedArticles(topPerCat, rankedResults, cat)
+      const { savedCount, autoApprovedCount } = await saveRankedArticles(
+        topPerCat,
+        rankedResults,
+        cat,
+        autoApproveEnabled
+      )
 
       perCategoryStats[cat] = {
         scraped: catArticles.length,
@@ -114,13 +132,22 @@ export const fetchAndProcessNews = async () => {
         saved: savedCount,
       }
       totalSaved += savedCount
-      console.log(`[${cat}] Saved ${savedCount} pending articles`)
+      totalAutoApproved += autoApprovedCount
+      console.log(`[${cat}] Saved ${savedCount} pending articles (${autoApprovedCount} auto-approved)`)
     }
 
     if (totalSaved === 0 && articles.length === 0) {
       console.log('No new articles found across all categories.')
     } else {
       console.log(`Agent finished. Saved ${totalSaved} new pending articles.`, perCategoryStats)
+    }
+
+    if (totalAutoApproved > 0) {
+      await AuditLog.create({
+        adminEmail: 'system (auto-approve)',
+        action: 'AUTO_APPROVE_NEWS',
+        details: `Auto-approved ${totalAutoApproved} article(s) with score >= ${AUTO_APPROVE_SCORE_THRESHOLD} on fetch.`,
+      })
     }
 
     // Explicit post-fetch cleanup to ensure overall database stays below 200 articles

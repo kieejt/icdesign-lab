@@ -3,6 +3,7 @@ import Setting from '../models/Setting.js'
 import verifyToken from '../middleware/verifyToken.js'
 import verifyAdmin from '../middleware/verifyAdmin.js'
 import { logAdminAction } from '../utils/auditLogger.js'
+import { AUTO_APPROVE_SETTING_KEY } from '../constants/news.js'
 
 const router = express.Router()
 
@@ -27,6 +28,9 @@ router.get('/:key', async (req, res) => {
       // Return defaults if requested key is contact_info
       if (req.params.key === 'contact_info') {
         return res.json({ key: 'contact_info', value: DEFAULT_CONTACT_INFO })
+      }
+      if (req.params.key === AUTO_APPROVE_SETTING_KEY) {
+        return res.json({ key: AUTO_APPROVE_SETTING_KEY, value: false })
       }
       return res.status(404).json({ message: 'Setting not found' })
     }

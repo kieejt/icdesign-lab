@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import api from '../../lib/api'
 import ErrorCard from '../../components/ErrorCard'
+import Toast from '../../components/Toast'
 import {
   NEWS_CATEGORIES,
   CATEGORY_BADGE_STYLES,
   CATEGORY_SECTION_STYLES,
 } from '../../constants/newsCategories'
+
+const AUTO_APPROVE_THRESHOLD = 7
 
 const getTimeGroup = (dateString) => {
   const date = new Date(dateString)
@@ -225,6 +228,11 @@ const AdminNewsPage = () => {
   const [cronTime, setCronTime] = useState({ hour: 8, minute: 0 })
   const [isSavingCron, setIsSavingCron] = useState(false)
   const [activeCategory, setActiveCategory] = useState('World News')
+  const [autoApprove, setAutoApprove] = useState(false)
+  const [isSavingAutoApprove, setIsSavingAutoApprove] = useState(false)
+  const [toast, setToast] = useState(null)
+
+  const showToast = (message, type = 'info') => setToast({ message, type })
 
   // Pagination & Filtering
   const [currentPage, setCurrentPage] = useState(1)
@@ -261,16 +269,18 @@ const AdminNewsPage = () => {
       if (endDate) params.endDate = endDate
       if (statusParam) params.status = statusParam
 
-      const [newsRes, cronRes, statsRes] = await Promise.all([
+      const [newsRes, cronRes, statsRes, autoApproveRes] = await Promise.all([
         api.get(`/news/${endpoint}`, { params }),
         api.get('/news/cron-time'),
-        api.get('/news/admin/stats')
+        api.get('/news/admin/stats'),
+        api.get('/settings/news_auto_approve'),
       ])
 
       setNews(newsRes.data.data)
       setTotalPages(newsRes.data.totalPages || 1)
       setCronTime(cronRes.data)
       setStats(statsRes.data)
+      setAutoApprove(autoApproveRes.data.value === true)
       setError(null)
     } catch (err) {
       setError('Failed to load news data.')
@@ -301,7 +311,7 @@ const AdminNewsPage = () => {
       await api.post(`/news/${id}/${action}`)
       fetchData()
     } catch (err) {
-      alert('Error executing this action.')
+      showToast('Error executing this action.', 'error')
     }
   }
 
@@ -311,7 +321,7 @@ const AdminNewsPage = () => {
       await api.delete(`/news/${id}`)
       fetchData()
     } catch (err) {
-      alert('Error deleting news.')
+      showToast('Error deleting news.', 'error')
     }
   }
 
@@ -323,16 +333,30 @@ const AdminNewsPage = () => {
       const summary = stats
         ? NEWS_CATEGORIES.map((c) => `${c.shortLabel}: ${stats[c.id]?.saved ?? 0} saved`).join('\n')
         : ''
-      alert(summary ? `Fetch completed.\n${summary}` : 'News aggregation successful!')
+      showToast(summary ? `Fetch completed.\n${summary}` : 'News aggregation successful!', 'success')
       fetchData()
     } catch (err) {
       if (err.code === 'ECONNABORTED' || err.message.includes('timeout')) {
-        alert('Aggregation is taking longer than expected and is still running in the background. Please check back in a minute.')
+        showToast('Aggregation is taking longer than expected and is still running in the background. Please check back in a minute.', 'info')
       } else {
-        alert('Error during news aggregation.')
+        showToast('Error during news aggregation.', 'error')
       }
     } finally {
       setIsFetching(false)
+    }
+  }
+
+  const handleToggleAutoApprove = async () => {
+    const nextValue = !autoApprove
+    setIsSavingAutoApprove(true)
+    try {
+      await api.put('/settings/news_auto_approve', { value: nextValue })
+      setAutoApprove(nextValue)
+      showToast(`Auto-approve ${nextValue ? 'enabled' : 'disabled'}.`, 'success')
+    } catch (err) {
+      showToast('Error updating auto-approve setting.', 'error')
+    } finally {
+      setIsSavingAutoApprove(false)
     }
   }
 
@@ -340,9 +364,9 @@ const AdminNewsPage = () => {
     setIsSavingCron(true)
     try {
       await api.post('/news/cron-time', cronTime)
-      alert('Automatic aggregation time updated!')
+      showToast('Automatic aggregation time updated!', 'success')
     } catch (err) {
-      alert('Error updating time.')
+      showToast('Error updating time.', 'error')
     } finally {
       setIsSavingCron(false)
     }
@@ -364,7 +388,7 @@ const AdminNewsPage = () => {
       setEditingItem(null)
       fetchData()
     } catch (err) {
-      alert('Failed to update news item')
+      showToast('Failed to update news item', 'error')
     }
   }
 
@@ -389,6 +413,27 @@ const AdminNewsPage = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
         <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Manage AI News System</h2>
         <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 shadow-sm">
+            <span className="text-sm text-slate-600">
+              Auto-Approve (score ≥ {AUTO_APPROVE_THRESHOLD}):
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={autoApprove}
+              onClick={handleToggleAutoApprove}
+              disabled={isSavingAutoApprove}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${
+                autoApprove ? 'bg-emerald-600' : 'bg-slate-300'
+              }`}
+            >
+              <span
+                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                  autoApprove ? 'translate-x-5' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
           <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 shadow-sm">
             <span className="text-sm text-slate-600">Auto Fetch:</span>
             <input
@@ -624,6 +669,8 @@ const AdminNewsPage = () => {
           </div>
         </div>
       )}
+
+      <Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>
   )
 }
