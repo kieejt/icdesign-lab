@@ -16,16 +16,25 @@ export default function HomePage() {
       try {
         // Each request asks the server for only the handful of rows this page actually
         // renders, instead of downloading full collections and slicing them client-side.
-        const [resResearch, resMembers, resRecruitment, resWorld, resVietnam, resJobs] = await Promise.all([
-          api.get('/research', { params: { limit: 3 } }),
-          api.get('/members', { params: { limit: 4 } }),
+        const [resResearch, resProfessors, resStudents, resAlumni, resRecruitment, resWorld, resVietnam, resJobs] = await Promise.all([
+          api.get('/research', { params: { category: 'Project', limit: 3 } }),
+          api.get('/members', { params: { category: 'Professors', limit: 4 } }),
+          api.get('/members', { params: { category: 'Students', limit: 4 } }),
+          api.get('/members', { params: { category: 'Alumni', limit: 4 } }),
           api.get('/recruitment', { params: { limit: 3 } }),
           api.get('/news/published', { params: { category: 'World News', limit: 3 } }),
           api.get('/news/published', { params: { category: 'Vietnam News', limit: 3 } }),
           api.get('/news/published', { params: { category: 'Jobs', limit: 3 } }),
         ]);
         setResearch(resResearch.data.data);
-        setMembers(resMembers.data.data);
+        // Professors first, then Students, then Alumni — so a lab with a single
+        // professor still fills the remaining slots instead of showing just one card.
+        const orderedMembers = [
+          ...(resProfessors.data.data || []),
+          ...(resStudents.data.data || []),
+          ...(resAlumni.data.data || []),
+        ].slice(0, 4);
+        setMembers(orderedMembers);
         setRecruitments(resRecruitment.data.slice(0, 3));
         setWorldNews(resWorld.data.data || []);
         setVietnamNews(resVietnam.data.data || []);
@@ -277,29 +286,37 @@ export default function HomePage() {
               <a href="/lab-recruitment" className="text-sm font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors mt-6 md:mt-0">{t('home.viewAllPositions')}</a>
             </div>
 
-            <div className="flex flex-col">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {recruitments.map(item => {
                 const isActive = item.status === 'active';
                 return (
-                  <article key={item._id} className={`group flex flex-col md:flex-row gap-6 md:gap-12 py-12 border-b border-slate-200 ${!isActive ? 'opacity-50' : 'hover:bg-slate-50 transition-colors -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8'}`}>
-                    <div className="md:w-1/4 shrink-0">
-                      <span className="text-xs font-semibold uppercase tracking-widest text-slate-500 flex items-center gap-2">
-                        {isActive ? <span className="w-2 h-2 rounded-full bg-emerald-500"></span> : null}
-                        {item.status}
+                  <article key={item._id} className="bg-white p-8 border border-slate-200 shadow-sm hover:shadow-lg transition-all flex flex-col h-full group">
+                    <div className="mb-4">
+                      <span className={`inline-block px-3 py-1 text-[10px] font-bold uppercase tracking-widest mb-4 ${isActive ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
+                        {isActive ? t('home.openPosition', 'Open Position') : t('home.closedPosition', 'Closed')}
                       </span>
-                      <p className="text-sm font-medium text-slate-500 mt-6">{t('home.deadline')}{new Date(item.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                      <h3 className="text-2xl font-semibold text-slate-900 group-hover:text-blue-600 transition-colors leading-tight">
+                        {item.title}
+                      </h3>
                     </div>
-                    <div className="md:w-3/4 flex flex-col">
-                      <h3 className="text-2xl md:text-3xl font-medium text-slate-900 leading-tight mb-6">{item.title}</h3>
-                      <p className="text-slate-600 font-light leading-relaxed max-w-3xl mb-8">{item.description}</p>
+
+                    <p className="text-slate-600 font-light text-sm flex-1 whitespace-pre-line leading-relaxed mb-6 line-clamp-4">
+                      {item.description}
+                    </p>
+
+                    <div className="mt-auto pt-6 border-t border-slate-100 flex items-center justify-between">
+                      <div className="text-xs text-slate-500 font-medium">
+                        {t('home.deadline')}<span className="text-slate-900">{new Date(item.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                      </div>
                       <a
                         href={item.googleFormUrl}
                         target="_blank"
-                        rel="noreferrer"
-                        className={`inline-flex w-fit items-center text-sm font-semibold uppercase tracking-widest ${isActive ? 'text-blue-600 hover:text-blue-800' : 'cursor-not-allowed text-slate-400'} transition-colors`}
+                        rel="noopener noreferrer"
+                        className={`inline-flex items-center text-sm font-semibold transition-colors group/link ${isActive ? 'text-blue-600 hover:text-blue-800' : 'cursor-not-allowed text-slate-400'}`}
                         onClick={(e) => { if (!isActive) e.preventDefault() }}
                       >
                         {t('home.applyNow')}
+                        <svg className="w-4 h-4 ml-1 transform group-hover/link:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
                       </a>
                     </div>
                   </article>
