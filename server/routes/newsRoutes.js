@@ -28,7 +28,7 @@ router.get('/published', async (req, res) => {
     
     const total = await News.countDocuments(filter)
     const news = await News.find(filter)
-      .sort({ publishedAt: -1 })
+      .sort({ createdAt: -1 })
       .skip(Number(offset))
       .limit(Number(limit))
       
@@ -124,7 +124,7 @@ router.get('/history', async (req, res) => {
     }
     const total = await News.countDocuments(filter);
     const news = await News.find(filter)
-      .sort({ updatedAt: -1 })
+      .sort({ createdAt: -1 })
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit));
     res.json({ data: news, total, totalPages: Math.ceil(total / Number(limit)), currentPage: Number(page) });
