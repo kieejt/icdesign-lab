@@ -1,9 +1,12 @@
 import express from 'express'
 import multer from 'multer'
 import path from 'path'
+import fs from 'fs'
+import { fileURLToPath } from 'url'
 import verifyToken from '../middleware/verifyToken.js'
 import verifyAdmin from '../middleware/verifyAdmin.js'
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const router = express.Router()
 
 // Map mimetypes to safe extensions
@@ -15,10 +18,15 @@ const mimeToExt = {
   'image/gif': '.gif'
 }
 
+// Multer never creates its destination folder itself, and a fresh container
+// image doesn't have one (uploads/ is gitignored) — create it up front.
+const uploadDir = path.join(__dirname, '..', 'uploads')
+fs.mkdirSync(uploadDir, { recursive: true })
+
 // Configure storage for multer
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, 'uploads/')
+    cb(null, uploadDir)
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9)
