@@ -52,7 +52,7 @@ export default function HomePage() {
       <section className="w-full border-b border-slate-200">
         <div className="w-full h-[60vh] md:h-[80vh] bg-slate-900 relative group overflow-hidden">
           <img 
-            src="/lab-hero.png" 
+            src="/lab-hero.webp"
             alt="IC Design Laboratory" 
             className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-1000 ease-out"
           />
