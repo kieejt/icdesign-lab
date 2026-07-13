@@ -151,7 +151,11 @@ export default function AdminPeoplePage() {
     }
   }
 
-  const resolveImageSrc = (image) => (image?.startsWith('/') ? `http://localhost:5000${image}` : image)
+  // In prod VITE_API_URL is '/api' (same-origin, proxied by nginx); stripping that
+  // suffix leaves '', so uploads resolve as same-origin relative paths. In local dev
+  // it leaves 'http://localhost:5000', matching the backend's own port.
+  const uploadsBase = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '')
+  const resolveImageSrc = (image) => (image?.startsWith('/') ? `${uploadsBase}${image}` : image)
 
   return (
     <div className="flex flex-col gap-6">
