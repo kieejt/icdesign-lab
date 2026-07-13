@@ -19,9 +19,11 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
 
           script: |
+            set -e
             cd icdesign-lab
 
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
 
             docker compose down
 
