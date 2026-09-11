@@ -3,8 +3,25 @@ import User from '../models/User.js'
 import generateToken from '../utils/generateToken.js'
 import verifyToken from '../middleware/verifyToken.js'
 import { logAdminAction } from '../utils/auditLogger.js'
+import { SESSION_TTL_MS } from '../constants/auth.js'
 
 const router = express.Router()
+
+/**
+ * Attributes the session cookie is set with — and must be cleared with.
+ *
+ * A compliant browser only drops a cookie when the clearing response repeats the
+ * same attributes (everything but expiry). `res.clearCookie('token')` with no
+ * options therefore left a `sameSite=strict; secure` cookie in place, so
+ * "sign out" could return a success message while the session stayed live.
+ * Defined once so setting and clearing cannot disagree.
+ */
+const SESSION_COOKIE = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'strict',
+  path: '/',
+}
 
 router.post('/register', async (req, res) => {
   try {
@@ -59,12 +76,9 @@ router.post('/login', async (req, res) => {
 
     const token = generateToken(user)
     
-    res.cookie('token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 24 * 60 * 60 * 1000 // 1 day
-    })
+    // maxAge matches what the token is signed with, so the credential cannot
+    // outlive the cookie that carries it.
+    res.cookie('token', token, { ...SESSION_COOKIE, maxAge: SESSION_TTL_MS })
 
     return res.json({
       message: 'Login successful',
@@ -80,7 +94,7 @@ router.get('/me', verifyToken, (req, res) => {
 })
 
 router.post('/logout', (req, res) => {
-  res.clearCookie('token')
+  res.clearCookie('token', SESSION_COOKIE)
   return res.json({ message: 'Logged out successfully' })
 })
 

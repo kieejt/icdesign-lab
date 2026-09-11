@@ -4,8 +4,11 @@ import verifyToken from '../middleware/verifyToken.js'
 import verifyAdmin from '../middleware/verifyAdmin.js'
 import { logAdminAction } from '../utils/auditLogger.js'
 import { AUTO_APPROVE_SETTING_KEY } from '../constants/news.js'
+import { httpCache, invalidateOnWrite, microCache } from '../middleware/cache.js'
 
 const router = express.Router()
+
+router.use(invalidateOnWrite('settings'))
 
 // Default contact info if not set in DB
 const DEFAULT_CONTACT_INFO = {
@@ -20,9 +23,9 @@ const DEFAULT_CONTACT_INFO = {
 // @route   GET /api/settings/:key
 // @desc    Get setting by key
 // @access  Public
-router.get('/:key', async (req, res) => {
+router.get('/:key', httpCache(300, 900), microCache('settings', 120_000), async (req, res) => {
   try {
-    const setting = await Setting.findOne({ key: req.params.key })
+    const setting = await Setting.findOne({ key: req.params.key }).lean()
     
     if (!setting) {
       // Return defaults if requested key is contact_info

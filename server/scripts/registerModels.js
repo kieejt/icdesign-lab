@@ -1,0 +1,13 @@
+/** Side-effect import that registers every Mongoose model exactly once. */
+import '../models/AuditLog.js'
+import '../models/Document.js'
+import '../models/Gallery.js'
+import '../models/LabEvent.js'
+import '../models/Lecture.js'
+import '../models/Member.js'
+import '../models/News.js'
+import '../models/PageView.js'
+import '../models/Recruitment.js'
+import '../models/Research.js'
+import '../models/Setting.js'
+import '../models/User.js'

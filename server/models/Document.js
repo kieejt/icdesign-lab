@@ -13,6 +13,13 @@ const documentSchema = new mongoose.Schema(
   { timestamps: true },
 )
 
+// The catalog filters on any combination of type / subject / ownership and
+// sorts newest-first; these cover the common shapes.
+documentSchema.index({ createdAt: -1 })
+documentSchema.index({ type: 1, isLabOwned: 1, createdAt: -1 })
+documentSchema.index({ subject: 1 })
+documentSchema.index({ downloads: -1 })
+
 const Document = mongoose.model('Document', documentSchema)
 
 export default Document

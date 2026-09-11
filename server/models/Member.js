@@ -12,6 +12,10 @@ const memberSchema = new mongoose.Schema(
   { timestamps: true },
 )
 
+// Every public listing filters by category and sorts newest-first.
+memberSchema.index({ category: 1, createdAt: -1 })
+memberSchema.index({ name: 1 })
+
 const Member = mongoose.model('Member', memberSchema)
 
 export default Member

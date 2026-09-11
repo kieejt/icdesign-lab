@@ -9,3 +9,6 @@ export const AUTO_APPROVE_SETTING_KEY = 'news_auto_approve'
 
 /** Minimum score an article needs to be auto-approved when the toggle is enabled. */
 export const AUTO_APPROVE_SCORE_THRESHOLD = 7
+
+/** Maximum articles kept in the collection; older ones are pruned after each fetch. */
+export const NEWS_RETENTION_LIMIT = 200

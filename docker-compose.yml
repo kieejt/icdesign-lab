@@ -1,16 +1,39 @@
-version: '3.8'
-
 services:
   mongodb:
     image: mongo:6.0
     container_name: icdesign-mongodb
     restart: unless-stopped
 
-    ports:
-      - "27017:27017"
+    # No `ports:` on purpose.
+    #
+    # This used to publish 27017 to the host. Docker writes its own iptables
+    # rules, so a published port is reachable from the internet even when UFW
+    # says the port is closed — the database was effectively public, and the
+    # container runs without authentication by default. The backend reaches it
+    # over the compose network by service name, which needs no published port.
+    #
+    # To inspect the database from the host, tunnel instead of republishing:
+    #   docker compose exec mongodb mongosh -u "$MONGO_INITDB_ROOT_USERNAME" -p
+
+    environment:
+      # Read from a `.env` file beside this compose file (gitignored).
+      #
+      # The official image only applies these when it initialises an *empty*
+      # data directory — on an existing volume they are ignored and the server
+      # still starts without auth. See "Enabling MongoDB auth" in the README for
+      # the one-time migration on a deployment that already has data.
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:?set MONGO_ROOT_USER in .env}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?set MONGO_ROOT_PASSWORD in .env}
 
     volumes:
       - mongodb_data:/data/db
+
+    healthcheck:
+      test: ['CMD', 'mongosh', '--quiet', '--eval', 'db.adminCommand("ping")']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   backend:
     build:
@@ -23,6 +46,12 @@ services:
     env_file:
       - ./server/.env
 
+    environment:
+      # Enables production behaviour in the app: secure cookies, no stack traces
+      # in error responses, and autoIndex off (run `npm run sync-indexes` after a
+      # schema change instead of rebuilding indexes on every boot).
+      - NODE_ENV=production
+
     ports:
       - "5000:5000"
 
@@ -30,7 +59,10 @@ services:
       - uploads_data:/app/uploads
 
     depends_on:
-      - mongodb
+      mongodb:
+        # Wait for Mongo to accept connections, not merely for the container to
+        # exist — otherwise the API can start, fail to connect and exit.
+        condition: service_healthy
 
   frontend:
     build:

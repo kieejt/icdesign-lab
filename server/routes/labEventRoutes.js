@@ -3,10 +3,13 @@ import verifyToken from '../middleware/verifyToken.js'
 import verifyAdmin from '../middleware/verifyAdmin.js'
 import LabEvent from '../models/LabEvent.js'
 import { logAdminAction } from '../utils/auditLogger.js'
+import { httpCache, invalidateOnWrite, microCache } from '../middleware/cache.js'
 
 const router = express.Router()
 
-router.get('/', async (req, res) => {
+router.use(invalidateOnWrite('lab-events'))
+
+router.get('/', httpCache(120, 600), microCache('lab-events', 60_000), async (req, res) => {
   try {
     const page = Math.max(Number(req.query.page) || 1, 1)
     const limit = Math.max(Number(req.query.limit) || 10, 1)
@@ -18,11 +21,26 @@ router.get('/', async (req, res) => {
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
+        .lean()
     ])
 
     return res.json({ data: events, total, totalPages: Math.ceil(total / limit), currentPage: page })
   } catch (error) {
     return res.status(500).json({ message: 'Failed to fetch events' })
+  }
+})
+
+// Single lab event.
+router.get('/:id', httpCache(120, 600), microCache('lab-events', 60_000), async (req, res) => {
+  try {
+    const event = await LabEvent.findById(req.params.id).lean()
+    if (!event) return res.status(404).json({ message: 'Event not found' })
+    return res.json(event)
+  } catch (error) {
+    if (error.name === 'CastError') {
+      return res.status(404).json({ message: 'Event not found' })
+    }
+    return res.status(500).json({ message: 'Failed to fetch event' })
   }
 })
 

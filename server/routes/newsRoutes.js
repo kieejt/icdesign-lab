@@ -2,14 +2,19 @@ import express from 'express'
 import News from '../models/News.js'
 import verifyToken from '../middleware/verifyToken.js'
 import verifyAdmin from '../middleware/verifyAdmin.js'
-import { fetchAndProcessNews } from '../services/agent.service.js'
+import { runNewsFetch } from '../services/agent.service.js'
 import { getCronTime, updateCronTime } from '../jobs/cron.js'
 import { logAdminAction } from '../utils/auditLogger.js'
+import { httpCache, invalidateOnWrite, microCache } from '../middleware/cache.js'
 
 const router = express.Router()
 
+// Approving, rejecting or editing an article must show on the public feed at
+// once, so every admin write purges the cached payloads.
+router.use(invalidateOnWrite('news'))
+
 // GET /api/news/published (Public)
-router.get('/published', async (req, res) => {
+router.get('/published', httpCache(60, 300), microCache('news', 30_000), async (req, res) => {
   try {
     const { offset = 0, limit = 20, startDate, endDate, category } = req.query
     const filter = { status: 'approved' }
@@ -26,12 +31,19 @@ router.get('/published', async (req, res) => {
       }
     }
     
-    const total = await News.countDocuments(filter)
-    const news = await News.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(Number(offset))
-      .limit(Number(limit))
-      
+    // Count and page run concurrently rather than back to back — one round-trip
+    // of latency instead of two.
+    const [total, news] = await Promise.all([
+      News.countDocuments(filter),
+      News.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(Math.max(Number(offset) || 0, 0))
+        .limit(Math.min(Math.max(Number(limit) || 20, 1), 100))
+        // The feed never needs the raw score or tag array.
+        .select('-score -tags -__v')
+        .lean(),
+    ])
+
     res.json({ data: news, total })
   } catch (error) {
     res.status(500).json({ message: 'Server error' })
@@ -89,11 +101,14 @@ router.get('/pending', async (req, res) => {
         filter.createdAt.$lte = end;
       }
     }
-    const total = await News.countDocuments(filter);
-    const news = await News.find(filter)
-      .sort({ createdAt: -1 })
-      .skip((Number(page) - 1) * Number(limit))
-      .limit(Number(limit));
+    const [total, news] = await Promise.all([
+      News.countDocuments(filter),
+      News.find(filter)
+        .sort({ createdAt: -1 })
+        .skip((Number(page) - 1) * Number(limit))
+        .limit(Number(limit))
+        .lean(),
+    ]);
     res.json({ data: news, total, totalPages: Math.ceil(total / Number(limit)), currentPage: Number(page) });
   } catch (error) {
     res.status(500).json({ message: 'Server error' })
@@ -122,11 +137,14 @@ router.get('/history', async (req, res) => {
         filter.updatedAt.$lte = end;
       }
     }
-    const total = await News.countDocuments(filter);
-    const news = await News.find(filter)
-      .sort({ createdAt: -1 })
-      .skip((Number(page) - 1) * Number(limit))
-      .limit(Number(limit));
+    const [total, news] = await Promise.all([
+      News.countDocuments(filter),
+      News.find(filter)
+        .sort({ createdAt: -1 })
+        .skip((Number(page) - 1) * Number(limit))
+        .limit(Number(limit))
+        .lean(),
+    ]);
     res.json({ data: news, total, totalPages: Math.ceil(total / Number(limit)), currentPage: Number(page) });
   } catch (error) {
     res.status(500).json({ message: 'Server error' })
@@ -201,7 +219,16 @@ router.patch('/:id', async (req, res) => {
 // POST /api/news/fetch (Admin - Manual Trigger)
 router.post('/fetch', async (req, res) => {
   try {
-    const result = await fetchAndProcessNews()
+    const { ran, result } = await runNewsFetch('admin')
+
+    // A run already in progress is a normal outcome, not an error — say so
+    // rather than reporting "0 saved", which reads like the sources were empty.
+    if (!ran) {
+      return res.status(409).json({
+        message: 'A news fetch is already running. Try again in a few minutes.',
+      })
+    }
+
     res.json({
       message: 'Fetch completed',
       totalSaved: result?.totalSaved ?? 0,
@@ -214,8 +241,8 @@ router.post('/fetch', async (req, res) => {
 })
 
 // GET /api/news/cron-time (Admin)
-router.get('/cron-time', (req, res) => {
-  res.json(getCronTime())
+router.get('/cron-time', async (req, res) => {
+  res.json(await getCronTime())
 })
 
 // POST /api/news/cron-time (Admin)
@@ -224,7 +251,7 @@ router.post('/cron-time', async (req, res) => {
   if (typeof hour !== 'number' || typeof minute !== 'number') {
     return res.status(400).json({ message: 'Invalid time format' })
   }
-  const success = updateCronTime(hour, minute)
+  const success = await updateCronTime(hour, minute)
   if (success) {
     await logAdminAction(req, 'UPDATE_CRON', `Updated News Agent cron schedule to ${hour}:${minute}`)
     res.json({ message: 'Cron time updated', hour, minute })

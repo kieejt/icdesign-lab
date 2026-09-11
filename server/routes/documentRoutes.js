@@ -3,10 +3,13 @@ import verifyToken from '../middleware/verifyToken.js'
 import verifyAdmin from '../middleware/verifyAdmin.js'
 import Document from '../models/Document.js'
 import { logAdminAction } from '../utils/auditLogger.js'
+import { httpCache, invalidateOnWrite, microCache } from '../middleware/cache.js'
 
 const router = express.Router()
 
-router.get('/', async (req, res) => {
+router.use(invalidateOnWrite('documents'))
+
+router.get('/', httpCache(60, 300), microCache('documents', 30_000), async (req, res) => {
   try {
     const { page = 1, limit = 10, search = '', owned } = req.query
     const pageNum = Math.max(Number(page) || 1, 1)
@@ -28,7 +31,8 @@ router.get('/', async (req, res) => {
       Document.find(filter)
         .sort({ createdAt: -1 })
         .skip((pageNum - 1) * limitNum)
-        .limit(limitNum),
+        .limit(limitNum)
+        .lean(),
     ])
 
     return res.json({

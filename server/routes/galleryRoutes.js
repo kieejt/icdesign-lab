@@ -3,10 +3,13 @@ import verifyToken from '../middleware/verifyToken.js'
 import verifyAdmin from '../middleware/verifyAdmin.js'
 import Gallery from '../models/Gallery.js'
 import { logAdminAction } from '../utils/auditLogger.js'
+import { httpCache, invalidateOnWrite, microCache } from '../middleware/cache.js'
 
 const router = express.Router()
 
-router.get('/', async (req, res) => {
+router.use(invalidateOnWrite('gallery'))
+
+router.get('/', httpCache(120, 600), microCache('gallery', 60_000), async (req, res) => {
   try {
     const page = Math.max(Number(req.query.page) || 1, 1)
     const limit = Math.max(Number(req.query.limit) || 12, 1)
@@ -18,6 +21,7 @@ router.get('/', async (req, res) => {
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
+        .lean()
     ])
 
     return res.json({ data: items, total, totalPages: Math.ceil(total / limit), currentPage: page })
@@ -26,9 +30,9 @@ router.get('/', async (req, res) => {
   }
 })
 
-router.get('/:id', async (req, res) => {
+router.get('/:id', httpCache(120, 600), microCache('gallery', 60_000), async (req, res) => {
   try {
-    const item = await Gallery.findById(req.params.id)
+    const item = await Gallery.findById(req.params.id).lean()
     if (!item) return res.status(404).json({ message: 'Album not found' })
     return res.json(item)
   } catch (error) {

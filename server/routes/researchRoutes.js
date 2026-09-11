@@ -4,12 +4,15 @@ import verifyAdmin from '../middleware/verifyAdmin.js'
 import Research from '../models/Research.js'
 import { logAdminAction } from '../utils/auditLogger.js'
 import { bibtexToResearchFields } from '../utils/bibtex.js'
+import { httpCache, invalidateOnWrite, microCache } from '../middleware/cache.js'
 
 const router = express.Router()
 
+router.use(invalidateOnWrite('research'))
+
 const BIBTEX_TITLE_ERROR = "Could not extract a title from the BibTeX entry — check for a 'title' field."
 
-router.get('/', async (req, res) => {
+router.get('/', httpCache(120, 600), microCache('research', 60_000), async (req, res) => {
   try {
     const filter = req.query.category ? { category: req.query.category } : {}
     const page = Math.max(Number(req.query.page) || 1, 1)
@@ -20,7 +23,8 @@ router.get('/', async (req, res) => {
       Research.find(filter)
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
-        .limit(limit),
+        .limit(limit)
+        .lean(),
     ])
 
     return res.json({
@@ -31,6 +35,22 @@ router.get('/', async (req, res) => {
     })
   } catch (error) {
     return res.status(500).json({ message: 'Failed to fetch research' })
+  }
+})
+
+// Single project or publication, addressable by id so every item on the list
+// pages has its own shareable URL.
+router.get('/:id', httpCache(120, 600), microCache('research', 60_000), async (req, res) => {
+  try {
+    const item = await Research.findById(req.params.id).lean()
+    if (!item) return res.status(404).json({ message: 'Research item not found' })
+    return res.json(item)
+  } catch (error) {
+    // A malformed id is a bad request from the client, not a server fault.
+    if (error.name === 'CastError') {
+      return res.status(404).json({ message: 'Research item not found' })
+    }
+    return res.status(500).json({ message: 'Failed to fetch research item' })
   }
 })
 

@@ -3,8 +3,11 @@ import verifyToken from '../middleware/verifyToken.js'
 import verifyAdmin from '../middleware/verifyAdmin.js'
 import Recruitment from '../models/Recruitment.js'
 import { logAdminAction } from '../utils/auditLogger.js'
+import { httpCache, invalidateOnWrite, microCache } from '../middleware/cache.js'
 
 const router = express.Router()
+
+router.use(invalidateOnWrite('recruitment'))
 
 const syncExpiredRecruitments = async () => {
   await Recruitment.updateMany(
@@ -13,14 +16,14 @@ const syncExpiredRecruitments = async () => {
   )
 }
 
-router.get('/', async (req, res) => {
+router.get('/', httpCache(60, 300), microCache('recruitment', 30_000), async (req, res) => {
   try {
     await syncExpiredRecruitments()
     let query = Recruitment.find().sort({ createdAt: -1 })
     if (req.query.limit) {
       query = query.limit(Math.max(Number(req.query.limit) || 0, 1))
     }
-    const items = await query
+    const items = await query.lean()
     return res.json(items)
   } catch (error) {
     return res.status(500).json({ message: 'Failed to fetch recruitments' })

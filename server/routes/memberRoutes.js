@@ -3,10 +3,15 @@ import verifyToken from '../middleware/verifyToken.js'
 import verifyAdmin from '../middleware/verifyAdmin.js'
 import Member from '../models/Member.js'
 import { logAdminAction } from '../utils/auditLogger.js'
+import { httpCache, invalidateOnWrite, microCache } from '../middleware/cache.js'
 
 const router = express.Router()
 
-router.get('/', async (req, res) => {
+// Public directory listings are read constantly and change only when an admin
+// edits a profile — cache them briefly and purge on every write below.
+router.use(invalidateOnWrite('members'))
+
+router.get('/', httpCache(60, 300), microCache('members', 30_000), async (req, res) => {
   try {
     const { page = 1, limit = 12, search = '' } = req.query
     const pageNum = Math.max(Number(page) || 1, 1)
@@ -24,7 +29,9 @@ router.get('/', async (req, res) => {
       Member.find(filter)
         .sort({ createdAt: -1 })
         .skip((pageNum - 1) * limitNum)
-        .limit(limitNum),
+        .limit(limitNum)
+        // Plain objects: no Mongoose document wrapper to build for read-only data.
+        .lean(),
     ])
 
     return res.json({
@@ -35,6 +42,20 @@ router.get('/', async (req, res) => {
     })
   } catch (error) {
     return res.status(500).json({ message: 'Failed to fetch members' })
+  }
+})
+
+// Single member profile.
+router.get('/:id', httpCache(60, 300), microCache('members', 30_000), async (req, res) => {
+  try {
+    const member = await Member.findById(req.params.id).lean()
+    if (!member) return res.status(404).json({ message: 'Member not found' })
+    return res.json(member)
+  } catch (error) {
+    if (error.name === 'CastError') {
+      return res.status(404).json({ message: 'Member not found' })
+    }
+    return res.status(500).json({ message: 'Failed to fetch member' })
   }
 })
 

@@ -1,55 +1,111 @@
 import cron from 'node-cron'
-import fs from 'fs'
-import path from 'path'
-import { fileURLToPath } from 'url'
-import { fetchAndProcessNews } from '../services/agent.service.js'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-const configPath = path.join(__dirname, '../config/cronTime.json')
+import Setting from '../models/Setting.js'
+import { runNewsFetch } from '../services/agent.service.js'
+
+/*
+ * Schedule for the daily news fetch.
+ *
+ * This used to live in `server/config/cronTime.json`, written with
+ * fs.writeFileSync. That file is tracked in git and the deploy does
+ * `git reset --hard origin/main`, so an admin changing the schedule through the
+ * console had it silently reverted on the next deploy — and the file is baked
+ * into the image rather than a volume, so a rebuild lost it too.
+ *
+ * It is a setting, so it belongs in the settings collection with every other
+ * one. That also makes it correct across more than one API process, which a
+ * file on a container's own disk never could be.
+ */
+
+const CRON_SETTING_KEY = 'news_cron_time'
+
+const DEFAULT_TIME = { hour: 8, minute: 0 }
+
+/** The lab is in Vietnam; the schedule means local time there, not the server's. */
+const TIMEZONE = 'Asia/Ho_Chi_Minh'
 
 let currentTask = null
 
-export const getCronTime = () => {
-  try {
-    if (fs.existsSync(configPath)) {
-      const data = fs.readFileSync(configPath, 'utf8')
-      return JSON.parse(data)
-    }
-  } catch (err) {
-    console.error('Error reading cron time config', err)
-  }
-  return { hour: 8, minute: 0 }
+/** Clamps a stored value into a real time, so bad data cannot break the schedule. */
+function normalise(value) {
+  const hour = Number(value?.hour)
+  const minute = Number(value?.minute)
+
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23) return DEFAULT_TIME
+  if (!Number.isInteger(minute) || minute < 0 || minute > 59) return DEFAULT_TIME
+
+  return { hour, minute }
 }
 
-export const startNewsCronJob = () => {
+/**
+ * Reads the configured run time.
+ *
+ * @returns {Promise<{hour: number, minute: number}>}
+ */
+export async function getCronTime() {
+  try {
+    const setting = await Setting.findOne({ key: CRON_SETTING_KEY }).lean()
+    return normalise(setting?.value)
+  } catch (error) {
+    console.error('Failed to read the news cron schedule:', error.message)
+    return DEFAULT_TIME
+  }
+}
+
+const formatTime = ({ hour, minute }) => `${hour}:${String(minute).padStart(2, '0')}`
+
+/** (Re)schedules the daily fetch from whatever is currently stored. */
+export async function startNewsCronJob() {
   if (currentTask) {
     currentTask.stop()
+    currentTask = null
   }
 
-  const { hour, minute } = getCronTime()
+  const time = await getCronTime()
 
-  // Run every day at configured time, interpreted in Vietnam time (GMT+7) regardless of the
-  // server's own local timezone.
   currentTask = cron.schedule(
-    `${minute} ${hour} * * *`,
+    `${time.minute} ${time.hour} * * *`,
     async () => {
-      console.log(`Running daily news cron job at ${hour}:${minute.toString().padStart(2, '0')} (Asia/Ho_Chi_Minh)...`)
-      await fetchAndProcessNews()
+      console.log(`Running the daily news fetch (${formatTime(time)} ${TIMEZONE})...`)
+      // runNewsFetch takes a cross-process lock, so only one instance actually
+      // fetches even when several have the same schedule.
+      await runNewsFetch('cron')
     },
-    { timezone: 'Asia/Ho_Chi_Minh' }
+    { timezone: TIMEZONE },
   )
 
-  console.log(`News cron job initialized. Scheduled to run every day at ${hour}:${minute.toString().padStart(2, '0')} Vietnam time (Asia/Ho_Chi_Minh).`)
+  console.log(`News fetch scheduled daily at ${formatTime(time)} (${TIMEZONE}).`)
+  return time
 }
 
-export const updateCronTime = (hour, minute) => {
+/**
+ * Stores a new run time and reschedules.
+ *
+ * @returns {Promise<boolean>} whether it was accepted
+ */
+export async function updateCronTime(hour, minute) {
+  const time = normalise({ hour, minute })
+
+  // normalise() falls back to the default on bad input; reject rather than
+  // silently storing something the caller did not ask for.
+  if (time.hour !== hour || time.minute !== minute) return false
+
   try {
-    fs.writeFileSync(configPath, JSON.stringify({ hour, minute }, null, 2))
-    startNewsCronJob()
+    await Setting.findOneAndUpdate(
+      { key: CRON_SETTING_KEY },
+      { value: time },
+      { upsert: true, returnDocument: 'after' },
+    )
+    await startNewsCronJob()
     return true
-  } catch (err) {
-    console.error('Error writing cron time config', err)
+  } catch (error) {
+    console.error('Failed to store the news cron schedule:', error.message)
     return false
   }
+}
+
+/** Stops the scheduled task. Used on shutdown. */
+export function stopNewsCronJob() {
+  currentTask?.stop()
+  currentTask = null
 }

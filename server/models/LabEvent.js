@@ -11,4 +11,7 @@ const labEventSchema = new mongoose.Schema(
   { timestamps: true }
 )
 
+labEventSchema.index({ status: 1, createdAt: -1 })
+labEventSchema.index({ createdAt: -1 })
+
 export default mongoose.model('LabEvent', labEventSchema)

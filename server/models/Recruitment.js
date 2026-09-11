@@ -21,6 +21,10 @@ recruitmentSchema.pre('save', function setStatusByDeadline() {
   }
 })
 
+// Listings are newest-first; the expiry sweep matches on deadline + status.
+recruitmentSchema.index({ createdAt: -1 })
+recruitmentSchema.index({ deadline: 1, status: 1 })
+
 const Recruitment = mongoose.model('Recruitment', recruitmentSchema)
 
 export default Recruitment

@@ -34,6 +34,9 @@ const lectureSchema = new mongoose.Schema(
   { timestamps: true }
 )
 
+lectureSchema.index({ createdAt: -1 })
+lectureSchema.index({ views: -1 })
+
 const Lecture = mongoose.model('Lecture', lectureSchema)
 
 export default Lecture
