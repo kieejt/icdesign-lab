@@ -1,0 +1,251 @@
+name: CI
+
+# Runs on every push and pull request. Deployment is the last job and only fires
+# for main, so nothing reaches the server that has not been built and smoke
+# tested first — previously the only workflow was a deploy, and broken code went
+# straight to production.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A new push supersedes the run already in flight for the same branch. Deploys
+# are excluded from cancellation below so a half-finished deploy is never killed.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Matches the Dockerfiles, so CI cannot pass on a version production never runs.
+  NODE_VERSION: '20'
+
+jobs:
+  client:
+    name: Client — lint and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install
+        working-directory: client
+        run: npm ci
+
+      - name: Lint
+        working-directory: client
+        # The nine admin pages carry pre-existing violations of rules added later
+        # (react-hooks' newer set). Failing on them would block every unrelated
+        # change, so the gate is "no *new* errors outside admin"; the admin pages
+        # are tracked separately and reported, not enforced.
+        run: |
+          npx eslint src --ignore-pattern 'src/pages/admin/**'
+          echo "::group::Known issues in admin pages (not gating)"
+          npx eslint src/pages/admin || true
+          echo "::endgroup::"
+
+      - name: Build
+        working-directory: client
+        run: npm run build
+
+      - name: Check the bundle did not balloon
+        working-directory: client
+        # Route-level code splitting keeps the initial payload small. A static
+        # import of a heavy dependency in a shared module silently undoes that,
+        # and nothing else in CI would notice.
+        run: |
+          BYTES=$(find dist/assets -name '*.js' -newer package.json -print0 \
+            | xargs -0 stat -c%s | awk '{s+=$1} END {print s}')
+          echo "Total JS: $((BYTES / 1024)) kB"
+          if [ "$BYTES" -gt 1600000 ]; then
+            echo "::error::JS bundle is $((BYTES / 1024)) kB, over the 1600 kB budget"
+            exit 1
+          fi
+
+  server:
+    name: Server — smoke test against MongoDB
+    runs-on: ubuntu-latest
+
+    services:
+      mongodb:
+        image: mongo:6.0
+        ports: ['27017:27017']
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ping:1})'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install
+        working-directory: server
+        run: npm ci
+
+      - name: Parse every source file
+        working-directory: server
+        # There is no test suite yet, so this is the floor: a syntax error must
+        # never reach a deploy.
+        run: |
+          find . -name '*.js' -not -path './node_modules/*' -print0 \
+            | xargs -0 -n1 node --check
+          echo "All server files parse."
+
+      - name: Boot and smoke test
+        working-directory: server
+        env:
+          MONGO_URI: mongodb://127.0.0.1:27017/ci
+          JWT_SECRET: ci-only-not-a-real-secret
+          CORS_ORIGINS: https://allowed.example
+          PORT: '5000'
+        run: |
+          node index.js > server.log 2>&1 &
+          echo $! > server.pid
+
+          for i in $(seq 1 30); do
+            curl -fsS http://localhost:5000/api/health > /dev/null && break
+            sleep 1
+            if [ "$i" = "30" ]; then
+              echo "::error::Server did not become healthy"
+              cat server.log
+              exit 1
+            fi
+          done
+          echo "Server is up."
+
+          fail() { echo "::error::$1"; cat server.log; kill "$(cat server.pid)"; exit 1; }
+          status() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
+
+          # Public reads must work against an empty database, not 500.
+          for path in /api/members /api/research /api/news/published /api/lab-events /api/gallery; do
+            [ "$(status "http://localhost:5000$path?limit=1")" = "200" ] || fail "$path did not return 200"
+          done
+
+          # Regression guards for the security work — each of these was a real
+          # hole, and none of them would show up in a build.
+          [ "$(status -H 'Origin: https://evil.example' http://localhost:5000/api/health)" = "403" ] \
+            || fail "CORS allowed an origin outside the allowlist"
+          [ "$(status -H 'Origin: https://allowed.example' http://localhost:5000/api/health)" = "200" ] \
+            || fail "CORS refused an allowed origin"
+          [ "$(status http://localhost:5000/api/health)" = "200" ] \
+            || fail "a request with no Origin header was refused"
+          [ "$(status -X POST http://localhost:5000/api/chat -H 'Content-Type: application/json' -d '{"message":"hi"}')" = "503" ] \
+            || fail "the chat endpoint is not disabled"
+          [ "$(status http://localhost:5000/api/nope)" = "404" ] \
+            || fail "unknown routes do not 404 as JSON"
+          [ "$(status -X POST http://localhost:5000/api/lectures)" = "401" ] \
+            || fail "a protected route is reachable without a token"
+
+          echo "Smoke tests passed."
+          kill "$(cat server.pid)"
+
+  compose:
+    name: Compose — configuration is valid
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate with the required variables present
+        env:
+          MONGO_ROOT_USER: ci
+          MONGO_ROOT_PASSWORD: ci
+        run: docker compose config --quiet
+
+      - name: Fail loudly when database credentials are missing
+        # The compose file uses `${VAR:?}` so an unconfigured deploy stops before
+        # it starts Mongo without a password. Asserting it here keeps that guard
+        # from being quietly removed.
+        run: |
+          if docker compose config --quiet 2>/dev/null; then
+            echo "::error::Compose accepted a missing MONGO_ROOT_USER"
+            exit 1
+          fi
+          echo "Compose correctly refuses to start without database credentials."
+
+  deploy:
+    name: Deploy to VPS
+    needs: [client, server, compose]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd icdesign-lab
+
+            # --- Pre-flight -------------------------------------------------
+            # Checked before anything is touched. The compose file requires the
+            # database credentials, so without them `up` fails — and finding that
+            # out after stopping the old containers means an outage instead of a
+            # refused deploy.
+            for f in .env server/.env; do
+              if [ ! -f "$f" ]; then
+                echo "Missing $f on the server — see 'Security notes' in the README."
+                exit 1
+              fi
+            done
+
+            # Remember where to go back to if the new revision does not come up.
+            PREVIOUS=$(git rev-parse HEAD)
+            echo "Current revision: $PREVIOUS"
+
+            git fetch origin main
+            git reset --hard origin/main
+
+            # --- Build and start ---------------------------------------------
+            # No `docker compose down` first: `up` recreates only the services
+            # whose image or configuration actually changed, so the site stays up
+            # through most deploys instead of going dark for the whole build.
+            docker compose up -d --build --remove-orphans
+
+            # --- Verify -------------------------------------------------------
+            healthy=0
+            for i in $(seq 1 30); do
+              if curl -fsS http://localhost:5000/api/health > /dev/null 2>&1; then
+                healthy=1
+                break
+              fi
+              sleep 2
+            done
+
+            if [ "$healthy" != "1" ]; then
+              echo "New revision failed its health check — rolling back to $PREVIOUS"
+              docker compose logs --tail 50 backend || true
+              git reset --hard "$PREVIOUS"
+              docker compose up -d --build --remove-orphans
+              exit 1
+            fi
+
+            # Indexes are not built at boot in production; this is a no-op when
+            # nothing changed.
+            docker compose exec -T backend npm run sync-indexes || \
+              echo "Index sync failed — run 'npm run sync-indexes' manually."
+
+            # Each build leaves the previous image behind; without this the disk
+            # fills up after enough deploys.
+            docker image prune -f
+
+            echo "Deployed $(git rev-parse --short HEAD) successfully."

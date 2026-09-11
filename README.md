@@ -312,6 +312,53 @@ deleted:
 
 Both must be `true`.
 
+## CI/CD
+
+One workflow, `.github/workflows/ci.yml`. Checks run on every push and pull
+request; deployment is the last job and only fires for a push to `main`, so
+nothing reaches the server that has not been built and smoke tested. Previously
+the only workflow was the deploy itself.
+
+### What the checks cover
+
+| Job | Gate |
+| --- | --- |
+| `client` | eslint, production build, and a 1600 kB budget on total JS |
+| `server` | every file parses, then the API is booted against a real MongoDB and probed |
+| `compose` | `docker compose config` is valid, and still refuses to start without database credentials |
+
+There is no test suite yet, so the server job is the substitute: it starts the
+app and asserts the behaviour that a build cannot catch — public reads answer
+200 against an empty database, CORS refuses an origin outside the allowlist and
+accepts one inside it, the chat endpoint is disabled, unknown routes 404, and a
+protected route rejects an unauthenticated request. Each of those was a real
+defect at some point; the checks exist so they stay fixed.
+
+The bundle budget guards the code splitting. A static import of a heavy
+dependency in a shared module silently pulls it into the initial payload, and
+nothing else in CI would notice.
+
+### What deployment does differently
+
+- **Pre-flight before anything stops.** It verifies `.env` and `server/.env`
+  exist on the server first. The compose file requires database credentials, so
+  discovering they are missing *after* stopping the containers turns a refused
+  deploy into an outage.
+- **No `docker compose down`.** `up` recreates only the services whose image or
+  configuration changed, so most deploys no longer take the site down for the
+  duration of the build.
+- **Health check, then rollback.** If the new revision does not answer
+  `/api/health` within a minute, the previous commit is restored and rebuilt, and
+  the job fails.
+- **Index sync and image prune** afterwards, since production runs with
+  `autoIndex` off and every build otherwise leaves its predecessor on disk.
+
+### Required repository secrets
+
+`HOST`, `USERNAME`, `SSH_KEY` — the same three the old workflow used. The deploy
+job targets a `production` environment, which is where to add a manual approval
+step if you ever want one.
+
 ## Deployment guide (step-by-step)
 
 ### 1) Prepare MongoDB (Atlas)
