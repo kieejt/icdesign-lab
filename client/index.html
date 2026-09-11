@@ -2,12 +2,65 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>IC design Lab</title>
+
+    <title>IC Design Lab — Integrated Circuit Design Laboratory, HUST</title>
+    <meta
+      name="description"
+      content="Integrated Circuit Design Laboratory at Hanoi University of Science and Technology. Research and training in advanced IC technology, embedded systems and computer engineering."
+    />
+    <meta name="theme-color" content="#FDFDFC" />
+    <meta name="color-scheme" content="light" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/lab-logo.png" />
+
+    <!-- Open Graph / social preview -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="IC Design Lab" />
+    <meta property="og:title" content="IC Design Lab — Integrated Circuit Design Laboratory" />
+    <meta
+      property="og:description"
+      content="Research and training in advanced IC technology, embedded systems and computer engineering at Hanoi University of Science and Technology."
+    />
+    <meta property="og:image" content="/lab-hero.webp" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!--
+      Fonts. preconnect opens the TLS connection while the HTML is still parsing,
+      so the stylesheet request doesn't pay for a fresh handshake; display=swap
+      renders text in the fallback immediately instead of blocking on the webfont.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+    />
+
+    <style>
+      /*
+        Inlined so it applies before the CSS bundle arrives: paints the page ground
+        immediately and keeps the first frame from flashing a different white.
+      */
+      html,
+      body {
+        margin: 0;
+        background: #fdfdfc;
+      }
+      #root {
+        min-height: 100vh;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <div style="padding: 3rem; font-family: system-ui, sans-serif">
+        <h1>JavaScript required</h1>
+        <p>This site needs JavaScript enabled to run. Please enable it and reload the page.</p>
+      </div>
+    </noscript>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

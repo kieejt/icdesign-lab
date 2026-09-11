@@ -1,137 +1,213 @@
-import React, { useState, useRef, useEffect } from 'react';
-import api from '../lib/api';
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import api from '../lib/api'
+import { Icon, cx } from './ui'
+
+const GREETING = {
+  vi: 'Xin chào! Tôi là trợ lý ảo của IC Design Lab. Tôi có thể giúp gì cho bạn về thông tin của lab hoặc kiến thức thiết kế vi mạch?',
+  en: "Hello! I'm the IC Design Lab assistant. Ask me about the lab or about integrated circuit design.",
+}
+
+const ERROR_REPLY = {
+  vi: 'Xin lỗi, đã có lỗi xảy ra. Vui lòng thử lại sau.',
+  en: 'Sorry, something went wrong. Please try again shortly.',
+}
+
+/** Only the last few turns are sent back, to keep the prompt small. */
+const HISTORY_TURNS = 8
 
 export default function Chatbot() {
-  const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState([
-    { role: 'assistant', content: 'Xin chào! Tôi là trợ lý ảo của IC Design Lab. Tôi có thể giúp gì cho bạn về các thông tin của lab hoặc kiến thức thiết kế vi mạch?' }
-  ]);
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const messagesEndRef = useRef(null);
+  const { i18n } = useTranslation()
+  const lang = i18n.language === 'vi' ? 'vi' : 'en'
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const [isOpen, setIsOpen] = useState(false)
+  // Only the real conversation is stored. The greeting is derived from the
+  // current language at render time, so switching VI/EN before the first
+  // question re-labels it without any state synchronisation.
+  const [messages, setMessages] = useState([])
+  const [input, setInput] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+
+  const endRef = useRef(null)
+  const inputRef = useRef(null)
+  const panelRef = useRef(null)
 
   useEffect(() => {
-    if (isOpen) {
-      scrollToBottom();
+    if (isOpen) endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+  }, [messages, isOpen])
+
+  useEffect(() => {
+    if (isOpen) inputRef.current?.focus()
+  }, [isOpen])
+
+  const transcript = [{ role: 'assistant', content: GREETING[lang] }, ...messages]
+
+  const close = useCallback(() => setIsOpen(false), [])
+
+  // Escape closes the panel from anywhere inside it.
+  useEffect(() => {
+    if (!isOpen) return undefined
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') close()
     }
-  }, [messages, isOpen]);
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [isOpen, close])
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!input.trim() || isLoading) return;
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    const text = input.trim()
+    if (!text || isLoading) return
 
-    const userMessage = { role: 'user', content: input };
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
-    setIsLoading(true);
+    const userMessage = { role: 'user', content: text }
+    setMessages((prev) => [...prev, userMessage])
+    setInput('')
+    setIsLoading(true)
 
     try {
-      const response = await api.post('/chat', {
-        message: userMessage.content,
-        // Send previous messages except the very first greeting to save tokens
-        history: messages.slice(1).map(m => ({ role: m.role, content: m.content }))
-      });
-      
-      setMessages(prev => [...prev, { role: 'assistant', content: response.data.response }]);
-    } catch (error) {
-      console.error('Chat error:', error);
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Xin lỗi, đã có lỗi xảy ra. Vui lòng thử lại sau.' }]);
+      // `messages` here is the pre-update value — the new question travels in
+      // `message`, not in the history.
+      const history = messages.slice(-HISTORY_TURNS)
+
+      const { data } = await api.post('/chat', {
+        message: text,
+        history: history.map((m) => ({ role: m.role, content: m.content })),
+      })
+
+      setMessages((prev) => [...prev, { role: 'assistant', content: data.response }])
+    } catch (err) {
+      console.error('Chat error:', err)
+      setMessages((prev) => [...prev, { role: 'assistant', content: ERROR_REPLY[lang] }])
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
-      {/* Chat Window */}
+    <div className="fixed bottom-5 right-5 z-[90] flex flex-col items-end">
       {isOpen && (
-        <div className="mb-4 flex h-[500px] w-[350px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200 sm:w-[400px] transition-all transform origin-bottom-right">
+        <div
+          ref={panelRef}
+          role="dialog"
+          aria-label="Lab assistant"
+          className="mb-3 flex h-[min(520px,70vh)] w-[min(380px,calc(100vw-2.5rem))] origin-bottom-right animate-scale-in flex-col overflow-hidden border border-ink-900 bg-paper-raised shadow-overlay"
+        >
           {/* Header */}
-          <div className="flex items-center justify-between bg-gradient-to-r from-slate-900 to-slate-800 p-4 text-white">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500/20 text-blue-300">
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </div>
+          <div className="flex items-center justify-between gap-3 border-b border-ink-800 bg-ink-950 px-4 py-3 text-paper">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-7 w-7 items-center justify-center border border-paper/20 text-accent-300">
+                <Icon name="chip" className="h-4 w-4" strokeWidth={1.75} />
+              </span>
               <div>
-                <h3 className="font-bold text-sm">IC Design Assistant</h3>
-                <p className="text-xs text-slate-300">Sẵn sàng giải đáp</p>
+                <p className="font-display text-sm font-semibold leading-tight">
+                  IC Design Assistant
+                </p>
+                <p className="font-mono text-[10px] uppercase tracking-label text-ink-400">
+                  {lang === 'vi' ? 'Sẵn sàng giải đáp' : 'Ready to help'}
+                </p>
               </div>
             </div>
-            <button 
-              onClick={() => setIsOpen(false)}
-              className="rounded-full p-1 hover:bg-slate-700 transition-colors"
+
+            <button
+              type="button"
+              onClick={close}
+              aria-label="Close assistant"
+              className="p-1 text-paper/60 transition-colors hover:text-paper"
             >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <Icon name="close" className="h-5 w-5" />
             </button>
           </div>
 
-          {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-4 bg-slate-50 space-y-4">
-            {messages.map((msg, idx) => (
-              <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm shadow-sm ${
-                  msg.role === 'user' 
-                    ? 'bg-blue-600 text-white rounded-tr-none' 
-                    : 'bg-white text-slate-700 rounded-tl-none border border-slate-100'
-                }`}>
-                  {msg.content}
+          {/* Transcript */}
+          <div
+            className="flex-1 space-y-3 overflow-y-auto bg-paper-sunken p-4"
+            aria-live="polite"
+            aria-atomic="false"
+          >
+            {transcript.map((message, index) => (
+              <div
+                key={index}
+                className={cx('flex', message.role === 'user' ? 'justify-end' : 'justify-start')}
+              >
+                <div
+                  className={cx(
+                    'max-w-[85%] whitespace-pre-wrap px-3.5 py-2.5 text-[13px] leading-relaxed',
+                    message.role === 'user'
+                      ? 'bg-ink-950 text-paper'
+                      : 'border border-paper-border bg-paper-raised text-ink-700',
+                  )}
+                >
+                  {message.content}
                 </div>
               </div>
             ))}
+
             {isLoading && (
               <div className="flex justify-start">
-                <div className="bg-white border border-slate-100 rounded-2xl rounded-tl-none px-4 py-3 shadow-sm flex items-center gap-1">
-                  <div className="h-2 w-2 rounded-full bg-slate-300 animate-bounce"></div>
-                  <div className="h-2 w-2 rounded-full bg-slate-300 animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                  <div className="h-2 w-2 rounded-full bg-slate-300 animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+                <div className="flex items-center gap-1.5 border border-paper-border bg-paper-raised px-3.5 py-3">
+                  {[0, 0.15, 0.3].map((delay) => (
+                    <span
+                      key={delay}
+                      className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-300"
+                      style={{ animationDelay: `${delay}s` }}
+                    />
+                  ))}
                 </div>
               </div>
             )}
-            <div ref={messagesEndRef} />
+
+            <div ref={endRef} />
           </div>
 
-          {/* Input Area */}
-          <form onSubmit={handleSubmit} className="border-t border-slate-200 bg-white p-3">
+          {/* Composer */}
+          <form onSubmit={handleSubmit} className="border-t border-paper-border bg-paper-raised p-3">
             <div className="flex items-center gap-2">
+              <label htmlFor="chat-input" className="sr-only">
+                Message
+              </label>
               <input
+                id="chat-input"
+                ref={inputRef}
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Nhập câu hỏi của bạn..."
-                className="flex-1 rounded-full border border-slate-300 bg-slate-50 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                placeholder={lang === 'vi' ? 'Nhập câu hỏi của bạn…' : 'Ask a question…'}
+                className="field flex-1 py-2 text-[13px]"
                 disabled={isLoading}
               />
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 disabled={!input.trim() || isLoading}
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-white transition-colors hover:bg-blue-700 disabled:bg-slate-300 shrink-0"
+                aria-label="Send message"
+                className="flex h-[38px] w-[38px] shrink-0 items-center justify-center bg-ink-950 text-paper transition-colors hover:bg-accent-600 disabled:bg-ink-200 disabled:text-ink-400"
               >
-                <svg className="h-4 w-4 transform -rotate-45 relative left-[1px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                </svg>
+                <Icon name="arrowRight" className="h-4 w-4" strokeWidth={2} />
               </button>
             </div>
           </form>
         </div>
       )}
 
-      {/* Floating Toggle Button */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={`flex h-14 w-14 items-center justify-center rounded-full bg-slate-900 text-white shadow-xl transition-transform hover:scale-110 active:scale-95 ${isOpen ? 'rotate-90 scale-0 opacity-0 pointer-events-none absolute' : 'rotate-0 scale-100 opacity-100'}`}
+        type="button"
+        onClick={() => setIsOpen((v) => !v)}
+        aria-expanded={isOpen}
+        aria-label={isOpen ? 'Close assistant' : 'Open lab assistant'}
+        className={cx(
+          'flex h-12 w-12 items-center justify-center rounded-full bg-ink-950 text-paper shadow-lift transition-all duration-300 hover:bg-accent-600',
+          isOpen && 'pointer-events-none scale-0 opacity-0',
+        )}
       >
-        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={1.75}
+            d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+          />
         </svg>
       </button>
     </div>
-  );
+  )
 }

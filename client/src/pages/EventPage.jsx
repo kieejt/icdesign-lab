@@ -1,84 +1,136 @@
-import React, { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import api from '../lib/api';
-import Pagination from '../components/Pagination';
+import React from 'react'
+import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+
+import Pagination from '../components/Pagination'
+import useApiQuery from '../hooks/useApiQuery'
+import useListParams from '../hooks/useListParams'
+import {
+  Badge,
+  EmptyState,
+  ErrorState,
+  Icon,
+  PageHeader,
+  Section,
+  Shell,
+  Skeleton,
+} from '../components/ui'
+
+/** Module constant: it is part of the URL-state memo key. */
+const LIST_DEFAULTS = { page: 1 }
 
 export default function EventPage() {
-  const { t } = useTranslation();
-  const [events, setEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const { t } = useTranslation()
+  const { values, hrefFor } = useListParams(LIST_DEFAULTS)
+  const { page } = values
 
-  useEffect(() => {
-    const fetchEvents = async () => {
-      try {
-        setLoading(true);
-        const response = await api.get(`/lab-events?page=${page}&limit=10`);
-        setEvents(response.data.data);
-        setTotalPages(response.data.totalPages);
-      } catch (error) {
-        console.error('Failed to fetch events', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchEvents();
-  }, [page]);
+  const { data, loading, error, refetch } = useApiQuery('/lab-events', {
+    params: { page, limit: 10 },
+    staleTime: 5 * 60_000,
+  })
+
+  const events = data?.data ?? []
+  const totalPages = data?.totalPages ?? 1
 
   return (
-    <div className="w-full flex flex-col items-center">
-      <section className="w-full pt-16 pb-24 border-b border-slate-200">
-        <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
-          <h1 className="text-5xl md:text-7xl font-medium tracking-tighter text-slate-900">{t('media.eventsTitle')}</h1>
-          <p className="mt-6 md:mt-8 max-w-2xl text-xl text-slate-600 leading-relaxed font-light">
-            {t('media.eventsSubtitle')}
-          </p>
-        </div>
-      </section>
+    <>
+      <PageHeader
+        eyebrow={t('ui.eyebrowCalendar')}
+        title={t('media.eventsTitle')}
+        subtitle={t('media.eventsSubtitle')}
+      />
 
-      <section className="w-full py-16 md:py-24">
-        <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
+      <Section>
+        <Shell>
           {loading ? (
-            <div className="flex justify-center py-24">
-              <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-slate-900"></div>
+            <div className="divide-hairline">
+              {Array.from({ length: 4 }, (_, i) => (
+                <div key={i} className="flex flex-col gap-6 py-10 md:flex-row md:gap-12">
+                  <div className="space-y-3 md:w-1/4">
+                    <Skeleton className="h-3 w-20" />
+                    <Skeleton className="h-8 w-32" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
+                  <div className="flex-1 space-y-3">
+                    <Skeleton className="h-8 w-3/4" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-5/6" />
+                  </div>
+                </div>
+              ))}
             </div>
+          ) : error && events.length === 0 ? (
+            <ErrorState message={error.message} onRetry={refetch} />
+          ) : events.length === 0 ? (
+            <EmptyState
+              icon={<Icon name="calendar" className="h-12 w-12" strokeWidth={1} />}
+              title={t('media.noEvents')}
+            />
           ) : (
-            <div className="flex flex-col">
+            <div className="divide-hairline">
               {events.map((event) => {
-                const isUpcoming = event.status === 'Upcoming';
+                const isUpcoming = event.status === 'Upcoming'
                 return (
-                  <article key={event._id} className={`group flex flex-col md:flex-row gap-6 md:gap-12 py-12 border-b border-slate-200 transition-colors -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 ${isUpcoming ? 'hover:bg-slate-50' : 'opacity-70 grayscale hover:grayscale-0 hover:opacity-100'}`}>
-                    <div className="md:w-1/4 shrink-0 flex flex-col">
-                      <span className="text-sm font-semibold uppercase tracking-widest text-slate-500 mb-2 flex items-center gap-2">
-                        {isUpcoming && <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>}
+                  <Link
+                    key={event._id}
+                    to={`/lab-event/event/${event._id}`}
+                    className={`group -mx-5 flex flex-col gap-6 px-5 py-10 transition-colors md:flex-row md:gap-12 ${
+                      isUpcoming ? 'hover:bg-paper-sunken' : 'opacity-65 hover:opacity-100'
+                    }`}
+                  >
+                    {/* Metadata rail */}
+                    <div className="flex shrink-0 flex-col gap-3 md:w-1/4">
+                      <Badge tone={isUpcoming ? 'ok' : 'neutral'}>
+                        {isUpcoming && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-signal-ok" aria-hidden="true" />
+                        )}
                         {event.status}
-                      </span>
-                      <p className="text-3xl font-light tracking-tight text-slate-900">{event.date}</p>
-                      <p className="text-sm font-medium text-slate-500 mt-4 flex items-center gap-2">
-                        <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                      </Badge>
+
+                      {/* The date is set as free text by the admin, so it is
+                          displayed verbatim rather than parsed. */}
+                      <p className="font-display text-2xl font-light tracking-tight text-ink-950">
+                        {event.date}
+                      </p>
+
+                      <p className="flex items-start gap-2 text-[13px] font-light text-ink-400">
+                        <Icon name="pin" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                         {event.location}
                       </p>
                     </div>
-                    <div className="md:w-3/4 flex flex-col">
-                      <h3 className="text-2xl md:text-4xl font-medium text-slate-900 leading-tight mb-4 group-hover:text-blue-600 transition-colors">{event.title}</h3>
-                      <p className="text-slate-600 font-light leading-relaxed whitespace-pre-wrap max-w-4xl">{event.description}</p>
+
+                    <div className="flex-1">
+                      <h2 className="font-display text-2xl font-medium leading-tight text-ink-950 transition-colors group-hover:text-accent-700 md:text-3xl">
+                        {event.title}
+                      </h2>
+                      <p className="mt-4 line-clamp-3 max-w-4xl whitespace-pre-wrap text-[15px] font-light leading-relaxed text-ink-500">
+                        {event.description}
+                      </p>
+                      <span className="link-quiet mt-4">
+                        {t('ui.details')}
+                        <span
+                          aria-hidden="true"
+                          className="transition-transform duration-200 group-hover:translate-x-0.5"
+                        >
+                          →
+                        </span>
+                      </span>
                     </div>
-                  </article>
-                );
+                  </Link>
+                )
               })}
-              {events.length === 0 && (
-                <div className="text-center py-24 text-slate-500 font-light">
-                  {t('media.noEvents')}
-                </div>
-              )}
-              <div className="pt-8">
-                <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} loading={loading} />
-              </div>
             </div>
           )}
-        </div>
-      </section>
-    </div>
+
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            hrefFor={(next) => hrefFor({ page: next })}
+            loading={loading}
+            className="mt-16"
+          />
+        </Shell>
+      </Section>
+    </>
   )
 }

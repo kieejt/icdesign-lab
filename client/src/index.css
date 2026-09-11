@@ -1,3 +1,300 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ==========================================================================
+   Base
+   ========================================================================== */
+
+@layer base {
+  :root {
+    color-scheme: light;
+    /* Height of the sticky header, used for scroll-margin so in-page anchors
+       don't land underneath it. Kept in sync by the header component. */
+    --header-h: 132px;
+  }
+
+  * {
+    /* Anchors and focus targets clear the sticky header automatically. */
+    scroll-margin-top: calc(var(--header-h) + 1rem);
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  body {
+    @apply bg-paper font-sans text-ink-800 antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'ss01';
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display text-ink-900;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  ::selection {
+    @apply bg-ink-900 text-paper;
+  }
+
+  /* One visible, consistent focus ring for keyboard users everywhere. Mouse
+     users never see it, so nothing has to opt out with `outline-none`. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-accent-500 ring-offset-2 ring-offset-paper;
+  }
+
+  /* Native date/select controls inherit the type system instead of the OS. */
+  input,
+  select,
+  textarea,
+  button {
+    font: inherit;
+    color: inherit;
+  }
+
+  /* A quieter scrollbar that stays out of the way. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.ink.200') transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: theme('colors.ink.200');
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: theme('colors.ink.300');
+  }
+
+  /* Images should never be the thing that breaks a layout. */
+  img,
+  video {
+    max-width: 100%;
+    height: auto;
+  }
+}
+
+/* ==========================================================================
+   Components
+   ========================================================================== */
+
+@layer components {
+  /* --- Layout rail -------------------------------------------------------- */
+
+  .shell {
+    @apply mx-auto w-full max-w-shell px-5 sm:px-8 lg:px-12;
+  }
+
+  /* --- Typographic roles -------------------------------------------------- */
+
+  /* The small mono label used above headings and on metadata chips. */
+  .eyebrow {
+    @apply font-mono text-[11px] font-medium uppercase tracking-label text-ink-400;
+  }
+
+  /* Standfirst under a page title. Kept at reading size, not display size —
+     academic pages open with a sentence of context, not a marketing line. */
+  .lede {
+    @apply max-w-measure text-base leading-relaxed text-ink-500 sm:text-[17px];
+  }
+
+  /* Body copy inside an article or description block. */
+  .prose-body {
+    @apply max-w-prose text-[15px] leading-[1.75] text-ink-600;
+  }
+
+  /* --- Buttons ------------------------------------------------------------ */
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap border px-5 py-2.5
+           text-sm font-medium transition-all duration-200 ease-out
+           disabled:pointer-events-none disabled:opacity-45;
+  }
+
+  .btn-primary {
+    @apply btn border-ink-900 bg-ink-900 text-paper hover:border-accent-600 hover:bg-accent-600;
+  }
+
+  .btn-secondary {
+    @apply btn border-ink-200 bg-paper-raised text-ink-800 hover:border-ink-900 hover:text-ink-950;
+  }
+
+  .btn-ghost {
+    @apply btn border-transparent px-3 text-ink-500 hover:bg-ink-50 hover:text-ink-900;
+  }
+
+  .btn-danger {
+    @apply btn border-signal-danger/25 bg-signal-dangerSoft text-signal-danger
+           hover:border-signal-danger hover:bg-signal-danger hover:text-paper;
+  }
+
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+
+  /* Text link that reveals its underline on hover rather than shouting by default. */
+  .link {
+    @apply text-ink-900 underline decoration-ink-200 decoration-1 underline-offset-4
+           transition-colors hover:text-accent-600 hover:decoration-accent-400;
+  }
+
+  /* The "View all →" affordance used at the head of every section. */
+  .link-quiet {
+    @apply inline-flex items-center gap-1.5 font-mono text-[11px] font-medium uppercase
+           tracking-label text-ink-400 transition-colors hover:text-accent-600;
+  }
+
+  /* --- Surfaces ----------------------------------------------------------- */
+
+  .surface {
+    @apply border border-paper-border bg-paper-raised;
+  }
+
+  /* Card that lifts slightly and darkens its border on hover. */
+  .surface-interactive {
+    @apply surface transition-all duration-300 ease-out hover:border-ink-900 hover:shadow-raise;
+  }
+
+  /* --- Badges ------------------------------------------------------------- */
+
+  .badge {
+    @apply inline-flex items-center gap-1.5 border px-2 py-0.5 font-mono text-[10px]
+           font-medium uppercase tracking-label;
+  }
+
+  .badge-neutral {
+    @apply badge border-paper-border bg-paper-sunken text-ink-500;
+  }
+
+  .badge-accent {
+    @apply badge border-accent-200 bg-accent-50 text-accent-700;
+  }
+
+  .badge-ok {
+    @apply badge border-signal-ok/25 bg-signal-okSoft text-signal-ok;
+  }
+
+  .badge-warn {
+    @apply badge border-signal-warn/25 bg-signal-warnSoft text-signal-warn;
+  }
+
+  .badge-danger {
+    @apply badge border-signal-danger/25 bg-signal-dangerSoft text-signal-danger;
+  }
+
+  /* --- Form controls ------------------------------------------------------ */
+
+  .field {
+    @apply w-full border border-ink-200 bg-paper-raised px-3.5 py-2.5 text-sm text-ink-900
+           transition-colors placeholder:text-ink-300
+           focus:border-ink-900 focus:outline-none focus:ring-0
+           disabled:bg-paper-sunken disabled:text-ink-400;
+  }
+
+  .field-label {
+    @apply mb-1.5 block font-mono text-[11px] font-medium uppercase tracking-label text-ink-500;
+  }
+
+  /* --- Section heading rule ----------------------------------------------- */
+
+  /* The hairline-under-the-heading pattern that structures every page. */
+  .section-rule {
+    @apply flex flex-col gap-4 border-b border-ink-900 pb-5 sm:flex-row sm:items-end sm:justify-between;
+  }
+
+  /* --- Skeletons ---------------------------------------------------------- */
+
+  /* Shimmering placeholder. Reserves the real layout so content arrival
+     doesn't shift the page — a plain spinner cannot do that. */
+  .skeleton {
+    @apply relative overflow-hidden bg-ink-100;
+  }
+
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0 -translate-x-full;
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.65),
+      transparent
+    );
+    animation: shimmer 1.6s infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton::after {
+      animation: none;
+    }
+  }
+
+  /* --- Media -------------------------------------------------------------- */
+
+  /* Wrapper for every content image: fixed ratio box + slow hover push-in. */
+  .media-frame {
+    @apply relative overflow-hidden bg-paper-sunken;
+  }
+
+  .media-frame img {
+    @apply h-full w-full object-cover transition-transform duration-[900ms] ease-out;
+  }
+
+  .group:hover .media-frame img {
+    @apply scale-[1.04];
+  }
+}
+
+/* ==========================================================================
+   Utilities
+   ========================================================================== */
+
+@layer utilities {
+  /* Fine hairline used to separate stacked list rows. */
+  .divide-hairline > * + * {
+    @apply border-t border-paper-border;
+  }
+
+  /* Diagonal hatch for empty image slots — reads as "no asset", not "broken". */
+  .hatch {
+    background-image: repeating-linear-gradient(
+      45deg,
+      theme('colors.ink.100') 0,
+      theme('colors.ink.100') 1px,
+      transparent 1px,
+      transparent 9px
+    );
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+}

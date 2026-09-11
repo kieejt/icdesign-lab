@@ -1,331 +1,545 @@
-import React, { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import api from '../lib/api';
+import React from 'react'
+import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+
+import useApiQuery from '../hooks/useApiQuery'
+import {
+  Badge,
+  Icon,
+  Media,
+  QuietLink,
+  Section,
+  SectionHeading,
+  Shell,
+  Skeleton,
+  SkeletonCard,
+  formatDate,
+} from '../components/ui'
+
+/*
+ * Homepage.
+ *
+ * Ordered the way research-lab front pages conventionally are, because that
+ * order answers the questions visitors actually arrive with:
+ *
+ *   1. Banner        — who this lab is, in one line.
+ *   2. Overview      — what it works on, plus the standing figures.
+ *   3. News          — a dated list. The most-read block on any lab site, so it
+ *                      sits above research rather than below it.
+ *   4. Research      — current projects.
+ *   5. People        — an orderly portrait grid, no decorative offsets.
+ *   6. Join us       — open positions and opportunities, last.
+ */
+
+/**
+ * Which people list a member belongs to.
+ *
+ * The homepage mixes all three groups into one row, so each card has to work
+ * out its own profile URL from the member's category.
+ */
+const PEOPLE_PATHS = {
+  Professors: '/people/professor',
+  Students: '/people/students',
+  Alumni: '/people/alumni',
+}
+
+/** A dated one-line news entry. Academic news sections are lists, not card walls. */
+function NewsItem({ item, locale }) {
+  return (
+    <article className="group flex gap-5 py-4">
+      <time
+        className="hidden w-24 shrink-0 pt-0.5 font-mono text-[11px] uppercase tracking-label text-ink-400 sm:block"
+        dateTime={item.publishedAt}
+      >
+        {formatDate(item.publishedAt, 'short', locale)}
+      </time>
+
+      <div className="min-w-0 flex-1">
+        <h3 className="text-[15px] font-medium leading-snug text-ink-800 transition-colors group-hover:text-accent-600">
+          <a href={item.url} target="_blank" rel="noopener noreferrer">
+            {item.title}
+          </a>
+        </h3>
+        <p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed text-ink-500">
+          {item.summary}
+        </p>
+        <div className="mt-2 flex items-center gap-2.5">
+          <span className="font-mono text-[10px] uppercase tracking-label text-ink-400">
+            {item.source}
+          </span>
+          <time
+            className="font-mono text-[10px] text-ink-300 sm:hidden"
+            dateTime={item.publishedAt}
+          >
+            {formatDate(item.publishedAt, 'short', locale)}
+          </time>
+        </div>
+      </div>
+    </article>
+  )
+}
+
+/** One of the two side-by-side news columns. */
+function NewsColumn({ title, items, viewAllTo, emptyLabel, loading, locale, viewAllLabel }) {
+  return (
+    <div className="space-y-6">
+      <SectionHeading
+        size="sm"
+        title={title}
+        action={<QuietLink to={viewAllTo}>{viewAllLabel}</QuietLink>}
+      />
+      <div className="divide-hairline">
+        {loading ? (
+          Array.from({ length: 3 }, (_, i) => (
+            <div key={i} className="space-y-2.5 py-4">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-3 w-5/6" />
+              <Skeleton className="h-2.5 w-20" />
+            </div>
+          ))
+        ) : items.length > 0 ? (
+          items.map((item) => <NewsItem key={item._id} item={item} locale={locale} />)
+        ) : (
+          <p className="py-6 text-sm text-ink-400">{emptyLabel}</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** A labelled figure in the overview strip. */
+function Stat({ value, label, loading }) {
+  return (
+    <div className="border-l border-paper-border pl-5">
+      {loading ? (
+        <Skeleton className="h-8 w-12" />
+      ) : (
+        <p className="font-display text-3xl font-semibold tabular-nums text-ink-950">{value}</p>
+      )}
+      <p className="eyebrow mt-1.5">{label}</p>
+    </div>
+  )
+}
 
 export default function HomePage() {
-  const { t } = useTranslation();
-  const [research, setResearch] = useState([])
-  const [members, setMembers] = useState([])
-  const [recruitments, setRecruitments] = useState([])
-  const [worldNews, setWorldNews] = useState([])
-  const [vietnamNews, setVietnamNews] = useState([])
-  const [jobsNews, setJobsNews] = useState([])
+  const { t, i18n } = useTranslation()
+  const locale = i18n.language === 'vi' ? 'vi-VN' : 'en-US'
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Each request asks the server for only the handful of rows this page actually
-        // renders, instead of downloading full collections and slicing them client-side.
-        const [resResearch, resProfessors, resStudents, resAlumni, resRecruitment, resWorld, resVietnam, resJobs] = await Promise.all([
-          api.get('/research', { params: { category: 'Project', limit: 3 } }),
-          api.get('/members', { params: { category: 'Professors', limit: 4 } }),
-          api.get('/members', { params: { category: 'Students', limit: 4 } }),
-          api.get('/members', { params: { category: 'Alumni', limit: 4 } }),
-          api.get('/recruitment', { params: { limit: 3 } }),
-          api.get('/news/published', { params: { category: 'World News', limit: 3 } }),
-          api.get('/news/published', { params: { category: 'Vietnam News', limit: 3 } }),
-          api.get('/news/published', { params: { category: 'Jobs', limit: 3 } }),
-        ]);
-        setResearch(resResearch.data.data);
-        // Professors first, then Students, then Alumni — so a lab with a single
-        // professor still fills the remaining slots instead of showing just one card.
-        const orderedMembers = [
-          ...(resProfessors.data.data || []),
-          ...(resStudents.data.data || []),
-          ...(resAlumni.data.data || []),
-        ].slice(0, 4);
-        setMembers(orderedMembers);
-        setRecruitments(resRecruitment.data.slice(0, 3));
-        setWorldNews(resWorld.data.data || []);
-        setVietnamNews(resVietnam.data.data || []);
-        setJobsNews(resJobs.data.data || []);
-      } catch (error) {
-        console.error('Failed to fetch homepage data', error);
-      }
-    };
-    fetchData();
-  }, []);
+  /*
+   * Each section owns its own query.
+   *
+   * The page used to fire all eight requests inside one `Promise.all` and set
+   * six pieces of state together, so a single slow or failing endpoint held the
+   * entire homepage blank. Now every section renders the moment its own data
+   * lands, and one failure degrades one section. All results are cached, so
+   * returning to the homepage is instant.
+   */
+  const listOf = (payload) => payload?.data ?? payload ?? []
+  const LONG = 5 * 60_000
+
+  const research = useApiQuery('/research', {
+    params: { category: 'Project', limit: 4 },
+    staleTime: LONG,
+  })
+  const publications = useApiQuery('/research', {
+    params: { category: 'Publications', limit: 1 },
+    staleTime: LONG,
+  })
+
+  const professors = useApiQuery('/members', {
+    params: { category: 'Professors', limit: 4 },
+    staleTime: LONG,
+  })
+  const students = useApiQuery('/members', {
+    params: { category: 'Students', limit: 4 },
+    staleTime: LONG,
+  })
+  const alumni = useApiQuery('/members', {
+    params: { category: 'Alumni', limit: 4 },
+    staleTime: LONG,
+  })
+
+  const recruitment = useApiQuery('/recruitment', {
+    params: { limit: 3 },
+    select: (payload) => (Array.isArray(payload) ? payload.slice(0, 3) : []),
+    staleTime: LONG,
+  })
+
+  const worldNews = useApiQuery('/news/published', {
+    params: { category: 'World News', limit: 4 },
+    select: listOf,
+  })
+  const vietnamNews = useApiQuery('/news/published', {
+    params: { category: 'Vietnam News', limit: 4 },
+    select: listOf,
+  })
+  const jobsNews = useApiQuery('/news/published', {
+    params: { category: 'Jobs', limit: 3 },
+    select: listOf,
+  })
+
+  const projects = research.data?.data ?? []
+
+  // Professors first, then students, then alumni — a lab with a single professor
+  // still fills all four slots instead of showing one lonely card.
+  const members = [
+    ...(professors.data?.data ?? []),
+    ...(students.data?.data ?? []),
+    ...(alumni.data?.data ?? []),
+  ].slice(0, 4)
+  const membersLoading = professors.loading && students.loading && alumni.loading
+
+  // `total` comes back with every paginated response, so the headline figures
+  // cost nothing beyond the requests the page already makes.
+  const stats = {
+    people:
+      (professors.data?.total ?? 0) + (students.data?.total ?? 0) + (alumni.data?.total ?? 0),
+    projects: research.data?.total ?? 0,
+    publications: publications.data?.total ?? 0,
+  }
+  const statsLoading = professors.loading || research.loading || publications.loading
 
   return (
-    <div className="w-full flex flex-col items-center selection:bg-slate-900 selection:text-white">
-      {/* Hero Section - Immersive Full Bleed Image */}
-      <section className="w-full border-b border-slate-200">
-        <div className="w-full h-[60vh] md:h-[80vh] bg-slate-900 relative group overflow-hidden">
-          <img 
+    <>
+      {/* ================================================================= */}
+      {/* Banner                                                            */}
+      {/* ================================================================= */}
+      <section className="relative w-full border-b border-paper-border">
+        {/* A restrained band rather than a full-viewport hero: the lab is
+            identified and the page moves on to content. */}
+        <div className="relative h-[300px] w-full overflow-hidden bg-ink-950 sm:h-[380px]">
+          <img
             src="/lab-hero.webp"
-            alt="IC Design Laboratory" 
-            className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-1000 ease-out"
+            alt=""
+            // The LCP element: fetched eagerly and decoded synchronously so it
+            // is not queued behind lazy images further down the page.
+            loading="eager"
+            fetchPriority="high"
+            decoding="sync"
+            className="h-full w-full object-cover opacity-45"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/20 to-transparent flex flex-col justify-end pointer-events-none">
-            <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 w-full pb-16 md:pb-24 pointer-events-auto">
-              <p className="text-sm font-semibold tracking-widest uppercase text-white/60 mb-4">{t('home.heroSubtitle')}</p>
-              <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8">
-                <p className="max-w-2xl text-2xl md:text-3xl text-white leading-relaxed font-light">
+          <div className="absolute inset-0 bg-gradient-to-r from-ink-950 via-ink-950/85 to-ink-950/40" />
+
+          <div className="absolute inset-0 flex items-center">
+            <Shell>
+              <div className="max-w-3xl animate-fade-up">
+                <p className="eyebrow text-accent-300">{t('home.heroSubtitle')}</p>
+
+                <h1 className="mt-4 font-display text-3xl font-semibold leading-tight text-paper sm:text-4xl lg:text-[2.75rem]">
+                  {t('home.labTitle')}
+                </h1>
+
+                <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-ink-200 sm:text-base">
                   {t('home.heroDesc')}
                 </p>
-                <div className="flex gap-4">
-                  <a href="/research/project" className="inline-flex items-center justify-center px-6 py-3 text-sm font-semibold text-slate-900 bg-white hover:bg-slate-100 transition-colors">{t('home.exploreResearch')}</a>
-                  <a href="/contact" className="inline-flex items-center justify-center px-6 py-3 text-sm font-semibold text-white border border-white/30 hover:border-white hover:bg-white/10 transition-colors">{t('home.contactUs')}</a>
+
+                <div className="mt-7 flex flex-wrap gap-3">
+                  <Link
+                    to="/research/project"
+                    className="btn border-paper bg-paper text-ink-950 hover:border-accent-400 hover:bg-accent-600 hover:text-paper"
+                  >
+                    {t('home.exploreResearch')}
+                  </Link>
+                  <Link
+                    to="/research/publications"
+                    className="btn border-paper/35 text-paper hover:border-paper hover:bg-paper/10"
+                  >
+                    {t('nav.Publications')}
+                  </Link>
+                  <Link
+                    to="/contact"
+                    className="btn border-transparent text-paper/80 hover:text-paper"
+                  >
+                    {t('home.contactUs')}
+                  </Link>
                 </div>
               </div>
-            </div>
+            </Shell>
           </div>
         </div>
       </section>
 
-      {/* News Sections (World News & Vietnam News Side-by-Side) */}
-      <section className="w-full py-24 md:py-32">
-        <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-24">
-            
-            {/* World News Column */}
-            <div className="space-y-12">
-              <div className="flex items-end justify-between border-b border-slate-900 pb-6">
-                <h2 className="text-2xl md:text-4xl font-medium tracking-tight text-slate-900">{t('home.worldNews')}</h2>
-                <a href="/news/world-news" className="text-xs font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors">{t('home.viewAll')}</a>
-              </div>
-              
-              <div className="space-y-8">
-                {worldNews.length > 0 ? (
-                  worldNews.map(item => (
-                    <article key={item._id} className="group flex gap-6 hover:bg-slate-50 transition-colors -mx-4 p-4 rounded-lg">
-                      {item.thumbnail && (
-                        <div className="w-24 h-24 sm:w-32 sm:h-32 shrink-0 bg-slate-100 overflow-hidden border border-slate-200">
-                          <img src={item.thumbnail} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                        </div>
-                      )}
-                      <div className="space-y-2 flex-1 min-w-0">
-                        <div className="flex items-center gap-3">
-                          <span className="text-[9px] font-bold uppercase tracking-widest text-slate-500 bg-slate-100 px-1.5 py-0.5 border border-slate-200">
-                            {item.source}
-                          </span>
-                          <span className="text-xs font-light text-slate-400">
-                            {new Date(item.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                          </span>
-                        </div>
-                        <h3 className="text-base sm:text-lg font-semibold text-slate-900 leading-snug group-hover:text-blue-600 transition-colors line-clamp-2">
-                          <a href={item.url} target="_blank" rel="noopener noreferrer">
-                            {item.title}
-                          </a>
-                        </h3>
-                        <p className="text-slate-500 text-xs font-light leading-relaxed line-clamp-2">
-                          {item.summary}
-                        </p>
-                      </div>
-                    </article>
-                  ))
-                ) : (
-                  <p className="text-sm font-light text-slate-400">{t('home.noWorldNews')}</p>
-                )}
+      {/* ================================================================= */}
+      {/* Overview                                                          */}
+      {/* ================================================================= */}
+      <Section className="border-b border-paper-border bg-paper-raised">
+        <Shell>
+          <div className="grid gap-12 lg:grid-cols-12 lg:gap-16">
+            <div className="lg:col-span-7">
+              <p className="eyebrow">{t('home.aboutEyebrow')}</p>
+              <p className="prose-body mt-5 text-[17px] leading-[1.7] text-ink-700">
+                {t('home.aboutBody1')}
+              </p>
+              <p className="prose-body mt-4">{t('home.aboutBody2')}</p>
+
+              <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3">
+                <QuietLink to="/people/professor">{t('home.facultyAndMembers')}</QuietLink>
+                <QuietLink to="/research/publications">{t('nav.Publications')}</QuietLink>
+                <QuietLink to="/documents">{t('home.teachingMaterials')}</QuietLink>
               </div>
             </div>
 
-            {/* Vietnam News Column */}
-            <div className="space-y-12">
-              <div className="flex items-end justify-between border-b border-slate-900 pb-6">
-                <h2 className="text-2xl md:text-4xl font-medium tracking-tight text-slate-900">{t('home.vietnamNews')}</h2>
-                <a href="/news/vietnam-news" className="text-xs font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors">{t('home.viewAll')}</a>
+            <div className="lg:col-span-5">
+              <div className="grid grid-cols-3 gap-4">
+                <Stat value={stats.people} label={t('home.statMembers')} loading={statsLoading} />
+                <Stat value={stats.projects} label={t('home.statProjects')} loading={statsLoading} />
+                <Stat value={stats.publications} label={t('home.statPublications')} loading={statsLoading} />
               </div>
-              
-              <div className="space-y-8">
-                {vietnamNews.length > 0 ? (
-                  vietnamNews.map(item => (
-                    <article key={item._id} className="group flex gap-6 hover:bg-slate-50 transition-colors -mx-4 p-4 rounded-lg">
-                      {item.thumbnail && (
-                        <div className="w-24 h-24 sm:w-32 sm:h-32 shrink-0 bg-slate-100 overflow-hidden border border-slate-200">
-                          <img src={item.thumbnail} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                        </div>
-                      )}
-                      <div className="space-y-2 flex-1 min-w-0">
-                        <div className="flex items-center gap-3">
-                          <span className="text-[9px] font-bold uppercase tracking-widest text-slate-500 bg-slate-100 px-1.5 py-0.5 border border-slate-200">
-                            {item.source}
-                          </span>
-                          <span className="text-xs font-light text-slate-400">
-                            {new Date(item.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                          </span>
-                        </div>
-                        <h3 className="text-base sm:text-lg font-semibold text-slate-900 leading-snug group-hover:text-blue-600 transition-colors line-clamp-2">
-                          <a href={item.url} target="_blank" rel="noopener noreferrer">
-                            {item.title}
-                          </a>
-                        </h3>
-                        <p className="text-slate-500 text-xs font-light leading-relaxed line-clamp-2">
-                          {item.summary}
-                        </p>
-                      </div>
-                    </article>
-                  ))
-                ) : (
-                  <p className="text-sm font-light text-slate-400">{t('home.noVietnamNews')}</p>
-                )}
+
+              <div className="mt-8 border border-paper-border bg-paper-sunken p-6">
+                <p className="eyebrow">{t('home.locationEyebrow')}</p>
+                <p className="mt-3 text-sm leading-relaxed text-ink-600">
+                  {t('home.addressLine1')}
+                  <br />
+                  {t('home.addressLine2')}
+                  <br />
+                  {t('home.addressLine3')}
+                </p>
+                <a
+                  href="mailto:thang.nguyenvu@hust.edu.vn"
+                  className="link mt-4 inline-block text-sm"
+                >
+                  thang.nguyenvu@hust.edu.vn
+                </a>
               </div>
-            </div>
-
-          </div>
-        </div>
-      </section>
-
-      {/* Research Section - Asymmetric / Split Layout */}
-      {research.length > 0 && (
-        <section className="w-full py-24 md:py-32 bg-slate-50">
-          <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
-            <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 md:mb-24 border-b border-slate-900 pb-6">
-              <h2 className="text-3xl md:text-5xl font-medium tracking-tight text-slate-900">{t('home.researchFocus')}</h2>
-              <a href="/research/project" className="text-sm font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors mt-6 md:mt-0">{t('home.exploreProjects')}</a>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-y-16 md:gap-x-12 lg:gap-x-16">
-              {research.map((item, index) => (
-                <article key={item._id} className={`flex flex-col ${index === 0 ? 'md:col-span-8' : index === 1 ? 'md:col-span-4' : 'md:col-span-6'} group cursor-default`}>
-                  <div className="w-full aspect-[4/3] bg-slate-200 mb-8 overflow-hidden relative">
-                    {item.image ? (
-                      <img src={item.image} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000 ease-out" />
-                    ) : (
-                      <>
-                        <div className="absolute inset-0 bg-slate-800 group-hover:scale-105 transition-transform duration-1000 ease-out flex items-center justify-center opacity-10"></div>
-                        <div className="absolute inset-0 flex items-center justify-center text-slate-400 mix-blend-multiply">
-                          <svg className="w-16 h-16 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                  <span className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-4">{item.category}</span>
-                  <h3 className="text-3xl md:text-4xl font-medium text-slate-900 leading-tight mb-4 group-hover:opacity-70 transition-opacity">{item.title}</h3>
-                  <p className="text-slate-600 font-light leading-relaxed line-clamp-3 md:line-clamp-none max-w-2xl">{item.description}</p>
-                </article>
-              ))}
             </div>
           </div>
-        </section>
-      )}
+        </Shell>
+      </Section>
 
-      {/* Featured Members Section */}
-      {members.length > 0 && (
-        <section className="w-full py-24 md:py-32">
-          <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
-            <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 border-b border-slate-900 pb-6">
-              <h2 className="text-3xl md:text-5xl font-medium tracking-tight text-slate-900">{t('home.featuredMembers')}</h2>
-              <div className="flex flex-wrap gap-4 mt-6 md:mt-0 text-sm font-semibold uppercase tracking-widest text-slate-500">
-                <a href="/people/professor" className="hover:text-slate-900 transition-colors">{t('home.professors')}</a>
-                <span className="text-slate-300">|</span>
-                <a href="/people/students" className="hover:text-slate-900 transition-colors">{t('home.students')}</a>
-                <span className="text-slate-300">|</span>
-                <a href="/people/alumni" className="hover:text-slate-900 transition-colors">{t('home.alumni')}</a>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-16 lg:gap-x-10">
-              {members.map((member, index) => (
-                <article key={member._id} className={`group flex flex-col ${index % 2 === 1 ? 'md:mt-16' : ''}`}>
-                  <div className="w-full aspect-[3/4] bg-slate-100 mb-6 overflow-hidden">
-                    {member.image ? (
-                      <img src={member.image} alt={member.name} className="w-full h-full object-cover transition-all duration-700 ease-in-out group-hover:scale-105" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-300">
-                        <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
-                      </div>
-                    )}
-                  </div>
-                  <h3 className="text-xl font-medium text-slate-900">{member.name}</h3>
-                  <p className="text-sm font-light text-slate-500 mt-1">{member.role}</p>
-                </article>
-              ))}
-            </div>
+      {/* ================================================================= */}
+      {/* News                                                              */}
+      {/* ================================================================= */}
+      <Section>
+        <Shell>
+          <div className="grid grid-cols-1 gap-12 lg:grid-cols-2 lg:gap-16">
+            <NewsColumn
+              title={t('home.worldNews')}
+              items={worldNews.data || []}
+              loading={worldNews.loading}
+              viewAllTo="/news/world-news"
+              viewAllLabel={t('home.viewAll').replace('→', '').trim()}
+              emptyLabel={t('home.noWorldNews')}
+              locale={locale}
+            />
+            <NewsColumn
+              title={t('home.vietnamNews')}
+              items={vietnamNews.data || []}
+              loading={vietnamNews.loading}
+              viewAllTo="/news/vietnam-news"
+              viewAllLabel={t('home.viewAll').replace('→', '').trim()}
+              emptyLabel={t('home.noVietnamNews')}
+              locale={locale}
+            />
           </div>
-        </section>
-      )}
+        </Shell>
+      </Section>
 
-      {/* Jobs & Internships Section */}
-      {jobsNews.length > 0 && (
-        <section className="w-full py-24 md:py-32 bg-slate-50 border-t border-slate-200">
-          <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
-            <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 border-b border-slate-900 pb-6">
-              <h2 className="text-3xl md:text-5xl font-medium tracking-tight text-slate-900">{t('home.jobsAndInternships')}</h2>
-              <a href="/news/jobs" className="text-sm font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors mt-6 md:mt-0">{t('home.viewAllOpportunities')}</a>
-            </div>
+      {/* ================================================================= */}
+      {/* Research                                                          */}
+      {/* ================================================================= */}
+      {(research.loading || projects.length > 0) && (
+        <Section tone="sunken" className="border-y border-paper-border">
+          <Shell>
+            <SectionHeading
+              size="lg"
+              title={t('home.researchFocus')}
+              action={
+                <QuietLink to="/research/project">
+                  {t('home.exploreProjects').replace('→', '').trim()}
+                </QuietLink>
+              }
+            />
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {jobsNews.map(item => (
-                <article key={item._id} className="group bg-white p-6 border border-slate-200 hover:border-slate-900 transition-all flex flex-col justify-between">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 bg-slate-100 px-2 py-0.5 border border-slate-200">
-                        {item.source}
-                      </span>
-                      <span className="text-xs font-light text-slate-400">
-                        {new Date(item.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </span>
+            {/* An even grid. Research areas are peers; sizing one larger than
+                the others implies a hierarchy the lab has not stated. */}
+            <div className="mt-10 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
+              {research.loading
+                ? Array.from({ length: 4 }, (_, i) => (
+                    <div key={i}>
+                      <Skeleton className="mb-4 aspect-[4/3] w-full" />
+                      <Skeleton className="mb-2 h-3 w-20" />
+                      <Skeleton className="mb-2 h-5 w-4/5" />
+                      <Skeleton className="h-3 w-full" />
                     </div>
-                    <h3 className="text-lg font-semibold text-slate-900 leading-snug group-hover:text-blue-600 transition-colors line-clamp-2">
-                      <a href={item.url} target="_blank" rel="noopener noreferrer">
-                        {item.title}
-                      </a>
-                    </h3>
-                    <p className="text-slate-500 text-xs font-light leading-relaxed line-clamp-3">
-                      {item.summary}
-                    </p>
-                  </div>
-                  <div className="pt-6 border-t border-slate-100 mt-6 flex justify-between items-center">
-                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">{t('home.jobsAndInternships')}</span>
-                    <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold uppercase tracking-widest text-slate-900 group-hover:text-blue-600 transition-colors">{t('home.details')}</a>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* Recruitments Section */}
-      {recruitments.length > 0 && (
-        <section className="w-full py-24 md:py-32 border-t border-slate-150">
-          <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
-            <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 border-b border-slate-900 pb-6">
-              <h2 className="text-3xl md:text-5xl font-medium tracking-tight text-slate-900">{t('home.labRecruitment')}</h2>
-              <a href="/lab-recruitment" className="text-sm font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors mt-6 md:mt-0">{t('home.viewAllPositions')}</a>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {recruitments.map(item => {
-                const isActive = item.status === 'active';
-                return (
-                  <article key={item._id} className="bg-white p-8 border border-slate-200 shadow-sm hover:shadow-lg transition-all flex flex-col h-full group">
-                    <div className="mb-4">
-                      <span className={`inline-block px-3 py-1 text-[10px] font-bold uppercase tracking-widest mb-4 ${isActive ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
-                        {isActive ? t('home.openPosition', 'Open Position') : t('home.closedPosition', 'Closed')}
-                      </span>
-                      <h3 className="text-2xl font-semibold text-slate-900 group-hover:text-blue-600 transition-colors leading-tight">
+                  ))
+                : projects.map((item) => (
+                    <Link
+                      key={item._id}
+                      to={`/research/project/${item._id}`}
+                      className="group flex flex-col"
+                    >
+                      <Media
+                        src={item.image}
+                        alt={item.title}
+                        ratio="aspect-[4/3]"
+                        className="mb-4 border border-paper-border"
+                        fallback={<Icon name="chip" className="h-10 w-10" strokeWidth={1} />}
+                      />
+                      <p className="eyebrow">{item.category}</p>
+                      <h3 className="mt-2 font-display text-lg font-semibold leading-snug text-ink-950 transition-colors group-hover:text-accent-700">
                         {item.title}
                       </h3>
-                    </div>
-
-                    <p className="text-slate-600 font-light text-sm flex-1 whitespace-pre-line leading-relaxed mb-6 line-clamp-4">
-                      {item.description}
-                    </p>
-
-                    <div className="mt-auto pt-6 border-t border-slate-100 flex items-center justify-between">
-                      <div className="text-xs text-slate-500 font-medium">
-                        {t('home.deadline')}<span className="text-slate-900">{new Date(item.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                      </div>
-                      <a
-                        href={item.googleFormUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`inline-flex items-center text-sm font-semibold transition-colors group/link ${isActive ? 'text-blue-600 hover:text-blue-800' : 'cursor-not-allowed text-slate-400'}`}
-                        onClick={(e) => { if (!isActive) e.preventDefault() }}
-                      >
-                        {t('home.applyNow')}
-                        <svg className="w-4 h-4 ml-1 transform group-hover/link:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
-                      </a>
-                    </div>
-                  </article>
-                );
-              })}
+                      <p className="mt-2 line-clamp-3 text-[13px] leading-relaxed text-ink-500">
+                        {item.description}
+                      </p>
+                    </Link>
+                  ))}
             </div>
-          </div>
-        </section>
+          </Shell>
+        </Section>
       )}
-    </div>
+
+      {/* ================================================================= */}
+      {/* People                                                            */}
+      {/* ================================================================= */}
+      {(membersLoading || members.length > 0) && (
+        <Section>
+          <Shell>
+            <SectionHeading
+              size="lg"
+              title={t('home.featuredMembers')}
+              action={
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                  <QuietLink to="/people/professor">{t('home.professors')}</QuietLink>
+                  <span aria-hidden="true" className="text-ink-200">
+                    ·
+                  </span>
+                  <QuietLink to="/people/students">{t('home.students')}</QuietLink>
+                  <span aria-hidden="true" className="text-ink-200">
+                    ·
+                  </span>
+                  <QuietLink to="/people/alumni">{t('home.alumni')}</QuietLink>
+                </div>
+              }
+            />
+
+            <div className="mt-10 grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 md:grid-cols-4 lg:gap-x-8">
+              {membersLoading
+                ? Array.from({ length: 4 }, (_, i) => <SkeletonCard key={i} variant="person" />)
+                : members.map((member) => (
+                    <Link
+                      key={member._id}
+                      to={`${PEOPLE_PATHS[member.category] ?? '/people/students'}/${member._id}`}
+                      className="group flex flex-col"
+                    >
+                      <Media
+                        src={member.image}
+                        alt={member.name}
+                        ratio="aspect-[3/4]"
+                        className="mb-4 border border-paper-border"
+                        fallback={<Icon name="user" className="h-9 w-9" strokeWidth={1} />}
+                      />
+                      <h3 className="font-display text-base font-semibold text-ink-950">
+                        {member.name}
+                      </h3>
+                      <p className="mt-0.5 text-[13px] text-ink-500">{member.role}</p>
+                    </Link>
+                  ))}
+            </div>
+          </Shell>
+        </Section>
+      )}
+
+      {/* ================================================================= */}
+      {/* Join us — openings and external opportunities                     */}
+      {/* ================================================================= */}
+      {((recruitment.data || []).length > 0 || (jobsNews.data || []).length > 0) && (
+        <Section tone="sunken" className="border-t border-paper-border">
+          <Shell>
+            <SectionHeading
+              size="lg"
+              title={t('home.labRecruitment')}
+              description={t('home.recruitmentDescription')}
+            />
+
+            <div className="mt-10 grid gap-10 lg:grid-cols-12 lg:gap-14">
+              {/* Lab openings */}
+              {(recruitment.data || []).length > 0 && (
+                <div className="lg:col-span-7">
+                  <p className="eyebrow mb-5">{t('home.openInThisLab')}</p>
+                  <div className="divide-hairline border-t border-paper-border">
+                    {recruitment.data.map((item) => {
+                      const isActive = item.status === 'active'
+                      return (
+                        <article key={item._id} className="flex flex-col gap-3 py-5">
+                          <div className="flex flex-wrap items-center gap-3">
+                            <Badge tone={isActive ? 'ok' : 'neutral'}>
+                              {isActive
+                                ? t('home.openPosition', 'Open Position')
+                                : t('home.closedPosition', 'Closed')}
+                            </Badge>
+                            <span className="font-mono text-[11px] text-ink-400">
+                              {t('home.deadline')}
+                              <span className="text-ink-700">
+                                {formatDate(item.deadline, 'short', locale)}
+                              </span>
+                            </span>
+                          </div>
+
+                          <h3 className="font-display text-lg font-semibold leading-snug text-ink-950">
+                            {item.title}
+                          </h3>
+
+                          <p className="line-clamp-3 whitespace-pre-line text-sm leading-relaxed text-ink-500">
+                            {item.description}
+                          </p>
+
+                          {isActive && (
+                            <a
+                              href={item.googleFormUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="link-quiet w-fit text-accent-600 hover:text-accent-700"
+                            >
+                              {t('home.applyNow')} →
+                            </a>
+                          )}
+                        </article>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Industry openings */}
+              {(jobsNews.data || []).length > 0 && (
+                <div className="lg:col-span-5">
+                  <div className="mb-5 flex items-center justify-between gap-4">
+                    <p className="eyebrow">{t('home.jobsAndInternships')}</p>
+                    <QuietLink to="/news/jobs">
+                      {t('home.viewAllOpportunities').replace('→', '').trim()}
+                    </QuietLink>
+                  </div>
+
+                  <div className="divide-hairline border-t border-paper-border">
+                    {jobsNews.data.map((item) => (
+                      <article key={item._id} className="group py-4">
+                        <h3 className="line-clamp-2 text-sm font-medium leading-snug text-ink-800 transition-colors group-hover:text-accent-600">
+                          <a href={item.url} target="_blank" rel="noopener noreferrer">
+                            {item.title}
+                          </a>
+                        </h3>
+                        <div className="mt-2 flex items-center gap-2.5">
+                          <span className="font-mono text-[10px] uppercase tracking-label text-ink-400">
+                            {item.source}
+                          </span>
+                          <time
+                            className="font-mono text-[10px] text-ink-300"
+                            dateTime={item.publishedAt}
+                          >
+                            {formatDate(item.publishedAt, 'short', locale)}
+                          </time>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </Shell>
+        </Section>
+      )}
+    </>
   )
 }

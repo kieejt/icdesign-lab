@@ -62,11 +62,11 @@ export default function AdminAccountsPage() {
     <div className="space-y-12">
       
       {/* Page Title */}
-      <div className="border-b border-slate-200 pb-5">
-        <h2 className="text-3xl font-bold text-slate-900 tracking-tight">
+      <div className="border-b border-paper-border pb-5">
+        <h2 className="text-3xl font-bold text-ink-900 tracking-tight">
           Manage Student Accounts
         </h2>
-        <p className="mt-2 text-sm text-slate-500 font-light">
+        <p className="mt-2 text-sm text-ink-500 font-light">
           Grant and revoke student access credentials for the lab learning portal. Revoked student accounts lose access immediately.
         </p>
       </div>
@@ -74,28 +74,28 @@ export default function AdminAccountsPage() {
       {/* Message Notifications */}
       {error && <ErrorText message={error} />}
       {success && (
-        <div className="border border-slate-900 bg-slate-50 px-4 py-3 text-sm text-slate-900 font-medium">
+        <div className="border border-ink-900 bg-paper-sunken px-4 py-3 text-sm text-ink-900 font-medium">
           {success}
         </div>
       )}
 
       {/* Account Creation Card */}
-      <div className="border border-slate-200 p-6 sm:p-8 bg-white">
-        <h3 className="text-lg font-bold text-slate-900 mb-6">Create Student Access</h3>
+      <div className="border border-paper-border p-6 sm:p-8 bg-paper-raised">
+        <h3 className="text-lg font-bold text-ink-900 mb-6">Create Student Access</h3>
         
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             
             {/* Email Address */}
             <div>
-              <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
-                Student Email <span className="text-red-500">*</span>
+              <label className="block text-xs font-bold uppercase tracking-widest text-ink-500 mb-2">
+                Student Email <span className="text-signal-danger">*</span>
               </label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="block w-full border border-slate-200 py-3 px-4 text-slate-900 focus:border-slate-900 focus:ring-0 sm:text-sm bg-transparent"
+                className="block w-full border border-paper-border py-3 px-4 text-ink-900 focus:border-ink-900 focus:ring-0 sm:text-sm bg-transparent"
                 placeholder="student@lab.com"
                 required
               />
@@ -103,14 +103,14 @@ export default function AdminAccountsPage() {
 
             {/* Password */}
             <div>
-              <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
-                Access Password <span className="text-red-500">*</span>
+              <label className="block text-xs font-bold uppercase tracking-widest text-ink-500 mb-2">
+                Access Password <span className="text-signal-danger">*</span>
               </label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="block w-full border border-slate-200 py-3 px-4 text-slate-900 focus:border-slate-900 focus:ring-0 sm:text-sm bg-transparent"
+                className="block w-full border border-paper-border py-3 px-4 text-ink-900 focus:border-ink-900 focus:ring-0 sm:text-sm bg-transparent"
                 placeholder="Minimum 6 characters"
                 minLength={6}
                 required
@@ -123,7 +123,7 @@ export default function AdminAccountsPage() {
             <button
               type="submit"
               disabled={loading}
-              className="inline-flex justify-center px-6 py-3 text-xs font-bold uppercase tracking-widest text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 transition-colors"
+              className="inline-flex justify-center px-6 py-3 text-xs font-bold uppercase tracking-widest text-paper bg-ink-900 hover:bg-ink-800 disabled:opacity-50 transition-colors"
             >
               {loading ? 'Creating...' : 'Grant Access'}
             </button>
@@ -133,32 +133,32 @@ export default function AdminAccountsPage() {
 
       {/* Accounts Directory */}
       <div className="space-y-4">
-        <h3 className="text-lg font-bold text-slate-900">Active Students Directory ({students.length})</h3>
+        <h3 className="text-lg font-bold text-ink-900">Active Students Directory ({students.length})</h3>
         
-        <div className="border-t border-slate-900 overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 text-left">
+        <div className="border-t border-ink-900 overflow-x-auto">
+          <table className="min-w-full divide-y divide-paper-border text-left">
             <thead>
-              <tr className="bg-slate-50/50">
-                <th className="py-4 pl-4 pr-4 text-xs font-bold uppercase tracking-widest text-slate-500">Student Email</th>
-                <th className="px-4 py-4 text-xs font-bold uppercase tracking-widest text-slate-500">Access Granted On</th>
-                <th className="py-4 pl-4 pr-4 text-right text-xs font-bold uppercase tracking-widest text-slate-500">Actions</th>
+              <tr className="bg-paper-sunken/50">
+                <th className="py-4 pl-4 pr-4 text-xs font-bold uppercase tracking-widest text-ink-500">Student Email</th>
+                <th className="px-4 py-4 text-xs font-bold uppercase tracking-widest text-ink-500">Access Granted On</th>
+                <th className="py-4 pl-4 pr-4 text-right text-xs font-bold uppercase tracking-widest text-ink-500">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 bg-white">
+            <tbody className="divide-y divide-ink-100 bg-paper-raised">
               {students.map((student) => (
-                <tr key={student._id} className="hover:bg-slate-50/50 transition-colors">
+                <tr key={student._id} className="hover:bg-paper-sunken/50 transition-colors">
                   <td className="py-4 pl-4 pr-4">
-                    <span className="text-sm font-semibold text-slate-900">{student.email}</span>
+                    <span className="text-sm font-semibold text-ink-900">{student.email}</span>
                   </td>
                   <td className="px-4 py-4">
-                    <span className="text-xs font-light text-slate-500">
+                    <span className="text-xs font-light text-ink-500">
                       {new Date(student.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                     </span>
                   </td>
                   <td className="py-4 pl-4 pr-4 text-right">
                     <button
                       onClick={() => handleRevoke(student._id, student.email)}
-                      className="inline-flex px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-red-650 hover:text-red-750 hover:bg-red-50 transition-colors"
+                      className="inline-flex px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-signal-danger hover:text-signal-danger hover:bg-signal-dangerSoft transition-colors"
                     >
                       Revoke Access →
                     </button>
@@ -168,7 +168,7 @@ export default function AdminAccountsPage() {
 
               {students.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="py-12 text-center text-slate-500 font-light text-sm">
+                  <td colSpan={3} className="py-12 text-center text-ink-500 font-light text-sm">
                     No active student accounts. Use the form above to grant access.
                   </td>
                 </tr>

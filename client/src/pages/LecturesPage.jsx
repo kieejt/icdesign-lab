@@ -1,208 +1,189 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import api from '../lib/api';
-import { useAuth } from '../contexts/AuthContext';
+import React from 'react'
+import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 
-export default function LecturesPage() {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
-  const { currentUser, loading: authLoading } = useAuth();
+import { useAuth } from '../contexts/AuthContext'
+import useApiQuery from '../hooks/useApiQuery'
+import { youtubeThumbnail } from '../lib/youtube'
+import {
+  Badge,
+  EmptyState,
+  ErrorState,
+  Icon,
+  PageHeader,
+  Section,
+  Shell,
+  SkeletonGrid,
+  formatDate,
+} from '../components/ui'
 
-  const [lectures, setLectures] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  const fetchLectures = async () => {
-    if (!currentUser) {
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const resLectures = await api.get('/lectures');
-      setLectures(resLectures.data);
-    } catch (err) {
-      console.error('Failed to fetch lectures:', err);
-      setError('Failed to fetch lectures.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!authLoading) {
-      fetchLectures();
-    }
-  }, [currentUser, authLoading]);
-
-  // Extract YouTube ID to get thumbnail image
-  const getYoutubeThumbnailUrl = (url) => {
-    if (!url) return '';
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-    const match = url.match(regExp);
-    const videoId = (match && match[2].length === 11) ? match[2] : '';
-    return videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : '';
-  };
-
-  if (loading) {
-    return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 bg-white">
-        <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-slate-900"></div>
-        <p className="text-slate-500 font-light tracking-wide animate-pulse">{t('education.loadingClass')}</p>
-      </div>
-    );
-  }
-
-  // Gatekeeper: restrict access to logged-in members
-  if (!currentUser) {
-    return (
-      <div className="w-full flex flex-col items-center bg-white selection:bg-slate-900 selection:text-white">
-
-        {/* Page Header */}
-        <section className="w-full pt-16 pb-24 border-b border-slate-200">
-          <div className="max-w-[80rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
-            <h1 className="text-5xl md:text-7xl font-medium tracking-tighter text-slate-900">{t('education.classTitle')}</h1>
-            <p className="mt-6 md:mt-8 max-w-2xl text-xl text-slate-600 leading-relaxed font-light">
-              {t('education.classSubtitleRestricted')}
-            </p>
-          </div>
-        </section>
-
-        {/* Lock Container */}
-        <section className="w-full py-24 bg-white">
-          <div className="max-w-md mx-auto px-4 text-center space-y-8">
-            <div className="mx-auto w-16 h-16 bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-900 shrink-0">
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-            </div>
-
-            <div className="space-y-3">
-              <h3 className="text-2xl font-semibold tracking-tight text-slate-900">{t('education.accessRestricted')}</h3>
-              <p className="text-sm font-light text-slate-500 leading-relaxed">
-                {t('education.accessRestrictedDesc')}
-              </p>
-            </div>
-
-            <button
-              onClick={() => navigate('/login')}
-              className="inline-flex items-center justify-center px-6 py-3 w-full text-xs font-bold uppercase tracking-widest text-white bg-slate-900 hover:bg-slate-800 transition-colors"
-            >
-              {t('education.signIn')}
-            </button>
-          </div>
-        </section>
-
-      </div>
-    );
-  }
+/** Card for one lecture module. */
+function LectureCard({ lecture, t, locale }) {
+  const thumbnail = youtubeThumbnail(lecture.youtubeUrl)
 
   return (
-    <div className="w-full flex flex-col items-center selection:bg-slate-900 selection:text-white bg-white">
+    <Link
+      to={`/lectures/${lecture._id}`}
+      className="surface-interactive group flex flex-col overflow-hidden"
+    >
+      <div className="relative aspect-video shrink-0 overflow-hidden border-b border-paper-border bg-ink-900">
+        {thumbnail ? (
+          <img
+            src={thumbnail}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-ink-600">
+            <Icon name="play" className="h-10 w-10" strokeWidth={1.5} />
+          </div>
+        )}
 
-      {/* Header Banner */}
-      <section className="w-full pt-16 pb-20 border-b border-slate-200 bg-slate-50/50">
-        <div className="max-w-[80rem] mx-auto px-4 sm:px-6 lg:px-8 w-full flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 text-left">
-          <div className="space-y-4">
-            <h1 className="text-5xl md:text-7xl font-medium tracking-tighter text-slate-900">{t('education.classTitle')}</h1>
-            <p className="text-lg text-slate-550 font-light max-w-xl">
-              {t('education.classSubtitle')}
-            </p>
-          </div>
-          <div className="shrink-0 flex items-center gap-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">{t('education.identity')}</span>
-            <span className="inline-flex items-center border border-slate-900 bg-slate-900 text-white px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded select-none">
-              {currentUser.role}
-            </span>
-          </div>
+        <div className="absolute inset-0 flex items-center justify-center bg-ink-950/0 transition-colors duration-300 group-hover:bg-ink-950/25">
+          <span className="flex h-12 w-12 scale-90 items-center justify-center rounded-full bg-paper text-ink-950 opacity-0 shadow-lift transition-all duration-300 group-hover:scale-100 group-hover:opacity-100">
+            <svg viewBox="0 0 24 24" className="ml-0.5 h-5 w-5 fill-current" aria-hidden="true">
+              <path d="M8 5v14l11-7z" />
+            </svg>
+          </span>
         </div>
-      </section>
+      </div>
 
-      {/* Grid listing area */}
-      <section className="w-full py-16 md:py-24 bg-white">
-        <div className="max-w-[80rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
+      <div className="flex flex-1 flex-col justify-between gap-5 p-5">
+        <div>
+          <time className="eyebrow" dateTime={lecture.createdAt}>
+            {formatDate(lecture.createdAt, 'short', locale)}
+          </time>
+          <h3 className="mt-2 line-clamp-2 font-display text-base font-semibold leading-snug text-ink-950 transition-colors group-hover:text-accent-700">
+            {lecture.title}
+          </h3>
+          {lecture.description && (
+            <p className="mt-2 line-clamp-3 text-[13px] leading-relaxed text-ink-500">
+              {lecture.description}
+            </p>
+          )}
+        </div>
 
-          {error && <div className="mb-8 p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl">{error}</div>}
+        <div className="flex items-center justify-between border-t border-paper-border pt-3.5 font-mono text-[11px] uppercase tracking-label text-ink-400">
+          <span className="flex items-center gap-3">
+            <span>
+              {lecture.views || 0} {t('education.views')}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span>
+              {lecture.comments?.length || 0} {t('education.qa')}
+            </span>
+          </span>
+          <span className="text-ink-800 transition-transform duration-300 group-hover:translate-x-1">
+            →
+          </span>
+        </div>
+      </div>
+    </Link>
+  )
+}
 
-          {lectures.length === 0 ? (
-            <div className="text-center py-24 border border-dashed border-slate-200 rounded-2xl">
-              <p className="text-slate-500 font-light text-sm">{t('education.noLectures')}</p>
+export default function LecturesPage() {
+  const { t, i18n } = useTranslation()
+  const locale = i18n.language === 'vi' ? 'vi-VN' : 'en-US'
+  const { currentUser } = useAuth()
+
+  // `enabled` holds the request until we know there is a session — the endpoint
+  // requires auth, and firing it while signed out just produces a 401 in the console.
+  const { data, loading, error, refetch } = useApiQuery('/lectures', {
+    enabled: Boolean(currentUser),
+    staleTime: 60_000,
+  })
+
+  const lectures = data ?? []
+
+  /* --- Signed out ---------------------------------------------------- */
+  if (!currentUser) {
+    return (
+      <>
+        <PageHeader
+          eyebrow={t('ui.eyebrowRestricted')}
+          title={t('education.classTitle')}
+          subtitle={t('education.classSubtitleRestricted')}
+        />
+
+        <Section>
+          <Shell>
+            <div className="mx-auto max-w-md text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center border border-paper-border bg-paper-sunken text-ink-500">
+                <svg
+                  className="h-6 w-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="1.5"
+                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                  />
+                </svg>
+              </div>
+
+              <h2 className="mt-6 font-display text-xl font-semibold text-ink-950">
+                {t('education.accessRestricted')}
+              </h2>
+              <p className="mt-3 text-sm leading-relaxed text-ink-500">
+                {t('education.accessRestrictedDesc')}
+              </p>
+
+              <Link to="/login" className="btn-primary mt-8 w-full">
+                {t('education.signIn')}
+              </Link>
             </div>
+          </Shell>
+        </Section>
+      </>
+    )
+  }
+
+  /* --- Signed in ----------------------------------------------------- */
+  return (
+    <>
+      <PageHeader
+        eyebrow={t('ui.eyebrowCoursePortal')}
+        title={t('education.classTitle')}
+        subtitle={t('education.classSubtitle')}
+        actions={
+          <div className="flex items-center gap-2.5">
+            <span className="eyebrow">{t('education.identity')}</span>
+            <Badge tone="accent">{currentUser.role}</Badge>
+          </div>
+        }
+      />
+
+      <Section>
+        <Shell>
+          {loading ? (
+            <SkeletonGrid
+              count={6}
+              variant="article"
+              className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3"
+            />
+          ) : error ? (
+            <ErrorState message={error.message} onRetry={refetch} />
+          ) : lectures.length === 0 ? (
+            <EmptyState
+              icon={<Icon name="play" className="h-12 w-12" strokeWidth={1} />}
+              title={t('education.noLectures')}
+            />
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-              {lectures.map((lec) => {
-                const thumbnailUrl = getYoutubeThumbnailUrl(lec.youtubeUrl);
-                return (
-                  <div
-                    key={lec._id}
-                    onClick={() => navigate(`/lectures/${lec._id}`)}
-                    className="group bg-white border border-slate-200 hover:border-slate-400 hover:shadow-md transition-all duration-300 rounded-2xl overflow-hidden cursor-pointer flex flex-col justify-between text-left"
-                  >
-                    {/* Lecture Card Header Image */}
-                    <div className="w-full aspect-video bg-slate-100 overflow-hidden relative border-b border-slate-100 shrink-0">
-                      {thumbnailUrl ? (
-                        <img
-                          src={thumbnailUrl}
-                          alt={lec.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center text-white/40">
-                          <svg className="w-10 h-10 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                          </svg>
-                        </div>
-                      )}
-
-                      {/* Interactive play hover effect */}
-                      <div className="absolute inset-0 bg-slate-950/0 group-hover:bg-slate-950/20 flex items-center justify-center transition-all duration-300">
-                        <div className="w-12 h-12 bg-white/95 border border-white/20 shadow-lg scale-90 opacity-0 group-hover:opacity-100 group-hover:scale-100 rounded-full flex items-center justify-center text-slate-900 transition-all duration-300">
-                          <svg className="w-5 h-5 ml-0.5 fill-current" viewBox="0 0 24 24">
-                            <path d="M8 5v14l11-7z" />
-                          </svg>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Lecture Card Body */}
-                    <div className="p-6 flex-1 flex flex-col justify-between gap-6">
-                      <div className="space-y-3">
-                        <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">
-                          {new Date(lec.createdAt).toLocaleDateString()}
-                        </span>
-                        <h3 className="text-lg font-semibold text-slate-900 group-hover:text-slate-700 transition-colors line-clamp-2 leading-snug">
-                          {lec.title}
-                        </h3>
-                        {lec.description && (
-                          <p className="text-sm font-light text-slate-500 leading-relaxed line-clamp-3">
-                            {lec.description}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Lecture Card Footer Metrics */}
-                      <div className="flex items-center justify-between border-t border-slate-100 pt-4 text-xs font-semibold text-slate-450 uppercase tracking-wider">
-                        <div className="flex items-center gap-3">
-                          <span>{lec.views || 0} {t('education.views')}</span>
-                          <span>•</span>
-                          <span>{lec.comments?.length || 0} {t('education.qa')}</span>
-                        </div>
-                        <span className="text-slate-900 group-hover:translate-x-1.5 transition-transform duration-300">
-                          {t('education.studyModule')}
-                        </span>
-                      </div>
-                    </div>
-
-                  </div>
-                );
-              })}
+            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+              {lectures.map((lecture) => (
+                <LectureCard key={lecture._id} lecture={lecture} t={t} locale={locale} />
+              ))}
             </div>
           )}
-
-        </div>
-      </section>
-
-    </div>
-  );
+        </Shell>
+      </Section>
+    </>
+  )
 }

@@ -22,14 +22,14 @@ const EMPTY_PUB_FORM = {
 
 function CitationLine({ title, authors, journal, date, link }) {
   return (
-    <p className="text-[15px] leading-relaxed text-slate-800">
+    <p className="text-[15px] leading-relaxed text-ink-800">
       {authors && <span>{authors}, </span>}
       {link ? (
         <a
           href={link}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-slate-900 underline decoration-slate-300 underline-offset-2 hover:text-blue-700 hover:decoration-blue-400"
+          className="text-ink-900 underline decoration-ink-300 underline-offset-2 hover:text-accent-700 hover:decoration-accent-400"
         >
           &ldquo;{title},&rdquo;
         </a>
@@ -306,14 +306,14 @@ export default function AdminResearchPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
-        <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Manage Research & Publications</h2>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-paper-border pb-4">
+        <h2 className="text-2xl font-semibold tracking-tight text-ink-900">Manage Research & Publications</h2>
         <div className="flex items-center gap-2">
           {activeTab === 'Publications' && (
             <button
               type="button"
               onClick={() => { setShowBulkSection((prev) => !prev); setError('') }}
-              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+              className="rounded-none border border-paper-border bg-paper-raised px-4 py-2 text-sm font-semibold text-ink-700 hover:bg-paper-sunken transition-colors"
             >
               {showBulkSection ? 'Hide Bulk Import' : 'Excel Bulk Import'}
             </button>
@@ -321,7 +321,7 @@ export default function AdminResearchPage() {
           <button
             type="button"
             onClick={openAddModal}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
+            className="rounded-none bg-accent-600 px-4 py-2 text-sm font-semibold text-paper hover:bg-accent-700 transition-colors"
           >
             + Add New {activeTab}
           </button>
@@ -331,17 +331,17 @@ export default function AdminResearchPage() {
       <ErrorText message={error && !isModalOpen ? error : ''} />
 
       {/* Top Level Tabs */}
-      <div className="flex gap-6 border-b border-slate-200">
+      <div className="flex gap-6 border-b border-paper-border">
         <button
           type="button"
-          className={`pb-3 px-2 ${activeTab === 'Project' ? 'border-b-2 border-blue-600 font-semibold text-slate-900' : 'text-slate-500 font-medium hover:text-slate-700'}`}
+          className={`pb-3 px-2 ${activeTab === 'Project' ? 'border-b-2 border-accent-600 font-semibold text-ink-900' : 'text-ink-500 font-medium hover:text-ink-700'}`}
           onClick={() => handleTabChange('Project')}
         >
           Manage Projects
         </button>
         <button
           type="button"
-          className={`pb-3 px-2 ${activeTab === 'Publications' ? 'border-b-2 border-blue-600 font-semibold text-slate-900' : 'text-slate-500 font-medium hover:text-slate-700'}`}
+          className={`pb-3 px-2 ${activeTab === 'Publications' ? 'border-b-2 border-accent-600 font-semibold text-ink-900' : 'text-ink-500 font-medium hover:text-ink-700'}`}
           onClick={() => handleTabChange('Publications')}
         >
           Manage Publications
@@ -350,49 +350,49 @@ export default function AdminResearchPage() {
 
       {/* Excel Bulk Import (Publications only) */}
       {activeTab === 'Publications' && showBulkSection && (
-        <div className="space-y-6 rounded-xl border border-slate-200 bg-white p-6">
+        <div className="space-y-6 rounded-none border border-paper-border bg-paper-raised p-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="md:col-span-1 border border-indigo-50 bg-indigo-50/20 rounded-2xl p-5 space-y-4">
-              <h4 className="text-sm font-bold text-indigo-700">Excel Template</h4>
-              <p className="text-xs text-slate-600 leading-relaxed">
+            <div className="md:col-span-1 border border-accent-50 bg-accent-50/20 rounded-none p-5 space-y-4">
+              <h4 className="text-sm font-bold text-accent-700">Excel Template</h4>
+              <p className="text-xs text-ink-600 leading-relaxed">
                 Just 2 columns: Link and BibTeX. Paste one full BibTeX entry per row.
               </p>
               <button
                 onClick={downloadSampleTemplate}
-                className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-indigo-700 transition-colors"
+                className="w-full rounded-none bg-accent-600 px-4 py-2.5 text-xs font-bold text-paper hover:bg-accent-700 transition-colors"
               >
                 Download Template
               </button>
             </div>
 
             <div className="md:col-span-2">
-              <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-2xl p-8 bg-slate-50/50 hover:bg-slate-50 cursor-pointer transition-all text-center h-full">
-                <p className="text-sm font-bold text-slate-800">Upload Excel spreadsheet</p>
-                <p className="text-xs text-slate-500 mt-1">Drag and drop or click to choose .xlsx or .xls files</p>
+              <label className="flex flex-col items-center justify-center border-2 border-dashed border-paper-border hover:border-accent-400 rounded-none p-8 bg-paper-sunken/50 hover:bg-paper-sunken cursor-pointer transition-all text-center h-full">
+                <p className="text-sm font-bold text-ink-800">Upload Excel spreadsheet</p>
+                <p className="text-xs text-ink-500 mt-1">Drag and drop or click to choose .xlsx or .xls files</p>
                 <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleExcelUpload} />
               </label>
             </div>
           </div>
 
           {bulkData.length > 0 && (
-            <div className="space-y-4 pt-4 border-t border-slate-100">
+            <div className="space-y-4 pt-4 border-t border-ink-100">
               <div className="flex justify-between items-center">
-                <h4 className="font-bold text-sm text-slate-900">Preview ({bulkData.length} rows parsed)</h4>
+                <h4 className="font-bold text-sm text-ink-900">Preview ({bulkData.length} rows parsed)</h4>
                 <div className="flex gap-2">
-                  <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
+                  <span className="rounded-full bg-signal-okSoft px-2.5 py-0.5 text-xs font-semibold text-signal-ok">
                     {bulkData.filter((d) => d.isValid).length} Valid
                   </span>
                   {bulkData.some((d) => !d.isValid) && (
-                    <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-semibold text-red-700">
+                    <span className="rounded-full bg-signal-dangerSoft px-2.5 py-0.5 text-xs font-semibold text-signal-danger">
                       {bulkData.filter((d) => !d.isValid).length} Errors
                     </span>
                   )}
                 </div>
               </div>
 
-              <div className="border border-slate-200 rounded-xl overflow-hidden max-h-96 overflow-y-auto">
-                <table className="min-w-full divide-y divide-slate-100 text-xs text-left">
-                  <thead className="bg-slate-50 text-slate-500 font-bold uppercase sticky top-0">
+              <div className="border border-paper-border rounded-none overflow-hidden max-h-96 overflow-y-auto">
+                <table className="min-w-full divide-y divide-ink-100 text-xs text-left">
+                  <thead className="bg-paper-sunken text-ink-500 font-bold uppercase sticky top-0">
                     <tr>
                       <th className="px-4 py-3">Row</th>
                       <th className="px-4 py-3">Title</th>
@@ -402,19 +402,19 @@ export default function AdminResearchPage() {
                       <th className="px-4 py-3">Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white">
+                  <tbody className="divide-y divide-ink-100 bg-paper-raised">
                     {bulkData.map((row) => (
-                      <tr key={row.rowIndex} className={!row.isValid ? 'bg-red-50/20' : ''}>
-                        <td className="px-4 py-3 font-bold text-slate-500">#{row.rowIndex}</td>
-                        <td className="px-4 py-3 max-w-xs truncate font-semibold text-slate-800" title={row.parsedTitle}>{row.parsedTitle || '-'}</td>
-                        <td className="px-4 py-3 max-w-xs truncate text-slate-600" title={row.parsedAuthors}>{row.parsedAuthors || '-'}</td>
-                        <td className="px-4 py-3 max-w-xs truncate text-slate-600 italic" title={row.parsedJournal}>{row.parsedJournal || '-'}</td>
-                        <td className="px-4 py-3 text-slate-600">{row.parsedYear || '-'}</td>
+                      <tr key={row.rowIndex} className={!row.isValid ? 'bg-signal-dangerSoft/20' : ''}>
+                        <td className="px-4 py-3 font-bold text-ink-500">#{row.rowIndex}</td>
+                        <td className="px-4 py-3 max-w-xs truncate font-semibold text-ink-800" title={row.parsedTitle}>{row.parsedTitle || '-'}</td>
+                        <td className="px-4 py-3 max-w-xs truncate text-ink-600" title={row.parsedAuthors}>{row.parsedAuthors || '-'}</td>
+                        <td className="px-4 py-3 max-w-xs truncate text-ink-600 italic" title={row.parsedJournal}>{row.parsedJournal || '-'}</td>
+                        <td className="px-4 py-3 text-ink-600">{row.parsedYear || '-'}</td>
                         <td className="px-4 py-3">
                           {row.isValid ? (
-                            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">Ready</span>
+                            <span className="rounded-full bg-signal-okSoft px-2 py-0.5 text-xs font-semibold text-signal-ok">Ready</span>
                           ) : (
-                            <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 cursor-help" title={row.error}>Error</span>
+                            <span className="rounded-full bg-signal-dangerSoft px-2 py-0.5 text-xs font-semibold text-signal-danger cursor-help" title={row.error}>Error</span>
                           )}
                         </td>
                       </tr>
@@ -426,14 +426,14 @@ export default function AdminResearchPage() {
               <div className="flex justify-end gap-3 pt-2">
                 <button
                   onClick={() => setBulkData([])}
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                  className="rounded-none border border-paper-border bg-paper-raised px-4 py-2 text-xs font-bold text-ink-700 hover:bg-paper-sunken"
                 >
                   Clear File
                 </button>
                 <button
                   onClick={handleConfirmBulkImport}
                   disabled={bulkLoading || bulkData.filter((d) => d.isValid).length === 0}
-                  className="rounded-xl bg-indigo-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-indigo-700 disabled:opacity-50"
+                  className="rounded-none bg-accent-600 px-5 py-2.5 text-xs font-bold text-paper hover:bg-accent-700 disabled:opacity-50"
                 >
                   {bulkLoading ? 'Importing...' : `Import ${bulkData.filter((d) => d.isValid).length} Valid Publications`}
                 </button>
@@ -446,16 +446,16 @@ export default function AdminResearchPage() {
       {/* Filtered List */}
       <div className="space-y-4">
         {loading ? (
-          <div className="flex h-24 items-center justify-center rounded-xl border border-slate-200 bg-white">
-            <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-slate-900" />
+          <div className="flex h-24 items-center justify-center rounded-none border border-paper-border bg-paper-raised">
+            <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-ink-900" />
           </div>
         ) : researchItems.length === 0 ? (
-          <p className="text-slate-500 py-8 text-center bg-slate-50 rounded-lg border border-slate-200 border-dashed">
+          <p className="text-ink-500 py-8 text-center bg-paper-sunken rounded-none border border-paper-border border-dashed">
             No {activeTab.toLowerCase()} records found. Use "Add New {activeTab}" to create one.
           </p>
         ) : activeTab === 'Publications' ? (
           researchItems.map((item) => (
-            <div key={item._id} className="rounded border border-slate-200 bg-white p-5 hover:shadow-sm transition-shadow">
+            <div key={item._id} className="rounded border border-paper-border bg-paper-raised p-5 hover:shadow-sm transition-shadow">
               <CitationLine title={item.title} authors={item.authors} journal={item.journal} date={item.date} link={item.link} />
 
               {item.bibtex ? (
@@ -463,29 +463,29 @@ export default function AdminResearchPage() {
                   <button
                     type="button"
                     onClick={() => toggleBibtexView(item._id)}
-                    className="text-xs font-medium text-blue-600 hover:underline"
+                    className="text-xs font-medium text-accent-600 hover:underline"
                   >
                     {expandedBibtexIds.has(item._id) ? 'Hide BibTeX' : 'View BibTeX'}
                   </button>
                   {expandedBibtexIds.has(item._id) && (
-                    <pre className="mt-2 whitespace-pre-wrap break-words rounded bg-slate-50 border border-slate-100 p-3 text-xs font-mono text-slate-600">
+                    <pre className="mt-2 whitespace-pre-wrap break-words rounded bg-paper-sunken border border-ink-100 p-3 text-xs font-mono text-ink-600">
                       {item.bibtex}
                     </pre>
                   )}
                 </div>
               ) : (
-                <p className="mt-3 text-xs italic text-slate-400">Legacy entry — no BibTeX stored.</p>
+                <p className="mt-3 text-xs italic text-ink-400">Legacy entry — no BibTeX stored.</p>
               )}
 
-              <div className="mt-5 flex gap-2 pt-4 border-t border-slate-100">
+              <div className="mt-5 flex gap-2 pt-4 border-t border-ink-100">
                 <button
                   type="button"
                   onClick={() => openEditModal(item)}
-                  className="rounded bg-amber-500 px-4 py-1.5 text-xs font-semibold text-white hover:bg-amber-600 transition-colors shadow-sm"
+                  className="rounded bg-signal-warn px-4 py-1.5 text-xs font-semibold text-paper hover:bg-signal-warn transition-colors shadow-sm"
                 >
                   Edit
                 </button>
-                <button type="button" onClick={() => handleDelete(item._id)} className="rounded bg-rose-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 transition-colors shadow-sm">
+                <button type="button" onClick={() => handleDelete(item._id)} className="rounded bg-signal-danger px-4 py-1.5 text-xs font-semibold text-paper hover:bg-signal-danger transition-colors shadow-sm">
                   Delete
                 </button>
               </div>
@@ -493,34 +493,34 @@ export default function AdminResearchPage() {
           ))
         ) : (
           researchItems.map((item) => (
-            <div key={item._id} className="rounded border border-slate-200 bg-white p-5 hover:shadow-sm transition-shadow">
+            <div key={item._id} className="rounded border border-paper-border bg-paper-raised p-5 hover:shadow-sm transition-shadow">
               <div className="flex justify-between items-start gap-4">
                 <div className="min-w-0">
-                  <p className="font-semibold text-slate-900 text-lg">{item.title}</p>
+                  <p className="font-semibold text-ink-900 text-lg">{item.title}</p>
                   <div className="flex gap-2 items-center mt-2 flex-wrap">
-                    <span className="text-xs font-semibold uppercase tracking-wider text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">{item.category}</span>
-                    {item.date && <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{new Date(item.date).toLocaleDateString()}</span>}
+                    <span className="text-xs font-semibold uppercase tracking-wider text-accent-600 bg-accent-100 px-2 py-0.5 rounded-full">{item.category}</span>
+                    {item.date && <span className="text-xs font-medium text-ink-500 bg-ink-100 px-2 py-0.5 rounded-full">{new Date(item.date).toLocaleDateString()}</span>}
                   </div>
                   {item.link && (
-                     <p className="text-sm text-slate-600 mt-3 truncate"><span className="font-medium">Link:</span> <a href={item.link} className="text-blue-500 hover:underline" target="_blank" rel="noreferrer">{item.link}</a></p>
+                     <p className="text-sm text-ink-600 mt-3 truncate"><span className="font-medium">Link:</span> <a href={item.link} className="text-accent-500 hover:underline" target="_blank" rel="noreferrer">{item.link}</a></p>
                   )}
                 </div>
                 {item.image && (
-                  <div className="w-16 h-16 rounded overflow-hidden border bg-white shrink-0">
+                  <div className="w-16 h-16 rounded overflow-hidden border bg-paper-raised shrink-0">
                     <img src={resolveImageSrc(item.image)} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none' }} />
                   </div>
                 )}
               </div>
 
-              <div className="mt-5 flex gap-2 pt-4 border-t border-slate-100">
+              <div className="mt-5 flex gap-2 pt-4 border-t border-ink-100">
                 <button
                   type="button"
                   onClick={() => openEditModal(item)}
-                  className="rounded bg-amber-500 px-4 py-1.5 text-xs font-semibold text-white hover:bg-amber-600 transition-colors shadow-sm"
+                  className="rounded bg-signal-warn px-4 py-1.5 text-xs font-semibold text-paper hover:bg-signal-warn transition-colors shadow-sm"
                 >
                   Edit
                 </button>
-                <button type="button" onClick={() => handleDelete(item._id)} className="rounded bg-rose-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 transition-colors shadow-sm">
+                <button type="button" onClick={() => handleDelete(item._id)} className="rounded bg-signal-danger px-4 py-1.5 text-xs font-semibold text-paper hover:bg-signal-danger transition-colors shadow-sm">
                   Delete
                 </button>
               </div>
@@ -540,7 +540,7 @@ export default function AdminResearchPage() {
             <button
               type="button"
               onClick={closeModal}
-              className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900"
+              className="px-4 py-2 text-sm font-medium text-ink-600 hover:text-ink-900"
             >
               Cancel
             </button>
@@ -548,7 +548,7 @@ export default function AdminResearchPage() {
               type="submit"
               form="research-form"
               disabled={activeTab === 'Publications' && pubPreview?.attempted && !pubPreview.parsed}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-accent-600 text-paper rounded-none text-sm font-medium hover:bg-accent-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {editingId ? `Update ${activeTab}` : `Save ${activeTab}`}
             </button>
@@ -572,15 +572,15 @@ export default function AdminResearchPage() {
               placeholder={'@article{key,\n  title={...},\n  author={Last, First and Last2, First2},\n  journal={...},\n  year={2025}\n}'}
               required={!editingId}
             />
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-ink-500">
               Paste the full BibTeX entry (not <code>@string</code> macro abbreviations). Only the first entry is used if multiple are pasted.
               {editingId && ' Leave blank to keep this publication\'s current citation unchanged (only the link will update).'}
             </p>
 
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Parsed Preview</p>
+            <div className="rounded-none border border-paper-border bg-paper-sunken p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-500 mb-2">Parsed Preview</p>
               {!pubPreview?.attempted ? (
-                <p className="text-sm text-slate-400 italic">Paste a BibTeX entry to see the compiled citation here.</p>
+                <p className="text-sm text-ink-400 italic">Paste a BibTeX entry to see the compiled citation here.</p>
               ) : pubPreview.parsed ? (
                 <>
                   <CitationLine
@@ -591,13 +591,13 @@ export default function AdminResearchPage() {
                     link={pubPreview.parsed.link}
                   />
                   {pubPreview.parsed.extraContentIgnored && (
-                    <p className="mt-2 text-xs font-medium text-amber-600">
+                    <p className="mt-2 text-xs font-medium text-signal-warn">
                       Only the first BibTeX entry was used — extra content after it was ignored.
                     </p>
                   )}
                 </>
               ) : (
-                <p className="text-sm font-medium text-rose-600">
+                <p className="text-sm font-medium text-signal-danger">
                   Could not detect a 'title' field yet — check the BibTeX syntax.
                 </p>
               )}
@@ -610,22 +610,22 @@ export default function AdminResearchPage() {
 
             <input type="url" value={projectForm.link} onChange={(e) => setProjectForm({ ...projectForm, link: e.target.value })} className="w-full rounded border px-3 py-2" placeholder="Link to Project URL" />
 
-            <div className="flex items-center gap-4 border rounded p-3 bg-slate-50">
+            <div className="flex items-center gap-4 border rounded p-3 bg-paper-sunken">
               <div className="flex-1">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Cover Image (Optional)</label>
-                <input type="file" accept="image/*" onChange={handleImageUpload} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
-                <div className="mt-2 text-xs text-slate-500">Or enter URL manually:</div>
+                <label className="block text-sm font-medium text-ink-700 mb-1">Cover Image (Optional)</label>
+                <input type="file" accept="image/*" onChange={handleImageUpload} className="w-full text-sm text-ink-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-accent-50 file:text-accent-700 hover:file:bg-accent-100" />
+                <div className="mt-2 text-xs text-ink-500">Or enter URL manually:</div>
                 <input value={projectForm.image} onChange={(e) => setProjectForm({ ...projectForm, image: e.target.value })} className="w-full rounded border px-3 py-1.5 text-sm mt-1" placeholder="Image URL" />
               </div>
               {projectForm.image && (
-                <div className="w-20 h-20 rounded overflow-hidden border bg-white shrink-0">
+                <div className="w-20 h-20 rounded overflow-hidden border bg-paper-raised shrink-0">
                   <img src={resolveImageSrc(projectForm.image)} alt="Preview" className="w-full h-full object-cover" onError={(e) => { e.target.src = 'https://via.placeholder.com/80?text=Error' }} />
                 </div>
               )}
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Project Date (Optional)</label>
+              <label className="block text-xs font-medium text-ink-600 mb-1">Project Date (Optional)</label>
               <input type="date" value={projectForm.date} onChange={(e) => setProjectForm({ ...projectForm, date: e.target.value })} className="w-full md:w-1/2 rounded border px-3 py-2" />
             </div>
           </form>

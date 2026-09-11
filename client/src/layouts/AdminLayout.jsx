@@ -1,54 +1,129 @@
-import React from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { adminNavItems } from '../constants/navigation';
-import { useAuth } from '../contexts/AuthContext';
+import React, { useState } from 'react'
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+
+import { adminNavItems } from '../constants/navigation'
+import { useAuth } from '../contexts/AuthContext'
+import { Icon, cx } from '../components/ui'
+
+/** Sidebar navigation, shared by the desktop rail and the mobile drawer. */
+function AdminNav({ onNavigate }) {
+  return (
+    <nav className="flex flex-col gap-0.5" aria-label="Admin sections">
+      {adminNavItems.map((item) => (
+        <NavLink
+          key={item.to}
+          to={item.to}
+          onClick={onNavigate}
+          className={({ isActive }) =>
+            cx(
+              'flex items-center gap-3 border-l-2 px-4 py-2.5 text-sm transition-colors',
+              isActive
+                ? 'border-accent-600 bg-paper-sunken font-semibold text-ink-950'
+                : 'border-transparent font-medium text-ink-500 hover:border-ink-200 hover:bg-paper-sunken hover:text-ink-900',
+            )
+          }
+        >
+          {item.label}
+        </NavLink>
+      ))}
+    </nav>
+  )
+}
 
 export default function AdminLayout() {
   const navigate = useNavigate()
-  const { logout } = useAuth()
+  const location = useLocation()
+  const { currentUser, logout } = useAuth()
+  const [drawerOpen, setDrawerOpen] = useState(false)
+
+  // Adjust during render rather than in an effect, so the drawer is already
+  // closed on the first frame of the new page.
+  const [lastPath, setLastPath] = useState(location.pathname)
+  if (location.pathname !== lastPath) {
+    setLastPath(location.pathname)
+    if (drawerOpen) setDrawerOpen(false)
+  }
 
   const handleLogout = async () => {
     await logout()
     navigate('/login')
   }
 
+  const currentSection =
+    adminNavItems.find((item) => location.pathname.startsWith(item.to))?.label ?? 'Console'
+
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-slate-50 w-full relative">
-      {/* Sidebar */}
-      <aside className="w-full md:w-64 bg-white border-r border-slate-200 shrink-0 flex flex-col md:sticky md:top-0 h-auto md:h-screen z-10">
-        <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-          <h2 className="text-sm font-bold tracking-widest uppercase text-slate-900">Lab Console</h2>
-        </div>
-        <nav className="flex-1 py-6 px-4 space-y-1 overflow-y-auto">
-          {adminNavItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                `flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-all ${isActive 
-                  ? 'bg-slate-100 text-slate-900' 
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`
-              }
-            >
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="p-4 border-t border-slate-100">
+    <div className="relative flex min-h-screen w-full flex-col bg-paper lg:flex-row">
+      {/* --- Mobile top bar -------------------------------------------- */}
+      <div className="flex items-center justify-between border-b border-paper-border bg-paper-raised px-4 py-3 lg:hidden">
+        <div className="flex items-center gap-3">
           <button
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 rounded-lg bg-white border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:border-slate-400 hover:text-slate-900 transition-colors shadow-sm"
+            type="button"
+            onClick={() => setDrawerOpen((v) => !v)}
+            aria-expanded={drawerOpen}
+            aria-label={drawerOpen ? 'Close menu' : 'Open menu'}
+            className="border border-ink-200 p-2 text-ink-600 transition-colors hover:border-ink-900 hover:text-ink-950"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
-            Sign Out
+            <Icon name={drawerOpen ? 'close' : 'menu'} className="h-5 w-5" />
+          </button>
+          <span className="font-display text-sm font-semibold text-ink-950">{currentSection}</span>
+        </div>
+        <Link to="/" className="link-quiet">
+          View site
+        </Link>
+      </div>
+
+      {/* --- Sidebar ---------------------------------------------------- */}
+      <aside
+        className={cx(
+          'z-20 flex w-full shrink-0 flex-col border-b border-paper-border bg-paper-raised lg:sticky lg:top-0 lg:h-screen lg:w-64 lg:border-b-0 lg:border-r',
+          drawerOpen ? 'block' : 'hidden lg:flex',
+        )}
+      >
+        <div className="hidden items-center gap-3 border-b border-paper-border px-5 py-5 lg:flex">
+          <img
+            src="/lab-logo.png"
+            alt=""
+            width="32"
+            height="32"
+            className="h-8 w-auto object-contain"
+          />
+          <div className="min-w-0">
+            <p className="font-display text-sm font-semibold leading-tight text-ink-950">
+              Lab console
+            </p>
+            <p className="eyebrow mt-0.5">Administration</p>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto py-5">
+          <AdminNav onNavigate={() => setDrawerOpen(false)} />
+        </div>
+
+        <div className="border-t border-paper-border p-4">
+          {currentUser && (
+            <p
+              className="mb-3 truncate font-mono text-[11px] text-ink-400"
+              title={currentUser.email}
+            >
+              {currentUser.email}
+            </p>
+          )}
+
+          <Link to="/" className="btn-secondary btn-sm mb-2 hidden w-full lg:inline-flex">
+            View public site
+          </Link>
+
+          <button type="button" onClick={handleLogout} className="btn-secondary btn-sm w-full">
+            <Icon name="logout" className="h-3.5 w-3.5" strokeWidth={2} />
+            Sign out
           </button>
         </div>
       </aside>
-      
-      {/* Main Content Area */}
-      <main className="flex-1 min-w-0 p-4 sm:p-8 lg:p-12 overflow-x-hidden">
-        <div className="max-w-5xl mx-auto">
+
+      {/* --- Content ---------------------------------------------------- */}
+      <main className="min-w-0 flex-1 overflow-x-hidden px-4 py-8 sm:px-8 lg:px-12 lg:py-12">
+        <div className="mx-auto max-w-5xl">
           <Outlet />
         </div>
       </main>

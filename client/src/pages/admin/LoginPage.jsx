@@ -1,24 +1,27 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
-import ErrorText from '../../components/ErrorText';
+import React, { useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+
+import ErrorText from '../../components/ErrorText'
+import { useAuth } from '../../contexts/AuthContext'
+import { Icon, Shell } from '../../components/ui'
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const { currentUser, login } = useAuth()
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  React.useEffect(() => {
-    if (currentUser) {
-      if (currentUser.role === 'admin') {
-        navigate('/admin/dashboard')
-      } else {
-        navigate('/')
-      }
-    }
+  // Already signed in — send admins to the console, everyone else to the lectures
+  // portal, which is the only member-gated area they can use.
+  useEffect(() => {
+    if (!currentUser) return
+    navigate(currentUser.role === 'admin' ? '/admin/dashboard' : '/lectures', { replace: true })
   }, [currentUser, navigate])
 
   const handleSubmit = async (event) => {
@@ -28,41 +31,95 @@ export default function LoginPage() {
     try {
       await login(email, password)
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed')
+      setError(err.response?.data?.message || 'Sign-in failed. Check your email and password.')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="mx-auto max-w-md rounded-lg bg-white p-8 shadow-sm">
-      <h2 className="mb-6 text-2xl font-bold text-slate-800">Login</h2>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="w-full rounded-md border border-slate-300 px-3 py-2"
-          placeholder="Email"
-          required
-        />
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded-md border border-slate-300 px-3 py-2"
-          placeholder="Password"
-          required
-        />
-        <ErrorText message={error} />
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded-md bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:opacity-70"
-        >
-          {loading ? 'Logging in...' : 'Login'}
-        </button>
-      </form>
-    </div>
+    <Shell className="flex min-h-[70vh] items-center justify-center py-16">
+      <div className="w-full max-w-sm">
+        <div className="mb-8 text-center">
+          <img
+            src="/lab-logo.png"
+            alt=""
+            width="48"
+            height="48"
+            className="mx-auto h-12 w-auto object-contain"
+          />
+          <h1 className="mt-5 font-display text-2xl font-semibold text-ink-950">Lab sign-in</h1>
+          <p className="mt-2 text-sm text-ink-500">
+            Members and administrators of the IC Design Lab.
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="surface space-y-5 p-7">
+          <div>
+            <label htmlFor="email" className="field-label">
+              Email
+            </label>
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="field"
+              placeholder="you@hust.edu.vn"
+              autoComplete="username"
+              autoFocus
+              required
+            />
+          </div>
+
+          <div>
+            <label htmlFor="password" className="field-label">
+              Password
+            </label>
+            <div className="relative">
+              <input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="field pr-16"
+                placeholder="••••••••"
+                autoComplete="current-password"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 font-mono text-[10px] uppercase tracking-label text-ink-400 transition-colors hover:text-ink-900"
+              >
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
+            </div>
+          </div>
+
+          <ErrorText message={error} />
+
+          <button type="submit" disabled={loading} className="btn-primary w-full">
+            {loading ? 'Signing in…' : t('nav.Login')}
+          </button>
+        </form>
+
+        <p className="mt-6 text-center">
+          <Link to="/" className="link-quiet">
+            <span aria-hidden="true">←</span> Back to the lab site
+          </Link>
+        </p>
+
+        <p className="mt-8 flex items-start justify-center gap-2 text-center text-[11px] leading-relaxed text-ink-400">
+          <Icon name="mail" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>
+            No account? Contact the lab at{' '}
+            <a href="mailto:thang.nguyenvu@hust.edu.vn" className="link">
+              thang.nguyenvu@hust.edu.vn
+            </a>
+          </span>
+        </p>
+      </div>
+    </Shell>
   )
 }

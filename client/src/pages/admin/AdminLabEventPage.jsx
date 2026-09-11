@@ -8,17 +8,17 @@ export default function AdminLabEventPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h2 className="text-2xl font-semibold tracking-tight text-slate-900 border-b border-slate-200 pb-4">Manage Lab Events & Gallery</h2>
+      <h2 className="text-2xl font-semibold tracking-tight text-ink-900 border-b border-paper-border pb-4">Manage Lab Events & Gallery</h2>
       
-      <div className="mb-6 flex gap-4 border-b border-slate-200">
+      <div className="mb-6 flex gap-4 border-b border-paper-border">
         <button
-          className={`pb-2 px-2 ${activeTab === 'events' ? 'border-b-2 border-blue-600 font-semibold text-blue-600' : 'text-slate-500'}`}
+          className={`pb-2 px-2 ${activeTab === 'events' ? 'border-b-2 border-accent-600 font-semibold text-accent-600' : 'text-ink-500'}`}
           onClick={() => setActiveTab('events')}
         >
           Lab Events
         </button>
         <button
-          className={`pb-2 px-2 ${activeTab === 'gallery' ? 'border-b-2 border-blue-600 font-semibold text-blue-600' : 'text-slate-500'}`}
+          className={`pb-2 px-2 ${activeTab === 'gallery' ? 'border-b-2 border-accent-600 font-semibold text-accent-600' : 'text-ink-500'}`}
           onClick={() => setActiveTab('gallery')}
         >
           Gallery
@@ -96,18 +96,18 @@ function EventsManager() {
         </div>
         <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="min-h-24 w-full rounded border px-3 py-2" placeholder="Description" required />
         <div className="flex gap-2">
-          <button type="submit" className="rounded bg-blue-600 px-4 py-2 text-white">{editingId ? 'Update Event' : 'Create Event'}</button>
-          {editingId && <button type="button" onClick={() => { setEditingId(''); setForm({ title: '', date: '', location: '', status: 'Upcoming', description: '' }); }} className="rounded bg-slate-500 px-4 py-2 text-white">Cancel</button>}
+          <button type="submit" className="rounded bg-accent-600 px-4 py-2 text-paper">{editingId ? 'Update Event' : 'Create Event'}</button>
+          {editingId && <button type="button" onClick={() => { setEditingId(''); setForm({ title: '', date: '', location: '', status: 'Upcoming', description: '' }); }} className="rounded bg-ink-500 px-4 py-2 text-paper">Cancel</button>}
         </div>
       </form>
       <div className="space-y-2">
         {events.map((event) => (
-          <div key={event._id} className="rounded bg-slate-100 p-3">
+          <div key={event._id} className="rounded bg-ink-100 p-3">
             <div className="flex justify-between items-start">
               <div>
                 <p className="font-bold">{event.title}</p>
-                <p className="text-sm text-slate-600">{event.date} • {event.location} • <span className={event.status === 'Upcoming' ? 'text-amber-600 font-medium' : 'text-slate-500'}>{event.status}</span></p>
-                <p className="text-sm text-slate-500 mt-1 line-clamp-2">{event.description}</p>
+                <p className="text-sm text-ink-600">{event.date} • {event.location} • <span className={event.status === 'Upcoming' ? 'text-signal-warn font-medium' : 'text-ink-500'}>{event.status}</span></p>
+                <p className="text-sm text-ink-500 mt-1 line-clamp-2">{event.description}</p>
               </div>
               <div className="flex gap-2 shrink-0 ml-4">
                 <button
@@ -115,11 +115,11 @@ function EventsManager() {
                     setEditingId(event._id);
                     setForm({ title: event.title, date: event.date, location: event.location, status: event.status, description: event.description });
                   }}
-                  className="rounded bg-amber-500 px-3 py-1 text-sm text-white"
+                  className="rounded bg-signal-warn px-3 py-1 text-sm text-paper"
                 >
                   Edit
                 </button>
-                <button onClick={() => handleDelete(event._id)} className="rounded bg-red-600 px-3 py-1 text-sm text-white">Delete</button>
+                <button onClick={() => handleDelete(event._id)} className="rounded bg-signal-danger px-3 py-1 text-sm text-paper">Delete</button>
               </div>
             </div>
           </div>
@@ -251,50 +251,50 @@ function GalleryManager() {
   return (
     <div>
       <ErrorText message={error} />
-      <form onSubmit={handleSubmit} className="space-y-4 mb-8 bg-slate-50 p-4 border border-slate-200 rounded-lg">
-        <h3 className="font-semibold text-slate-900">{editingId ? 'Edit Album' : 'Create New Album'}</h3>
+      <form onSubmit={handleSubmit} className="space-y-4 mb-8 bg-paper-sunken p-4 border border-paper-border rounded-none">
+        <h3 className="font-semibold text-ink-900">{editingId ? 'Edit Album' : 'Create New Album'}</h3>
         <div className="flex gap-3">
           <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="flex-1 rounded border px-3 py-2" placeholder="Album Title" required />
           <input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="w-1/3 rounded border px-3 py-2" placeholder="Category (e.g. 2026, Event)" required />
         </div>
         
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Add Images to Album (Max 50)</label>
-          <input id="album-files" type="file" multiple accept="image/*" onChange={(e) => setFiles(e.target.files)} className="w-full rounded border px-3 py-2 bg-white" />
+          <label className="block text-sm font-medium text-ink-700 mb-1">Add Images to Album (Max 50)</label>
+          <input id="album-files" type="file" multiple accept="image/*" onChange={(e) => setFiles(e.target.files)} className="w-full rounded border px-3 py-2 bg-paper-raised" />
         </div>
 
         {editingId && form.images && form.images.length > 0 && (
           <div className="space-y-2">
             <div className="flex justify-between items-end">
-              <p className="text-sm font-medium text-slate-700">Existing Images in Album</p>
+              <p className="text-sm font-medium text-ink-700">Existing Images in Album</p>
               {selectedImages.length > 0 && (
-                <button type="button" onClick={handleBulkRemove} className="text-xs font-bold bg-red-100 text-red-600 px-3 py-1 rounded hover:bg-red-200 transition-colors">
+                <button type="button" onClick={handleBulkRemove} className="text-xs font-bold bg-signal-danger/20 text-signal-danger px-3 py-1 rounded hover:bg-signal-danger/25 transition-colors">
                   Remove Selected ({selectedImages.length})
                 </button>
               )}
             </div>
-            <div className="flex flex-wrap gap-2 max-h-60 overflow-y-auto p-2 border border-slate-200 rounded bg-white">
+            <div className="flex flex-wrap gap-2 max-h-60 overflow-y-auto p-2 border border-paper-border rounded bg-paper-raised">
               {form.images.map((imgUrl, i) => {
                 const isSelected = selectedImages.includes(i);
                 return (
                   <div 
                     key={i} 
                     onClick={() => toggleSelectImage(i)}
-                    className={`group relative w-20 h-20 rounded overflow-hidden cursor-pointer border-2 transition-all ${isSelected ? 'border-blue-600 scale-95 opacity-80' : 'border-transparent hover:opacity-90'}`}
+                    className={`group relative w-20 h-20 rounded overflow-hidden cursor-pointer border-2 transition-all ${isSelected ? 'border-accent-600 scale-95 opacity-80' : 'border-transparent hover:opacity-90'}`}
                   >
                     <img src={imgUrl} alt="" className="w-full h-full object-cover" />
                     {isSelected && (
-                      <div className="absolute top-1 right-1 bg-blue-600 rounded-full w-4 h-4 flex items-center justify-center shadow-sm">
-                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                      <div className="absolute top-1 right-1 bg-accent-600 rounded-full w-4 h-4 flex items-center justify-center shadow-sm">
+                        <svg className="w-3 h-3 text-paper" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
                       </div>
                     )}
-                    {form.coverImage === imgUrl && !isSelected && <span className="absolute top-0 left-0 bg-slate-900/80 text-white text-[9px] font-bold px-1.5 py-0.5 uppercase backdrop-blur-sm shadow-sm">Cover</span>}
+                    {form.coverImage === imgUrl && !isSelected && <span className="absolute top-0 left-0 bg-ink-900/80 text-paper text-[9px] font-bold px-1.5 py-0.5 uppercase backdrop-blur-sm shadow-sm">Cover</span>}
                     
                     {!isSelected && form.coverImage !== imgUrl && (
                       <button 
                         type="button" 
                         onClick={(e) => { e.stopPropagation(); setForm({ ...form, coverImage: imgUrl }); }} 
-                        className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[10px] font-bold uppercase py-0.5 opacity-0 group-hover:opacity-100 hover:bg-black/80 transition-all text-center"
+                        className="absolute bottom-0 inset-x-0 bg-black/60 text-paper text-[10px] font-bold uppercase py-0.5 opacity-0 group-hover:opacity-100 hover:bg-black/80 transition-all text-center"
                       >
                         Set Cover
                       </button>
@@ -311,19 +311,19 @@ function GalleryManager() {
 
         <div className="flex items-center gap-4 pt-2">
           <div className="flex gap-2">
-            <button type="submit" disabled={uploadProgress !== null} className="rounded bg-blue-600 px-5 py-2 text-white font-medium disabled:opacity-50">
+            <button type="submit" disabled={uploadProgress !== null} className="rounded bg-accent-600 px-5 py-2 text-paper font-medium disabled:opacity-50">
               {uploadProgress !== null ? (typeof uploadProgress === 'number' ? `Uploading... ${uploadProgress}%` : uploadProgress) : (editingId ? 'Update Album' : 'Create Album')}
             </button>
             {editingId && (
-              <button type="button" onClick={() => { setEditingId(''); setForm({ title: '', category: '', coverImage: '', images: [] }); setFiles(null); setSelectedImages([]); document.getElementById('album-files').value = ''; }} className="rounded bg-slate-500 px-4 py-2 text-white font-medium disabled:opacity-50" disabled={uploadProgress !== null}>
+              <button type="button" onClick={() => { setEditingId(''); setForm({ title: '', category: '', coverImage: '', images: [] }); setFiles(null); setSelectedImages([]); document.getElementById('album-files').value = ''; }} className="rounded bg-ink-500 px-4 py-2 text-paper font-medium disabled:opacity-50" disabled={uploadProgress !== null}>
                 Cancel
               </button>
             )}
           </div>
           
           {uploadProgress !== null && typeof uploadProgress === 'number' && (
-            <div className="flex-1 max-w-xs bg-slate-200 rounded-full h-2.5 overflow-hidden">
-              <div className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
+            <div className="flex-1 max-w-xs bg-paper-border rounded-full h-2.5 overflow-hidden">
+              <div className="bg-accent-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
             </div>
           )}
         </div>
@@ -331,30 +331,30 @@ function GalleryManager() {
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {items.map((item) => (
-          <div key={item._id} className="rounded-xl bg-white border border-slate-200 overflow-hidden relative group shadow-sm">
-            <div className="w-full h-40 bg-slate-100 relative">
+          <div key={item._id} className="rounded-none bg-paper-raised border border-paper-border overflow-hidden relative group shadow-sm">
+            <div className="w-full h-40 bg-ink-100 relative">
               {item.coverImage ? (
                 <img src={item.coverImage} alt={item.title} className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-slate-400 font-light text-sm">No cover</div>
+                <div className="w-full h-full flex items-center justify-center text-ink-400 font-light text-sm">No cover</div>
               )}
-              <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs font-bold px-2 py-1 rounded backdrop-blur-sm">
+              <div className="absolute bottom-2 right-2 bg-black/70 text-paper text-xs font-bold px-2 py-1 rounded backdrop-blur-sm">
                 {item.images?.length || 0} photos
               </div>
             </div>
             <div className="p-4">
-              <p className="font-semibold text-slate-900 truncate" title={item.title}>{item.title}</p>
-              <p className="text-xs text-slate-500 mt-1 uppercase tracking-wider font-bold">{item.category}</p>
+              <p className="font-semibold text-ink-900 truncate" title={item.title}>{item.title}</p>
+              <p className="text-xs text-ink-500 mt-1 uppercase tracking-wider font-bold">{item.category}</p>
             </div>
             <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               <button
                 onClick={() => handleEditClick(item)}
-                className="rounded bg-amber-500 p-1.5 text-white shadow hover:bg-amber-600 transition-colors"
+                className="rounded bg-signal-warn p-1.5 text-paper shadow hover:bg-signal-warn transition-colors"
                 title="Edit Album"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
               </button>
-              <button onClick={() => handleDelete(item._id)} className="rounded bg-red-600 p-1.5 text-white shadow hover:bg-red-700 transition-colors" title="Delete Album">
+              <button onClick={() => handleDelete(item._id)} className="rounded bg-signal-danger p-1.5 text-paper shadow hover:bg-signal-danger transition-colors" title="Delete Album">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
               </button>
             </div>

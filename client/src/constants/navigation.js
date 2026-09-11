@@ -1,7 +1,16 @@
+/*
+ * Top-level navigation.
+ *
+ * A group with `children` renders as a link *plus* a dropdown: clicking the
+ * label goes straight to `to`, the chevron beside it opens the rest. `to` is
+ * declared explicitly rather than inferred from `children[0]` so that reordering
+ * the submenu never silently changes where the parent points.
+ */
 export const publicNavItems = [
   { to: '/', label: 'Home' },
   {
     label: 'People',
+    to: '/people/professor',
     children: [
       { to: '/people/professor', label: 'Professor' },
       { to: '/people/students', label: 'Students' },
@@ -10,6 +19,7 @@ export const publicNavItems = [
   },
   {
     label: 'Research and Teaching',
+    to: '/research/project',
     children: [
       { to: '/research/project', label: 'Project' },
       { to: '/research/publications', label: 'Publications' },
@@ -18,6 +28,7 @@ export const publicNavItems = [
   },
   {
     label: 'Lab Event',
+    to: '/lab-event/event',
     children: [
       { to: '/lab-event/event', label: 'Event' },
       { to: '/lab-event/gallery', label: 'Gallery' },
@@ -26,6 +37,7 @@ export const publicNavItems = [
   { to: '/documents', label: 'Documents' },
   {
     label: 'News',
+    to: '/news/world-news',
     children: [
       { to: '/news/world-news', label: 'World News' },
       { to: '/news/vietnam-news', label: 'Vietnam News' },

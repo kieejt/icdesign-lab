@@ -1,8 +1,11 @@
-import React from 'react';
+import React from 'react'
 
+/** Field-level validation message. */
 export default function ErrorText({ message }) {
   if (!message) return null
   return (
-    <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{message}</p>
+    <p role="alert" className="border-l-2 border-signal-danger bg-signal-dangerSoft px-3 py-2 text-sm text-signal-danger">
+      {message}
+    </p>
   )
 }

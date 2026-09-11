@@ -1,340 +1,342 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import api from '../lib/api';
-import ErrorText from '../components/ErrorText';
-import { useAuth } from '../contexts/AuthContext';
+import React, { useCallback, useEffect, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+
+import ErrorText from '../components/ErrorText'
+import { useAuth } from '../contexts/AuthContext'
+import api from '../lib/api'
+import { youtubeEmbedUrl } from '../lib/youtube'
+import {
+  Badge,
+  Icon,
+  PageHeader,
+  Section,
+  Shell,
+  Skeleton,
+  formatDate,
+} from '../components/ui'
+
+/** Circular initial avatar. */
+function Avatar({ email, tone = 'muted' }) {
+  const initial = email?.charAt(0).toUpperCase() || '?'
+  return (
+    <span
+      aria-hidden="true"
+      className={`flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-full font-mono text-xs font-medium uppercase ${
+        tone === 'strong' ? 'bg-ink-950 text-paper' : 'bg-paper-sunken text-ink-600'
+      }`}
+    >
+      {initial}
+    </span>
+  )
+}
 
 export default function LectureDetailPage() {
-  const { t } = useTranslation();
-  const { id } = useParams();
-  const navigate = useNavigate();
-  const { currentUser, loading: authLoading } = useAuth();
+  const { t, i18n } = useTranslation()
+  const locale = i18n.language === 'vi' ? 'vi-VN' : 'en-US'
+  const { id } = useParams()
+  const { currentUser, loading: authLoading } = useAuth()
 
-  const [lecture, setLecture] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  
-  // Q&A state
-  const [commentText, setCommentText] = useState('');
-  const [replyText, setReplyText] = useState({});
-  const [actionLoading, setActionLoading] = useState(false);
+  const [lecture, setLecture] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  const fetchLecture = async () => {
-    if (!currentUser) {
-      setLoading(false);
-      return;
-    }
+  const [commentText, setCommentText] = useState('')
+  const [replyText, setReplyText] = useState({})
+  const [busy, setBusy] = useState(false)
 
-    try {
-      // Fetch single lecture details (which increments views count on server)
-      const resLecture = await api.get(`/lectures/${id}`);
-      setLecture(resLecture.data);
-    } catch (err) {
-      console.error('Failed to load lecture details:', err);
-      if (err.response?.status === 404) {
-        setError(t('education.errorNotFound'));
-      } else {
-        setError(t('education.errorLoad'));
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+  const isAdmin = currentUser?.role === 'admin'
 
+  /*
+   * Not routed through the query cache on purpose.
+   *
+   * GET /lectures/:id increments the view counter, so serving it from cache — or
+   * revalidating it in the background — would either lose views or inflate them.
+   * It is fetched exactly once per mount.
+   */
   useEffect(() => {
-    if (!authLoading) {
-      fetchLecture();
-    }
-  }, [id, currentUser, authLoading]);
+    // Nothing to fetch yet (session still resolving) or ever (signed out). The
+    // signed-out branch below renders before the loading branch, so `loading`
+    // can simply stay true here.
+    if (authLoading || !currentUser) return undefined
 
-  // Parse YouTube video ID from URL
-  const getYoutubeEmbedUrl = (url) => {
-    if (!url) return '';
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-    const match = url.match(regExp);
-    const videoId = (match && match[2].length === 11) ? match[2] : '';
-    return videoId ? `https://www.youtube.com/embed/${videoId}` : '';
-  };
+    const controller = new AbortController()
+    // Entering the loading state is the point of this effect, not an incidental
+    // side effect of it: the request below is what the state describes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoading(true)
+    setError('')
 
-  // Student posts a new question
-  const handlePostComment = async (e) => {
-    e.preventDefault();
-    if (!commentText.trim() || !lecture) return;
+    api
+      .get(`/lectures/${id}`, { signal: controller.signal })
+      .then(({ data }) => setLecture(data))
+      .catch((err) => {
+        if (err.code === 'ERR_CANCELED') return
+        setError(err.response?.status === 404 ? t('education.errorNotFound') : t('education.errorLoad'))
+      })
+      .finally(() => setLoading(false))
 
-    setActionLoading(true);
-    setError('');
+    return () => controller.abort()
+  }, [id, currentUser, authLoading, t])
+
+  /** Every mutation returns the full updated lecture, so state is just replaced. */
+  const runAction = useCallback(async (request, onSuccess) => {
+    setBusy(true)
+    setError('')
     try {
-      const { data } = await api.post(`/lectures/${lecture._id}/comments`, { text: commentText });
-      setLecture(data);
-      setCommentText('');
+      const { data } = await request()
+      setLecture(data)
+      onSuccess?.()
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to submit question');
+      setError(err.response?.data?.message || 'The action could not be completed.')
     } finally {
-      setActionLoading(false);
+      setBusy(false)
     }
-  };
+  }, [])
 
-  // Professor replies to a question
-  const handlePostReply = async (commentId) => {
-    const text = replyText[commentId];
-    if (!text || !text.trim() || !lecture) return;
-
-    setActionLoading(true);
-    setError('');
-    try {
-      const { data } = await api.post(`/lectures/${lecture._id}/comments/${commentId}/replies`, { text });
-      setLecture(data);
-      setReplyText(prev => ({ ...prev, [commentId]: '' }));
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to submit reply');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  // Admin deletes a comment
-  const handleDeleteComment = async (commentId) => {
-    if (!lecture || !window.confirm('Are you sure you want to delete this comment?')) return;
-
-    setActionLoading(true);
-    setError('');
-    try {
-      const { data } = await api.delete(`/lectures/${lecture._id}/comments/${commentId}`);
-      setLecture(data);
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to delete comment');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 bg-white">
-        <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-slate-900"></div>
-        <p className="text-slate-550 font-light tracking-wide animate-pulse">{t('education.loadingClass')}</p>
-      </div>
-    );
+  const postComment = (event) => {
+    event.preventDefault()
+    if (!commentText.trim() || !lecture) return
+    runAction(
+      () => api.post(`/lectures/${lecture._id}/comments`, { text: commentText }),
+      () => setCommentText(''),
+    )
   }
 
-  // Gatekeeper: restrict access to logged-in members
-  if (!currentUser) {
-    return (
-      <div className="w-full flex flex-col items-center bg-white selection:bg-slate-900 selection:text-white">
-        
-        {/* Page Header */}
-        <section className="w-full pt-16 pb-24 border-b border-slate-200">
-          <div className="max-w-[80rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
-            <h1 className="text-5xl md:text-7xl font-medium tracking-tighter text-slate-900">{t('education.classTitle')}</h1>
-            <p className="mt-6 md:mt-8 max-w-2xl text-xl text-slate-650 leading-relaxed font-light">
-              {t('education.classSubtitleRestricted')}
-            </p>
-          </div>
-        </section>
+  const postReply = (commentId) => {
+    const text = replyText[commentId]
+    if (!text?.trim() || !lecture) return
+    runAction(
+      () => api.post(`/lectures/${lecture._id}/comments/${commentId}/replies`, { text }),
+      () => setReplyText((prev) => ({ ...prev, [commentId]: '' })),
+    )
+  }
 
-        {/* Lock Container */}
-        <section className="w-full py-24 bg-white">
-          <div className="max-w-md mx-auto px-4 text-center space-y-8">
-            <div className="mx-auto w-16 h-16 bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-900 shrink-0">
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-            </div>
-            
-            <div className="space-y-3">
-              <h3 className="text-2xl font-semibold tracking-tight text-slate-900">{t('education.accessRestricted')}</h3>
-              <p className="text-sm font-light text-slate-500 leading-relaxed">
+  const deleteComment = (commentId) => {
+    if (!lecture || !window.confirm('Delete this question and its replies?')) return
+    runAction(() => api.delete(`/lectures/${lecture._id}/comments/${commentId}`))
+  }
+
+  /* --- Signed out ---------------------------------------------------- */
+  if (!authLoading && !currentUser) {
+    return (
+      <>
+        <PageHeader
+          eyebrow={t('ui.eyebrowRestricted')}
+          title={t('education.classTitle')}
+          subtitle={t('education.classSubtitleRestricted')}
+        />
+        <Section>
+          <Shell>
+            <div className="mx-auto max-w-md text-center">
+              <h2 className="font-display text-xl font-semibold text-ink-950">
+                {t('education.accessRestricted')}
+              </h2>
+              <p className="mt-3 text-sm leading-relaxed text-ink-500">
                 {t('education.accessRestrictedDesc')}
               </p>
+              <Link to="/login" className="btn-primary mt-8 w-full">
+                {t('education.signIn')}
+              </Link>
             </div>
-
-            <button
-              onClick={() => navigate('/login')}
-              className="inline-flex items-center justify-center px-6 py-3 w-full text-xs font-bold uppercase tracking-widest text-white bg-slate-900 hover:bg-slate-800 transition-colors"
-            >
-              {t('education.signIn')}
-            </button>
-          </div>
-        </section>
-
-      </div>
-    );
+          </Shell>
+        </Section>
+      </>
+    )
   }
 
-  if (error || !lecture) {
+  /* --- Loading ------------------------------------------------------- */
+  if (loading) {
     return (
-      <div className="max-w-[80rem] mx-auto px-4 py-24 text-center bg-white">
-        <div className="max-w-md mx-auto space-y-6">
-          <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl text-rose-800">
-            <p className="text-sm font-semibold">{error || 'An unexpected error occurred.'}</p>
-          </div>
-          <Link
-            to="/lectures"
-            className="inline-flex items-center justify-center border border-slate-900 hover:bg-slate-900 hover:text-white px-6 py-3 text-xs font-bold uppercase tracking-widest text-slate-900 transition-colors"
-          >
-            {t('education.backToClass')}
-          </Link>
-        </div>
-      </div>
-    );
+      <Section>
+        <Shell className="max-w-4xl">
+          <Skeleton className="mb-4 h-3 w-32" />
+          <Skeleton className="mb-8 h-10 w-3/4" />
+          <Skeleton className="mb-8 aspect-video w-full" />
+          <Skeleton className="mb-3 h-4 w-full" />
+          <Skeleton className="h-4 w-2/3" />
+        </Shell>
+      </Section>
+    )
   }
 
-  return (
-    <div className="w-full flex flex-col items-center selection:bg-slate-900 selection:text-white bg-white">
-      
-      {/* 1. Header Banner with Navigation back link */}
-      <section className="w-full pt-10 pb-12 border-b border-slate-200 bg-slate-50/40">
-        <div className="max-w-[80rem] mx-auto px-4 sm:px-6 lg:px-8 w-full space-y-6 text-left">
-          <div>
-            <Link
-              to="/lectures"
-              className="inline-flex items-center text-xs font-bold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors gap-1.5"
-            >
+  /* --- Load failed --------------------------------------------------- */
+  if (!lecture) {
+    return (
+      <Section>
+        <Shell>
+          <div className="mx-auto max-w-md space-y-6 text-center">
+            <ErrorText message={error || 'An unexpected error occurred.'} />
+            <Link to="/lectures" className="btn-secondary">
               {t('education.backToClass')}
             </Link>
           </div>
-          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
-            <div className="space-y-3 max-w-3xl">
-              <h1 className="text-3xl md:text-5xl font-medium tracking-tight text-slate-900 leading-tight">
+        </Shell>
+      </Section>
+    )
+  }
+
+  const embedUrl = youtubeEmbedUrl(lecture.youtubeUrl)
+  const comments = lecture.comments ?? []
+
+  return (
+    <>
+      {/* --- Header ------------------------------------------------------ */}
+      <header className="w-full border-b border-paper-border bg-paper-raised py-8">
+        <Shell>
+          <Link to="/lectures" className="link-quiet">
+            <span aria-hidden="true">←</span> {t('education.backToClass').replace('←', '').trim()}
+          </Link>
+
+          <div className="mt-5 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl">
+              <h1 className="font-display text-2xl font-semibold leading-tight text-ink-950 sm:text-3xl">
                 {lecture.title}
               </h1>
-              <div className="flex items-center gap-4 text-xs font-semibold text-slate-450 uppercase tracking-wider">
-                <span>{t('education.published')} {new Date(lecture.createdAt).toLocaleDateString()}</span>
-                <span>•</span>
-                <span>👁 {lecture.views} {t('education.views')}</span>
-              </div>
+              <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] uppercase tracking-label text-ink-400">
+                <span>
+                  {t('education.published')} {formatDate(lecture.createdAt, 'short', locale)}
+                </span>
+                <span aria-hidden="true">·</span>
+                <span>
+                  {lecture.views} {t('education.views')}
+                </span>
+                <span aria-hidden="true">·</span>
+                <span>
+                  {comments.length} {t('education.qa')}
+                </span>
+              </p>
             </div>
-            <div className="shrink-0 flex items-center gap-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">{t('education.identity')}</span>
-              <span className="inline-flex items-center border border-slate-900 bg-slate-900 text-white px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded">
-                {currentUser.role}
-              </span>
+
+            <div className="flex shrink-0 items-center gap-2.5">
+              <span className="eyebrow">{t('education.identity')}</span>
+              <Badge tone="accent">{currentUser.role}</Badge>
             </div>
           </div>
-        </div>
-      </section>
+        </Shell>
+      </header>
 
-      {/* 2. Main content and Q&A */}
-      <section className="w-full py-12 md:py-16">
-        <div className="max-w-[64rem] mx-auto px-4 sm:px-6 lg:px-8 w-full space-y-12">
-          
+      <Section>
+        <Shell className="max-w-5xl">
           {error && <ErrorText message={error} />}
 
-          {/* YouTube Embed Player */}
-          {lecture.youtubeUrl ? (
-            <div className="w-full aspect-video bg-slate-900 border border-slate-250 relative overflow-hidden rounded-2xl shadow-sm">
+          {/* --- Video ---------------------------------------------------- */}
+          <div className="mt-6 aspect-video w-full overflow-hidden border border-paper-border bg-ink-950">
+            {embedUrl ? (
               <iframe
-                src={getYoutubeEmbedUrl(lecture.youtubeUrl)}
+                src={embedUrl}
                 title={lecture.title}
-                className="w-full h-full"
+                className="h-full w-full"
+                loading="lazy"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 allowFullScreen
-              ></iframe>
-            </div>
-          ) : (
-            <div className="w-full aspect-video bg-slate-50 border border-slate-200 flex flex-col items-center justify-center text-slate-500 font-light text-sm gap-2 rounded-2xl">
-              <svg className="w-8 h-8 opacity-45" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
-              </svg>
-              <span>{t('education.noVideo')}</span>
-            </div>
-          )}
+              />
+            ) : (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-paper-sunken text-ink-400">
+                <Icon name="play" className="h-9 w-9" strokeWidth={1.25} />
+                <span className="text-sm">{t('education.noVideo')}</span>
+              </div>
+            )}
+          </div>
 
-          {/* Description & slide download */}
-          <div className="flex flex-col md:flex-row justify-between items-start gap-8 pt-4">
-            
-            {/* Description */}
-            <div className="flex-1 space-y-4 text-left">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">{t('education.lecSummary')}</h3>
+          {/* --- Summary + handouts --------------------------------------- */}
+          <div className="mt-10 flex flex-col gap-10 lg:flex-row lg:items-start">
+            <div className="flex-1">
+              <h2 className="eyebrow">{t('education.lecSummary')}</h2>
               {lecture.description ? (
-                <p className="text-slate-700 font-light leading-relaxed whitespace-pre-wrap text-base">
-                  {lecture.description}
-                </p>
+                <p className="prose-body mt-4 whitespace-pre-wrap">{lecture.description}</p>
               ) : (
-                <p className="text-slate-400 italic font-light text-sm">{t('education.noOverview')}</p>
+                <p className="mt-4 text-sm italic text-ink-400">{t('education.noOverview')}</p>
               )}
             </div>
 
-            {/* Slide Downloader Button Card */}
             {lecture.materialUrl && (
-              <div className="w-full md:w-80 p-6 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col gap-4 text-left">
-                <div className="space-y-1">
-                  <h4 className="text-sm font-semibold text-slate-900">{t('education.lecHandouts')}</h4>
-                  <p className="text-xs text-slate-500 font-light">{t('education.lecHandoutsDesc')}</p>
-                </div>
+              <aside className="w-full shrink-0 border border-paper-border bg-paper-sunken p-6 lg:w-80">
+                <h3 className="font-display text-base font-semibold text-ink-950">
+                  {t('education.lecHandouts')}
+                </h3>
+                <p className="mt-1.5 text-[13px] leading-relaxed text-ink-500">
+                  {t('education.lecHandoutsDesc')}
+                </p>
                 <a
                   href={lecture.materialUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full inline-flex items-center justify-center bg-slate-900 hover:bg-slate-800 px-4 py-3 text-xs font-bold uppercase tracking-widest text-white transition-colors rounded-lg shadow-sm"
+                  className="btn-primary mt-5 w-full"
                 >
-                  {t('education.downloadPdf')}
+                  <Icon name="download" className="h-4 w-4" strokeWidth={2} />
+                  {t('education.downloadPdf').replace('→', '').trim()}
                 </a>
-              </div>
+              </aside>
             )}
-
           </div>
 
-          {/* 3. Discussion Q&A Board */}
-          <div className="pt-12 border-t border-slate-200 space-y-8 text-left">
-            
-            <div>
-              <h3 className="text-2xl font-semibold tracking-tight text-slate-900">{t('education.classDiscussion')}</h3>
-              <p className="text-xs text-slate-500 font-light mt-1">
-                {t('education.classDiscussionDesc')}
-              </p>
-            </div>
+          {/* --- Discussion ----------------------------------------------- */}
+          <div className="mt-14 border-t border-paper-border pt-12">
+            <h2 className="font-display text-xl font-semibold text-ink-950">
+              {t('education.classDiscussion')}
+            </h2>
+            <p className="mt-1.5 text-[13px] text-ink-500">{t('education.classDiscussionDesc')}</p>
 
-            {/* Question Submit Form (only for student role or anyone who wants to ask) */}
+            {/* Only students ask questions; the professor answers below. */}
             {currentUser.role === 'student' && (
-              <form onSubmit={handlePostComment} className="space-y-4 pt-2">
+              <form onSubmit={postComment} className="mt-7">
+                <label htmlFor="question" className="sr-only">
+                  {t('education.askQuestion')}
+                </label>
                 <textarea
+                  id="question"
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
                   rows={3}
-                  className="block w-full border border-slate-200 rounded-xl py-3 px-4 text-slate-900 focus:border-slate-900 focus:ring-0 sm:text-sm bg-transparent placeholder:text-slate-450 resize-none transition-colors"
-                  placeholder={t('education.askQuestion')}
                   required
+                  className="field resize-y"
+                  placeholder={t('education.askQuestion')}
                 />
-                <div className="flex justify-end">
+                <div className="mt-3 flex justify-end">
                   <button
                     type="submit"
-                    disabled={actionLoading || !commentText.trim()}
-                    className="inline-flex items-center justify-center px-6 py-3 text-xs font-bold uppercase tracking-widest text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 transition-colors rounded-lg shadow-sm"
+                    disabled={busy || !commentText.trim()}
+                    className="btn-primary"
                   >
-                    {actionLoading ? t('education.posting') : t('education.askBtn')}
+                    {busy ? t('education.posting') : t('education.askBtn')}
                   </button>
                 </div>
               </form>
             )}
 
-            {/* Discussion Threads */}
-            <div className="space-y-8 pt-4">
-              {lecture.comments && lecture.comments.map((comment) => {
-                const studentInitial = comment.email ? comment.email.charAt(0).toUpperCase() : 'S';
-                return (
-                  <div key={comment._id} className="border-t border-slate-100 pt-8 pb-4 space-y-6 animate-fadeIn">
-                    
-                    {/* Student Question Card */}
+            <div className="mt-10">
+              {comments.length === 0 ? (
+                <p className="border-t border-paper-border py-12 text-center text-sm italic text-ink-400">
+                  {t('education.noQuestions')}
+                </p>
+              ) : (
+                comments.map((comment) => (
+                  <article
+                    key={comment._id}
+                    className="animate-fade-in border-t border-paper-border py-8"
+                  >
+                    {/* Question */}
                     <div className="flex items-start gap-4">
-                      <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 text-xs font-bold uppercase shrink-0 select-none">
-                        {studentInitial}
-                      </div>
-                      <div className="flex-1 space-y-1.5 text-left">
-                        <p className="text-slate-900 text-base font-normal leading-relaxed font-sans">
+                      <Avatar email={comment.email} />
+                      <div className="min-w-0 flex-1">
+                        <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-ink-900">
                           {comment.text}
                         </p>
-                        <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
-                          <div className="flex items-center gap-2">
-                            <span>{comment.email}</span>
-                            <span>•</span>
-                            <span>{new Date(comment.createdAt).toLocaleDateString()}</span>
-                          </div>
-                          {currentUser.role === 'admin' && (
+                        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+                          <p className="font-mono text-[11px] text-ink-400">
+                            {comment.email}
+                            <span aria-hidden="true" className="mx-2">
+                              ·
+                            </span>
+                            {formatDate(comment.createdAt, 'short', locale)}
+                          </p>
+                          {isAdmin && (
                             <button
-                              onClick={() => handleDeleteComment(comment._id)}
-                              className="text-red-650 hover:text-red-800 transition-colors uppercase font-bold text-xs tracking-wider shrink-0"
+                              type="button"
+                              onClick={() => deleteComment(comment._id)}
+                              disabled={busy}
+                              className="font-mono text-[11px] uppercase tracking-label text-ink-400 transition-colors hover:text-signal-danger disabled:opacity-40"
                             >
                               {t('education.delete')}
                             </button>
@@ -343,69 +345,67 @@ export default function LectureDetailPage() {
                       </div>
                     </div>
 
-                    {/* Professor Nested Replies */}
-                    {comment.replies && comment.replies.map((reply) => {
-                      const profInitial = reply.email ? reply.email.charAt(0).toUpperCase() : 'P';
-                      return (
-                        <div key={reply._id} className="pl-12 md:pl-16 flex items-start gap-4 animate-fadeIn">
-                          <div className="w-7 h-7 rounded-full bg-slate-950 flex items-center justify-center text-white text-[10px] font-bold uppercase shrink-0 select-none">
-                            {profInitial}
+                    {/* Replies */}
+                    {(comment.replies ?? []).map((reply) => (
+                      <div
+                        key={reply._id}
+                        className="mt-6 flex items-start gap-4 border-l-2 border-accent-200 pl-5 sm:ml-12"
+                      >
+                        <Avatar email={reply.email} tone="strong" />
+                        <div className="min-w-0 flex-1">
+                          <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-ink-800">
+                            {reply.text}
+                          </p>
+                          <div className="mt-2 flex flex-wrap items-center gap-2.5">
+                            <span className="font-mono text-[11px] text-ink-400">{reply.email}</span>
+                            <Badge tone="accent">{t('education.professorRole')}</Badge>
+                            <span className="font-mono text-[11px] text-ink-300">
+                              {formatDate(reply.createdAt, 'short', locale)}
+                            </span>
                           </div>
-                          <div className="flex-1 space-y-1.5 text-left">
-                            <p className="text-slate-800 text-base font-medium leading-relaxed font-sans">
-                              {reply.text}
-                            </p>
-                            <div className="flex items-center gap-2 text-xs font-bold text-slate-550">
-                              <span>{reply.email}</span>
-                              <span className="inline-flex items-center px-2 py-0.5 text-[9px] font-bold tracking-widest uppercase border border-slate-900 text-slate-900 bg-transparent select-none">
-                                {t('education.professorRole')}
-                              </span>
-                              <span>•</span>
-                              <span>{new Date(reply.createdAt).toLocaleDateString()}</span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {/* Professor inline Reply Box (restricted to Admin role) */}
-                    {currentUser.role === 'admin' && (
-                      <div className="pl-12 md:pl-16 pt-2">
-                        <div className="flex gap-4 w-full">
-                          <input
-                            type="text"
-                            value={replyText[comment._id] || ''}
-                            onChange={(e) => setReplyText(prev => ({ ...prev, [comment._id]: e.target.value }))}
-                            className="block flex-1 border-b border-slate-200 py-2.5 px-0 text-sm text-slate-900 focus:border-slate-900 focus:ring-0 bg-transparent placeholder:text-slate-450 transition-colors"
-                            placeholder={t('education.replyPlaceholder')}
-                          />
-                          <button
-                            onClick={() => handlePostReply(comment._id)}
-                            disabled={actionLoading || !replyText[comment._id]?.trim()}
-                            className="inline-flex items-center justify-center px-5 py-2.5 text-xs font-bold uppercase tracking-widest text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 transition-colors shrink-0"
-                          >
-                            {t('education.replyBtn')}
-                          </button>
                         </div>
                       </div>
+                    ))}
+
+                    {/* Reply box */}
+                    {isAdmin && (
+                      <div className="mt-6 flex gap-3 sm:ml-12 sm:pl-5">
+                        <label htmlFor={`reply-${comment._id}`} className="sr-only">
+                          {t('education.replyPlaceholder')}
+                        </label>
+                        <input
+                          id={`reply-${comment._id}`}
+                          type="text"
+                          value={replyText[comment._id] || ''}
+                          onChange={(e) =>
+                            setReplyText((prev) => ({ ...prev, [comment._id]: e.target.value }))
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              postReply(comment._id)
+                            }
+                          }}
+                          className="field flex-1"
+                          placeholder={t('education.replyPlaceholder')}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => postReply(comment._id)}
+                          disabled={busy || !replyText[comment._id]?.trim()}
+                          className="btn-primary shrink-0"
+                        >
+                          {t('education.replyBtn')}
+                        </button>
+                      </div>
                     )}
-
-                  </div>
-                );
-              })}
-
-              {(!lecture.comments || lecture.comments.length === 0) && (
-                <div className="text-center py-12 border-t border-slate-100">
-                  <p className="text-slate-400 italic font-light text-xs">{t('education.noQuestions')}</p>
-                </div>
+                  </article>
+                ))
               )}
             </div>
-
           </div>
-
-        </div>
-      </section>
-
-    </div>
-  );
+        </Shell>
+      </Section>
+    </>
+  )
 }

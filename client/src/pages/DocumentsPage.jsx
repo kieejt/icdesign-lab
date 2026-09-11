@@ -1,257 +1,300 @@
-import React, { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import api from '../lib/api';
-import Pagination from '../components/Pagination';
+import React, { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import Pagination from '../components/Pagination'
+import api from '../lib/api'
+import useApiQuery, { invalidateQueries } from '../hooks/useApiQuery'
+import useDebouncedValue from '../hooks/useDebouncedValue'
+import useListParams from '../hooks/useListParams'
+import {
+  Badge,
+  EmptyState,
+  ErrorState,
+  Icon,
+  PageHeader,
+  Section,
+  Shell,
+  Skeleton,
+  cx,
+} from '../components/ui'
+
+/**
+ * Module constant: it is part of the URL-state memo key.
+ *
+ * Every one of these is reflected in the query string, so a filtered catalogue
+ * — `/documents?search=vlsi&type=Free&page=2` — can be bookmarked or sent to
+ * someone and comes back exactly as it was.
+ */
+const LIST_DEFAULTS = { page: 1, search: '', type: 'All', owned: 'All' }
+
+/** Segmented single-choice control. */
+function SegmentedControl({ label, options, value, onChange }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="eyebrow">{label}</span>
+      <div className="flex border border-paper-border bg-paper-raised p-0.5" role="group" aria-label={label}>
+        {options.map((option) => (
+          <button
+            key={option.key}
+            type="button"
+            onClick={() => onChange(option.key)}
+            aria-pressed={value === option.key}
+            className={cx(
+              'px-3.5 py-1.5 font-mono text-[11px] font-medium uppercase tracking-label transition-colors',
+              value === option.key
+                ? 'bg-ink-950 text-paper'
+                : 'text-ink-500 hover:bg-paper-sunken hover:text-ink-900',
+            )}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 export default function DocumentsPage() {
-  const { t } = useTranslation();
-  const [books, setBooks] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [filterType, setFilterType] = useState('All'); // All, Free, Paid
-  const [filterOwned, setFilterOwned] = useState('All'); // All, Lab Owned
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const { t } = useTranslation()
 
-  // Debounce the search box so we don't fire a request on every keystroke
+  const { values, update, hrefFor } = useListParams(LIST_DEFAULTS)
+  const { page, search, type: filterType, owned: filterOwned } = values
+
+  /*
+   * The search box is uncontrolled with respect to the URL.
+   *
+   * Typing writes to the URL on a debounce; writing every keystroke would put
+   * one history entry per character and fire a request per character too. Local
+   * state keeps the input responsive in between.
+   */
+  const [searchDraft, setSearchDraft] = useState(search)
+  const debouncedDraft = useDebouncedValue(searchDraft, 400)
+
+  // Push the settled search term into the URL. `replace` so Back leaves the
+  // list rather than retyping the query backwards one character at a time.
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search), 400);
-    return () => clearTimeout(timer);
-  }, [search]);
+    if (debouncedDraft !== search) update({ search: debouncedDraft }, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs on the settled draft only
+  }, [debouncedDraft])
 
-  // Jump back to page 1 whenever the search/filter criteria change
-  useEffect(() => {
-    setPage(1);
-  }, [debouncedSearch, filterType, filterOwned]);
+  // Keep the box in step when the URL changes from outside it — Back/Forward, or
+  // a link that carries its own search term. Adjusting during render rather than
+  // in an effect means the input never paints one frame with the stale value.
+  const [lastSearch, setLastSearch] = useState(search)
+  if (search !== lastSearch) {
+    setLastSearch(search)
+    setSearchDraft(search)
+  }
 
-  useEffect(() => {
-    const fetchBooks = async () => {
-      setLoading(true);
-      try {
-        const response = await api.get('/documents', {
-          params: {
-            page,
-            limit: 10,
-            search: debouncedSearch,
-            type: filterType === 'All' ? undefined : filterType,
-            owned: filterOwned === 'All' ? undefined : filterOwned,
-          },
-        });
-        setBooks(response.data.data);
-        setTotalPages(response.data.totalPages || 1);
-      } catch (error) {
-        console.error('Failed to fetch books', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchBooks();
-  }, [page, debouncedSearch, filterType, filterOwned]);
+  const { data, loading, isValidating, error, refetch } = useApiQuery('/documents', {
+    params: {
+      page,
+      limit: 10,
+      search: search || undefined,
+      type: filterType === 'All' ? undefined : filterType,
+      owned: filterOwned === 'All' ? undefined : filterOwned,
+    },
+  })
 
+  const books = data?.data ?? []
+  const totalPages = data?.totalPages ?? 1
+  const total = data?.total ?? 0
+
+  /**
+   * Records the download, then opens the file.
+   *
+   * The counter is best-effort: if the tracking call fails the file still opens
+   * from the URL already in hand, so a metrics outage never blocks a download.
+   */
   const handleDownload = async (book) => {
     try {
-      const response = await api.post(`/documents/${book._id}/download`);
-      if (response.data.downloadUrl) {
-        window.open(response.data.downloadUrl, '_blank', 'noopener,noreferrer');
-      }
-    } catch (error) {
-      console.error('Failed to register download', error);
-      if (book.downloadUrl) {
-        window.open(book.downloadUrl, '_blank', 'noopener,noreferrer');
-      }
+      const response = await api.post(`/documents/${book._id}/download`)
+      // The count changed, so the cached listing is now stale.
+      invalidateQueries('/documents')
+      window.open(response.data.downloadUrl || book.downloadUrl, '_blank', 'noopener,noreferrer')
+    } catch (err) {
+      console.warn('Failed to record download', err)
+      if (book.downloadUrl) window.open(book.downloadUrl, '_blank', 'noopener,noreferrer')
     }
-  };
-
-  if (loading && books.length === 0) {
-    return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
-        <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-slate-900"></div>
-        <p className="text-slate-500 font-light tracking-wide animate-pulse">{t('education.loadingDocs')}</p>
-      </div>
-    );
   }
 
   return (
-    <div className="w-full flex flex-col items-center selection:bg-slate-900 selection:text-white">
+    <>
+      <PageHeader
+        eyebrow={t('home.teachingMaterials')}
+        title={t('education.docsTitle')}
+        subtitle={t('education.docsSubtitle')}
+      />
 
-      {/* Editorial Minimal Header */}
-      <section className="w-full pt-16 pb-24 border-b border-slate-200">
-        <div className="max-w-[80rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
-          <h1 className="text-5xl md:text-7xl font-medium tracking-tighter text-slate-900">{t('education.docsTitle')}</h1>
-          <p className="mt-6 md:mt-8 max-w-2xl text-xl text-slate-600 leading-relaxed font-light">
-            {t('education.docsSubtitle')}
-          </p>
-        </div>
-      </section>
+      <Section>
+        <Shell>
+          {/* --- Controls ------------------------------------------------ */}
+          <div className="flex flex-col gap-6 border-b border-paper-border pb-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="w-full max-w-md">
+              <label htmlFor="doc-search" className="field-label">
+                {t('ui.searchCatalogue')}
+              </label>
+              <div className="relative">
+                <Icon
+                  name="search"
+                  className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-300"
+                />
+                <input
+                  id="doc-search"
+                  type="search"
+                  className="field pl-10"
+                  placeholder={t('education.searchDocs')}
+                  value={searchDraft}
+                  onChange={(e) => setSearchDraft(e.target.value)}
+                />
+              </div>
+            </div>
 
-      {/* Main Content Area */}
-      <section className="w-full py-12 md:py-20 bg-white">
-        <div className="max-w-[80rem] mx-auto px-4 sm:px-6 lg:px-8 w-full">
-
-          {/* Controls bar */}
-          <div className="flex flex-col gap-6 py-6 border-b border-slate-200 md:flex-row md:items-center md:justify-between">
-
-            {/* Search Input Box */}
-            <div className="relative flex-1 max-w-md">
-              <input
-                type="text"
-                className="block w-full border border-slate-200 py-3 px-4 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-0 sm:text-sm bg-transparent"
-                placeholder={t('education.searchDocs')}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
+            <div className="flex flex-wrap items-end gap-5">
+              <SegmentedControl
+                label={t('ui.filterAccess')}
+                value={filterType}
+                onChange={(next) => update({ type: next })}
+                options={[
+                  { key: 'All', label: t('education.allAccess') },
+                  { key: 'Free', label: t('education.free') },
+                  { key: 'Paid', label: t('education.paid') },
+                ]}
+              />
+              <SegmentedControl
+                label={t('ui.filterSource')}
+                value={filterOwned}
+                onChange={(next) => update({ owned: next })}
+                options={[
+                  { key: 'All', label: t('education.allSources') },
+                  { key: 'Owned', label: t('education.labOwned') },
+                ]}
               />
             </div>
-
-
-            {/* Selection Filters */}
-            <div className="flex flex-wrap items-center gap-4 text-sm">
-
-              {/* Access Type Filter */}
-              <div className="flex border border-slate-200 p-0.5" role="group">
-                {['All', 'Free', 'Paid'].map(type => (
-                  <button
-                    key={type}
-                    onClick={() => setFilterType(type)}
-                    className={`px-4 py-2 text-xs font-semibold uppercase tracking-wider transition-colors ${filterType === type
-                        ? 'bg-slate-900 text-white'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                      }`}
-                  >
-                    {type === 'All' ? t('education.allAccess') : type === 'Free' ? t('education.free') : t('education.paid')}
-                  </button>
-                ))}
-              </div>
-
-              {/* GDrive Ownership Filter */}
-              <div className="flex border border-slate-200 p-0.5" role="group">
-                {[
-                  { key: 'All', label: t('education.allSources') },
-                  { key: 'Owned', label: t('education.labOwned') }
-                ].map(opt => (
-                  <button
-                    key={opt.key}
-                    onClick={() => setFilterOwned(opt.key)}
-                    className={`px-4 py-2 text-xs font-semibold uppercase tracking-wider transition-colors ${filterOwned === opt.key
-                        ? 'bg-slate-900 text-white'
-                        : 'text-slate-650 hover:text-slate-900 hover:bg-slate-50'
-                      }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-
-            </div>
           </div>
 
-          {/* Catalog Listing */}
-          <div className="w-full overflow-x-auto border-t border-slate-900 mt-10">
-            <table className="min-w-full divide-y divide-slate-200 text-left">
-              <thead>
-                <tr className="bg-slate-50/50">
-                  <th scope="col" className="py-5 pl-4 pr-4 text-xs font-semibold uppercase tracking-widest text-slate-500 w-1/2">
-                    {t('education.bookTitleInfo')}
-                  </th>
-                  <th scope="col" className="px-4 py-5 text-xs font-semibold uppercase tracking-widest text-slate-500 w-1/4">
-                    {t('education.subject')}
-                  </th>
-                  <th scope="col" className="px-4 py-5 text-xs font-semibold uppercase tracking-widest text-slate-500 w-1/8">
-                    {t('education.reference')}
-                  </th>
-                  <th scope="col" className="py-5 pl-4 pr-4 text-right text-xs font-semibold uppercase tracking-widest text-slate-500 w-1/8">
-                    {t('education.download')}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
-                {books.map((book) => (
-                  <tr key={book._id} className="group hover:bg-slate-50/50 transition-colors">
+          {/* Result count doubles as the "refreshing" indicator, so filtering
+              never blanks the table the visitor is reading. */}
+          <p className="mt-4 font-mono text-[11px] uppercase tracking-label text-ink-400">
+            {loading ? t('ui.loading') : t('ui.entry', { count: total })}
+            {isValidating && !loading && (
+              <span className="ml-2 text-ink-300">{t('ui.updating')}</span>
+            )}
+          </p>
 
-                    {/* Document Info & Type Tags */}
-                    <td className="py-6 pl-4 pr-4">
-                      <div className="space-y-2">
-                        <h3 className="text-lg font-medium text-slate-900 leading-snug group-hover:text-slate-600 transition-colors">
-                          {book.title}
-                        </h3>
-                        <div className="flex flex-wrap items-center gap-2">
-                          {book.type === 'Free' ? (
-                            <span className="inline-flex items-center border border-emerald-200 px-2.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-emerald-800 bg-emerald-50/10">
-                              {t('education.freeAccess')}
-                            </span>
+          {/* --- Catalogue ----------------------------------------------- */}
+          <div className="mt-6">
+            {loading ? (
+              <div className="divide-hairline border-t border-ink-900">
+                {Array.from({ length: 6 }, (_, i) => (
+                  <div key={i} className="flex items-center gap-6 py-6">
+                    <div className="flex-1 space-y-2.5">
+                      <Skeleton className="h-5 w-2/3" />
+                      <Skeleton className="h-3 w-32" />
+                    </div>
+                    <Skeleton className="h-8 w-28 shrink-0" />
+                  </div>
+                ))}
+              </div>
+            ) : error && books.length === 0 ? (
+              <ErrorState message={error.message} onRetry={refetch} />
+            ) : books.length === 0 ? (
+              <EmptyState
+                icon={<Icon name="document" className="h-12 w-12" strokeWidth={1} />}
+                title={t('education.noBooksTitle')}
+                description={t('education.noBooksDesc')}
+              />
+            ) : (
+              <div className="overflow-x-auto border-t border-ink-900">
+                <table className="min-w-full text-left">
+                  <caption className="sr-only">{t('education.docsTitle')}</caption>
+                  <thead>
+                    <tr className="bg-paper-sunken">
+                      <th scope="col" className="eyebrow w-1/2 px-4 py-3.5 text-left">
+                        {t('education.bookTitleInfo')}
+                      </th>
+                      <th scope="col" className="eyebrow w-1/5 px-4 py-3.5 text-left">
+                        {t('education.subject')}
+                      </th>
+                      <th scope="col" className="eyebrow px-4 py-3.5 text-left">
+                        {t('education.reference')}
+                      </th>
+                      <th scope="col" className="eyebrow px-4 py-3.5 text-right">
+                        {t('education.download')}
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-paper-border">
+                    {books.map((book) => (
+                      <tr key={book._id} className="group transition-colors hover:bg-paper-sunken">
+                        <td className="px-4 py-5 align-top">
+                          <h3 className="font-display text-[17px] font-semibold leading-snug text-ink-950">
+                            {book.title}
+                          </h3>
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <Badge tone={book.type === 'Free' ? 'ok' : 'warn'}>
+                              {book.type === 'Free'
+                                ? t('education.freeAccess')
+                                : t('education.purchaseReq')}
+                            </Badge>
+                            {book.isLabOwned && (
+                              <Badge tone="accent">{t('education.labOwnedEd')}</Badge>
+                            )}
+                          </div>
+                        </td>
+
+                        <td className="whitespace-nowrap px-4 py-5 align-top text-sm text-ink-500">
+                          {book.subject || t('education.general')}
+                        </td>
+
+                        <td className="whitespace-nowrap px-4 py-5 align-top">
+                          {book.link ? (
+                            <a
+                              href={book.link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="link inline-flex items-center gap-1.5 text-[13px]"
+                            >
+                              {t('education.details').replace('→', '').trim()}
+                              <Icon name="external" className="h-3.5 w-3.5" />
+                            </a>
                           ) : (
-                            <span className="inline-flex items-center border border-amber-200 px-2.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-800 bg-amber-50/10">
-                              {t('education.purchaseReq')}
-                            </span>
+                            <span className="text-ink-300">—</span>
                           )}
+                        </td>
 
-                          {book.isLabOwned && (
-                            <span className="inline-flex items-center border border-slate-900 px-2.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-slate-900 bg-slate-900/5">
-                              {t('education.labOwnedEd')}
-                            </span>
+                        <td className="whitespace-nowrap px-4 py-5 text-right align-top">
+                          {book.isLabOwned && book.downloadUrl ? (
+                            <button
+                              type="button"
+                              onClick={() => handleDownload(book)}
+                              className="btn-primary btn-sm"
+                            >
+                              <Icon name="download" className="h-3.5 w-3.5" strokeWidth={2} />
+                              {t('education.downloadGDrive')}
+                            </button>
+                          ) : (
+                            <span className="text-ink-300">—</span>
                           )}
-                        </div>
-                      </div>
-                    </td>
-
-
-                    {/* Subject */}
-                    <td className="px-4 py-6 whitespace-nowrap">
-                      <span className="text-sm font-light text-slate-650">
-                        {book.subject || t('education.general')}
-                      </span>
-                    </td>
-
-                    {/* Reference Link */}
-                    <td className="px-4 py-6 whitespace-nowrap">
-                      <a
-                        href={book.link || '#'}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs font-semibold uppercase tracking-wider text-slate-800 hover:text-slate-600 transition-colors underline decoration-slate-200 underline-offset-4"
-                      >
-                        {t('education.details')}
-                      </a>
-                    </td>
-
-
-                    {/* Google Drive Download Button */}
-                    <td className="py-6 pl-4 pr-4 text-right whitespace-nowrap">
-                      {book.isLabOwned && book.downloadUrl ? (
-                        <button
-                          onClick={() => handleDownload(book)}
-                          className="inline-flex items-center justify-center px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-white bg-slate-900 hover:bg-slate-800 transition-colors"
-                        >
-                          {t('education.downloadGDrive')}
-                        </button>
-                      ) : (
-                        <span className="text-xs text-slate-400 italic font-light">-</span>
-                      )}
-                    </td>
-
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
-          {/* Empty Catalog State */}
-          {books.length === 0 && (
-            <div className="text-center py-20 px-4">
-              <h3 className="text-lg font-medium text-slate-900 mb-1">{t('education.noBooksTitle')}</h3>
-              <p className="text-slate-500 text-sm max-w-sm mx-auto font-light">
-                {t('education.noBooksDesc')}
-              </p>
-            </div>
-          )}
-
-          <div className="mt-10">
-            <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} loading={loading} />
-          </div>
-
-        </div>
-      </section>
-
-    </div>
-  );
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            hrefFor={(next) => hrefFor({ page: next })}
+            loading={loading}
+            className="mt-10"
+          />
+        </Shell>
+      </Section>
+    </>
+  )
 }
