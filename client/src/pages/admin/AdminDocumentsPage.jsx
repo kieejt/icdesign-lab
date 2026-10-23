@@ -1,826 +1,807 @@
-import React, { useEffect, useState } from 'react';
-import * as XLSX from 'xlsx';
-import api from '../../lib/api';
-import ErrorText from '../../components/ErrorText';
-import Pagination from '../../components/Pagination';
+import React, { useState } from 'react'
+
+import api from '../../lib/api'
+import { invalidateQueries, useApiQuery } from '../../hooks/useApiQuery'
+import Modal from '../../components/Modal'
+import Pagination from '../../components/Pagination'
+import { Badge, ErrorState, Icon, Skeleton } from '../../components/ui'
+import {
+  AdminCard,
+  AdminPage,
+  AdminSection,
+  AdminTabs,
+  EmptyRow,
+  FormField,
+  InlineNotice,
+  RowActions,
+} from '../../components/admin'
+
+const PAGE_SIZE = 10
+
+const EMPTY_FORM = {
+  title: '',
+  subject: '',
+  link: '',
+  isLabOwned: false,
+  downloadUrl: '',
+  type: 'Free',
+}
+
+const TABS = [
+  { id: 'manual', label: 'Manual Entry' },
+  { id: 'bulk', label: 'Excel Bulk Import' },
+]
+
+const CHECKBOX = 'h-4 w-4 shrink-0 cursor-pointer accent-[theme(colors.accent.600)]'
+
+const errorMessage = (err, fallback) => err.response?.data?.message || fallback
+
+const isValidUrl = (value) => {
+  try {
+    new URL(value)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Excel import                                                                */
+/* -------------------------------------------------------------------------- */
+
+const TEMPLATE_HEADERS = [
+  'Title (Tiêu đề)',
+  'Subject (Chủ đề)',
+  'Reference Link (Link tham khảo)',
+  'Access Type (Loại truy cập: Free/Paid)',
+  'Is Lab Owned (Tài liệu của Lab: Yes/No)',
+  'Download Link (Link tải Google Drive nếu có)',
+]
+
+const TEMPLATE_ROWS = [
+  [
+    'CMOS VLSI Design: A Circuits and Systems Perspective',
+    'VLSI Design',
+    'https://www.amazon.com/CMOS-VLSI-Design-Circuits-Perspective/dp/0321547748',
+    'Free',
+    'Yes',
+    'https://drive.google.com/file/d/12345sampleGdriveLink/view',
+  ],
+  [
+    'Digital Integrated Circuits: A Design Perspective',
+    'Digital ICs',
+    'https://www.amazon.com/Digital-Integrated-Circuits-Design-Perspective/dp/0130905509',
+    'Paid',
+    'No',
+    '',
+  ],
+]
+
+/** Turns spreadsheet rows (header row first) into validated preview rows. */
+function parseDocumentRows(jsonData) {
+  const headers = jsonData[0].map((h) => String(h).trim())
+  const rows = jsonData.slice(1)
+
+  const findColIndex = (patterns) =>
+    headers.findIndex((h) => patterns.some((p) => h.toLowerCase().includes(p.toLowerCase())))
+
+  const titleIdx = findColIndex(['title', 'tiêu đề', 'tên sách', 'tên tài liệu'])
+  const subjectIdx = findColIndex(['subject', 'topic', 'chủ đề', 'môn học'])
+  const linkIdx = findColIndex(['link', 'reference', 'tham khảo', 'nxb', 'publisher'])
+  const typeIdx = findColIndex(['type', 'loại', 'truy cập'])
+  const ownedIdx = findColIndex(['owned', 'của lab', 'thuộc lab'])
+  const downloadIdx = findColIndex(['download', 'gdrive', 'link tải', 'đường dẫn tải'])
+
+  if (titleIdx === -1 || subjectIdx === -1 || linkIdx === -1) {
+    return {
+      error:
+        'Could not find required columns in Excel sheet. Please make sure "Title", "Subject", and "Link" columns are present.',
+    }
+  }
+
+  const parsed = rows
+    .map((row, index) => {
+      if (row.length === 0 || row.every((val) => val === undefined || val === null || val === '')) {
+        return null
+      }
+
+      const title = row[titleIdx] ? String(row[titleIdx]).trim() : ''
+      const subject = row[subjectIdx] ? String(row[subjectIdx]).trim() : ''
+      const link = row[linkIdx] ? String(row[linkIdx]).trim() : ''
+
+      let type = 'Free'
+      if (typeIdx !== -1 && row[typeIdx]) {
+        const typeVal = String(row[typeIdx]).toLowerCase()
+        if (typeVal.includes('paid') || typeVal.includes('mua') || typeVal.includes('tính phí')) {
+          type = 'Paid'
+        }
+      }
+
+      let isLabOwned = false
+      if (ownedIdx !== -1 && row[ownedIdx]) {
+        const ownedVal = String(row[ownedIdx]).toLowerCase()
+        if (
+          ownedVal.includes('yes') ||
+          ownedVal.includes('có') ||
+          ownedVal.includes('true') ||
+          ownedVal === '1'
+        ) {
+          isLabOwned = true
+        }
+      }
+
+      const downloadUrl = downloadIdx !== -1 && row[downloadIdx] ? String(row[downloadIdx]).trim() : ''
+
+      let isValid = true
+      let rowError = ''
+
+      if (!title) {
+        isValid = false
+        rowError = 'Title is required. '
+      }
+      if (!subject) {
+        isValid = false
+        rowError += 'Subject is required. '
+      }
+      if (!link) {
+        isValid = false
+        rowError += 'Reference Link is required. '
+      } else if (!isValidUrl(link)) {
+        isValid = false
+        rowError += 'Reference Link must be a valid URL. '
+      }
+
+      if (isLabOwned && !downloadUrl) {
+        isValid = false
+        rowError += 'Google Drive Download Link is required for Lab Owned materials. '
+      } else if (isLabOwned && downloadUrl && !isValidUrl(downloadUrl)) {
+        isValid = false
+        rowError += 'Google Drive Download Link must be a valid URL. '
+      }
+
+      return {
+        rowIndex: index + 2,
+        title,
+        subject,
+        link,
+        type,
+        isLabOwned,
+        downloadUrl,
+        isValid,
+        error: rowError,
+      }
+    })
+    .filter(Boolean)
+
+  return { rows: parsed }
+}
+
+/** xlsx is ~400 kB, so it is only fetched when someone actually uses Excel. */
+async function downloadSampleTemplate() {
+  const XLSX = await import('xlsx')
+  const wb = XLSX.utils.book_new()
+  const ws = XLSX.utils.aoa_to_sheet([TEMPLATE_HEADERS, ...TEMPLATE_ROWS])
+  XLSX.utils.book_append_sheet(wb, ws, 'Documents Template')
+  XLSX.writeFile(wb, 'ICDesign_Documents_Template.xlsx')
+}
+
+async function readWorkbookRows(file) {
+  const XLSX = await import('xlsx')
+  const data = new Uint8Array(await file.arrayBuffer())
+  const workbook = XLSX.read(data, { type: 'array' })
+  const worksheet = workbook.Sheets[workbook.SheetNames[0]]
+  return XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+}
+
+/* -------------------------------------------------------------------------- */
+/* Presentational pieces                                                       */
+/* -------------------------------------------------------------------------- */
+
+/** Shared by the add card and the edit modal; the caller owns the submit button. */
+function DocumentForm({ id, form, onChange, onSubmit }) {
+  const set = (key) => (e) => onChange({ ...form, [key]: e.target.value })
+
+  return (
+    <form id={id} onSubmit={onSubmit} className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+      <FormField label="Book Title" required htmlFor={`${id}-title`} className="sm:col-span-2">
+        <input
+          id={`${id}-title`}
+          type="text"
+          value={form.title}
+          onChange={set('title')}
+          className="field"
+          placeholder="e.g. CMOS VLSI Design: A Circuits and Systems Perspective"
+          required
+        />
+      </FormField>
+
+      <FormField label="Subject/Topic" required htmlFor={`${id}-subject`}>
+        <input
+          id={`${id}-subject`}
+          type="text"
+          value={form.subject}
+          onChange={set('subject')}
+          className="field"
+          placeholder="e.g. VLSI Design"
+          required
+        />
+      </FormField>
+
+      <FormField label="Access Type" required htmlFor={`${id}-type`}>
+        <select id={`${id}-type`} value={form.type} onChange={set('type')} className="field" required>
+          <option value="Free">Free Access</option>
+          <option value="Paid">Purchase Required (Paid)</option>
+        </select>
+      </FormField>
+
+      <FormField label="Reference URL / Publisher Link" required htmlFor={`${id}-link`} className="sm:col-span-2">
+        <input
+          id={`${id}-link`}
+          type="url"
+          value={form.link}
+          onChange={set('link')}
+          className="field"
+          placeholder="e.g. https://www.amazon.com/... or publisher page"
+          required
+        />
+      </FormField>
+
+      <label htmlFor={`${id}-owned`} className="flex cursor-pointer items-center gap-3 sm:col-span-2">
+        <input
+          id={`${id}-owned`}
+          type="checkbox"
+          checked={form.isLabOwned}
+          onChange={(e) => onChange({ ...form, isLabOwned: e.target.checked })}
+          className={CHECKBOX}
+        />
+        <span className="select-none text-sm text-ink-800">
+          This book is owned by the Lab (Include Google Drive download link)
+        </span>
+      </label>
+
+      {form.isLabOwned && (
+        <FormField
+          label="Google Drive Download Link"
+          required
+          htmlFor={`${id}-download`}
+          hint='Ensure the sharing settings on Google Drive are set to "Anyone with the link can view".'
+          className="sm:col-span-2"
+        >
+          <input
+            id={`${id}-download`}
+            type="url"
+            value={form.downloadUrl}
+            onChange={set('downloadUrl')}
+            className="field"
+            placeholder="e.g. https://drive.google.com/file/d/..."
+            required
+          />
+        </FormField>
+      )}
+    </form>
+  )
+}
+
+function ImportPanel({ rows, importing, onFile, onClear, onConfirm }) {
+  const validCount = rows.filter((r) => r.isValid).length
+  const errorCount = rows.length - validCount
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+        <div className="surface space-y-4 bg-paper-sunken p-5 md:col-span-1">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-ink-950">
+            <Icon name="document" className="h-5 w-5 text-accent-600" />
+            Excel Template
+          </h3>
+          <p className="text-xs leading-relaxed text-ink-500">
+            Use our standardized template to format your book references list. Supports both English and
+            Vietnamese column headers.
+          </p>
+          <button type="button" onClick={downloadSampleTemplate} className="btn-secondary w-full">
+            <Icon name="download" />
+            Download Template
+          </button>
+        </div>
+
+        <label className="flex cursor-pointer flex-col items-center justify-center gap-3 border border-dashed border-paper-border bg-paper-sunken/50 p-8 text-center transition-colors focus-within:border-ink-900 hover:border-ink-900 md:col-span-2">
+          <Icon name="document" className="h-8 w-8 text-ink-300" strokeWidth={1} />
+          <span className="text-sm font-semibold text-ink-800">Upload Excel spreadsheet</span>
+          <span className="text-xs text-ink-500">Click to choose .xlsx or .xls files</span>
+          <input type="file" accept=".xlsx, .xls" className="sr-only" onChange={onFile} />
+        </label>
+      </div>
+
+      {rows.length > 0 && (
+        <div className="space-y-4 border-t border-paper-border pt-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-ink-950">
+              Preview Data ({rows.length} records parsed)
+            </h3>
+            <div className="flex gap-2">
+              <Badge tone="ok">{validCount} Valid</Badge>
+              {errorCount > 0 && <Badge tone="danger">{errorCount} Errors</Badge>}
+            </div>
+          </div>
+
+          <div className="surface max-h-96 overflow-auto">
+            <table className="min-w-full text-left text-xs">
+              <thead className="sticky top-0 border-b border-paper-border bg-paper-sunken">
+                <tr className="eyebrow">
+                  {['Row', 'Title', 'Subject', 'Reference URL', 'Type', 'Lab Owned', 'GDrive Link', 'Status'].map(
+                    (col) => (
+                      <th key={col} className="px-4 py-3 font-medium">
+                        {col}
+                      </th>
+                    ),
+                  )}
+                </tr>
+              </thead>
+              <tbody className="divide-hairline">
+                {rows.map((row) => (
+                  <tr key={row.rowIndex} className={row.isValid ? undefined : 'bg-signal-dangerSoft/40'}>
+                    <td className="px-4 py-3 font-mono text-ink-500">#{row.rowIndex}</td>
+                    <td className="max-w-xs truncate px-4 py-3 font-medium text-ink-900" title={row.title}>
+                      {row.title}
+                    </td>
+                    <td className="px-4 py-3 text-ink-600">{row.subject}</td>
+                    <td className="max-w-xs truncate px-4 py-3" title={row.link}>
+                      <a href={row.link} target="_blank" rel="noopener noreferrer" className="link">
+                        {row.link}
+                      </a>
+                    </td>
+                    <td className="px-4 py-3 text-ink-600">{row.type}</td>
+                    <td className="px-4 py-3 text-ink-600">{row.isLabOwned ? 'Yes' : 'No'}</td>
+                    <td className="max-w-xs truncate px-4 py-3" title={row.downloadUrl}>
+                      {row.isLabOwned ? (
+                        <a href={row.downloadUrl} target="_blank" rel="noopener noreferrer" className="link">
+                          {row.downloadUrl}
+                        </a>
+                      ) : (
+                        <span className="text-ink-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {row.isValid ? (
+                        <Badge tone="ok">Ready</Badge>
+                      ) : (
+                        <span title={row.error} className="cursor-help">
+                          <Badge tone="danger">Error</Badge>
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex flex-wrap justify-end gap-3">
+            <button type="button" onClick={onClear} className="btn-secondary">
+              Clear File
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              disabled={importing || validCount === 0}
+              className="btn-primary"
+            >
+              {importing ? 'Importing...' : `Import ${validCount} Valid References`}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DocumentRow({ doc, selected, disabled, onToggle, onEdit, onDelete }) {
+  const checkId = `doc-select-${doc._id}`
+
+  return (
+    <li className={`flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-start sm:gap-4 ${selected ? 'bg-accent-50/40' : ''}`}>
+      <input
+        id={checkId}
+        type="checkbox"
+        checked={selected}
+        onChange={() => onToggle(doc._id)}
+        aria-label={`Select ${doc.title}`}
+        className={`${CHECKBOX} sm:mt-1`}
+      />
+
+      <div className="min-w-0 flex-1 space-y-2">
+        <label htmlFor={checkId} className="line-clamp-2 cursor-pointer text-base font-medium leading-snug text-ink-950">
+          {doc.title}
+        </label>
+
+        <div className="flex flex-wrap gap-2">
+          <Badge>{doc.subject}</Badge>
+          {doc.type === 'Free' ? <Badge tone="ok">Free Access</Badge> : <Badge tone="warn">Paid Reference</Badge>}
+          {doc.isLabOwned && <Badge tone="accent">Lab Owned (GDrive)</Badge>}
+        </div>
+
+        <div className="space-y-1 text-xs text-ink-500">
+          <p className="truncate">
+            <span className="eyebrow mr-2">Ref</span>
+            <a href={doc.link} target="_blank" rel="noopener noreferrer" className="link">
+              {doc.link}
+            </a>
+          </p>
+          {doc.isLabOwned && doc.downloadUrl && (
+            <p className="truncate">
+              <span className="eyebrow mr-2">GDrive</span>
+              <a href={doc.downloadUrl} target="_blank" rel="noopener noreferrer" className="link">
+                {doc.downloadUrl}
+              </a>
+            </p>
+          )}
+        </div>
+      </div>
+
+      <RowActions onEdit={() => onEdit(doc)} onDelete={() => onDelete(doc._id)} disabled={disabled} />
+    </li>
+  )
+}
+
+function CatalogSkeleton() {
+  return (
+    <ul className="divide-hairline" aria-hidden="true">
+      {Array.from({ length: 5 }, (_, i) => (
+        <li key={i} className="flex items-start gap-4 px-5 py-4">
+          <Skeleton className="mt-1 h-4 w-4" />
+          <div className="flex-1 space-y-2.5">
+            <Skeleton className="h-5 w-3/5" />
+            <Skeleton className="h-4 w-2/5" />
+            <Skeleton className="h-3 w-4/5" />
+          </div>
+          <Skeleton className="h-8 w-28" />
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* Page                                                                        */
+/* -------------------------------------------------------------------------- */
 
 export default function AdminDocumentsPage() {
-  const [documents, setDocuments] = useState([]);
-  const [form, setForm] = useState({
-    title: '',
-    subject: '',
-    link: '',
-    isLabOwned: false,
-    downloadUrl: '',
-    type: 'Free'
-  });
-  const [editingId, setEditingId] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(1)
+  const { data, loading, error: loadError, refetch } = useApiQuery('/documents', {
+    params: { page, limit: PAGE_SIZE },
+    staleTime: 0,
+  })
+  const documents = data?.data ?? []
+  const totalPages = data?.totalPages || 1
+  const total = data?.total || 0
 
-  // Pagination
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
+  const [tab, setTab] = useState('manual')
+  const [error, setError] = useState('')
+  const [form, setForm] = useState(EMPTY_FORM)
+  const [formError, setFormError] = useState('')
+  const [saving, setSaving] = useState(false)
 
-  // States for bulk operation and excel import
-  const [selectedIds, setSelectedIds] = useState([]);
-  const [showBulkSection, setShowBulkSection] = useState(false);
-  const [bulkData, setBulkData] = useState([]);
-  const [bulkLoading, setBulkLoading] = useState(false);
+  const [editing, setEditing] = useState(null)
+  const [editForm, setEditForm] = useState(EMPTY_FORM)
+  const [editError, setEditError] = useState('')
 
+  const [selectedIds, setSelectedIds] = useState([])
+  const [busy, setBusy] = useState(false)
 
-  const loadDocuments = async (targetPage = page) => {
-    try {
-      const { data } = await api.get('/documents', { params: { page: targetPage, limit: 10 } });
-      setDocuments(data.data);
-      setTotalPages(data.totalPages || 1);
-      setTotal(data.total || 0);
-      setPage(data.currentPage || targetPage);
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to load documents');
-    }
-  };
+  const [bulkData, setBulkData] = useState([])
+  const [bulkError, setBulkError] = useState('')
+  const [bulkLoading, setBulkLoading] = useState(false)
 
-  useEffect(() => {
-    loadDocuments(page);
-  }, [page]);
+  // A different page is a different cache key, so changing it is enough to
+  // refetch; only the page we are already on needs an explicit refetch.
+  const refresh = (nextPage = page) => {
+    invalidateQueries('/documents')
+    if (nextPage === page) refetch()
+    else setPage(nextPage)
+  }
 
-  const resetForm = () => {
-    setForm({
-      title: '',
-      subject: '',
-      link: '',
-      isLabOwned: false,
-      downloadUrl: '',
-      type: 'Free'
-    });
-    setEditingId('');
-  };
+  const switchTab = (id) => {
+    setTab(id)
+    setFormError('')
+    setBulkError('')
+  }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
+  const toPayload = (values) => ({
+    ...values,
+    downloadUrl: values.isLabOwned ? values.downloadUrl : '',
+  })
 
-    // Simple validation for lab-owned books
-    if (form.isLabOwned && !form.downloadUrl.trim()) {
-      setError('Google Drive download URL is required for lab-owned books.');
-      return;
+  const validate = (values) =>
+    values.isLabOwned && !values.downloadUrl.trim()
+      ? 'Google Drive download URL is required for lab-owned books.'
+      : ''
+
+  const handleAdd = async (e) => {
+    e.preventDefault()
+    setFormError('')
+
+    const problem = validate(form)
+    if (problem) {
+      setFormError(problem)
+      return
     }
 
-    setLoading(true);
+    setSaving(true)
     try {
-      const payload = {
-        ...form,
-        downloadUrl: form.isLabOwned ? form.downloadUrl : ''
-      };
-      if (editingId) {
-        await api.put(`/documents/${editingId}`, payload);
-      } else {
-        await api.post('/documents', payload);
-      }
-      resetForm();
-      loadDocuments(editingId ? page : 1);
+      await api.post('/documents', toPayload(form))
+      setForm(EMPTY_FORM)
+      refresh(1)
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to save document');
+      setFormError(errorMessage(err, 'Failed to save document'))
     } finally {
-      setLoading(false);
+      setSaving(false)
     }
-  };
+  }
 
-  const handleEditClick = (doc) => {
-    setEditingId(doc._id);
-    setForm({
+  const openEdit = (doc) => {
+    setEditing(doc)
+    setEditError('')
+    setEditForm({
       title: doc.title,
       subject: doc.subject,
       link: doc.link,
       isLabOwned: !!doc.isLabOwned,
       downloadUrl: doc.downloadUrl || '',
-      type: doc.type || 'Free'
-    });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+      type: doc.type || 'Free',
+    })
+  }
+
+  const closeEdit = () => setEditing(null)
+
+  const handleEditSave = async (e) => {
+    e.preventDefault()
+    setEditError('')
+
+    const problem = validate(editForm)
+    if (problem) {
+      setEditError(problem)
+      return
+    }
+
+    setSaving(true)
+    try {
+      await api.put(`/documents/${editing._id}`, toPayload(editForm))
+      closeEdit()
+      refresh()
+    } catch (err) {
+      setEditError(errorMessage(err, 'Failed to save document'))
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this book reference?')) return;
+    if (!window.confirm('Are you sure you want to delete this book reference?')) return
     try {
-      await api.delete(`/documents/${id}`);
-      const isLastOnPage = documents.length === 1 && page > 1;
-      loadDocuments(isLastOnPage ? page - 1 : page);
+      await api.delete(`/documents/${id}`)
+      setSelectedIds((prev) => prev.filter((item) => item !== id))
+      refresh(documents.length === 1 && page > 1 ? page - 1 : page)
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to delete document');
+      setError(errorMessage(err, 'Failed to delete document'))
     }
-  };
+  }
 
-  const handleSelectDoc = (id) => {
-    setSelectedIds(prev => 
-      prev.includes(id) 
-        ? prev.filter(item => item !== id)
-        : [...prev, id]
-    );
-  };
+  const toggleSelected = (id) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]))
+  }
 
-  const handleSelectAll = () => {
-    if (selectedIds.length === documents.length) {
-      setSelectedIds([]);
-    } else {
-      setSelectedIds(documents.map(doc => doc._id));
-    }
-  };
+  const allSelected = documents.length > 0 && documents.every((doc) => selectedIds.includes(doc._id))
+
+  const toggleAll = () => {
+    setSelectedIds(allSelected ? [] : documents.map((doc) => doc._id))
+  }
 
   const handleBulkDelete = async () => {
-    if (selectedIds.length === 0) return;
-    if (!window.confirm(`Are you sure you want to delete the ${selectedIds.length} selected books? This action cannot be undone.`)) return;
-    
-    setLoading(true);
-    setError('');
-    try {
-      await api.post('/documents/bulk-delete', { ids: selectedIds });
-      setSelectedIds([]);
-      await loadDocuments();
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to delete selected documents');
-    } finally {
-      setLoading(false);
+    if (selectedIds.length === 0) return
+    if (
+      !window.confirm(
+        `Are you sure you want to delete the ${selectedIds.length} selected books? This action cannot be undone.`,
+      )
+    ) {
+      return
     }
-  };
 
-  const downloadSampleTemplate = () => {
-    const headers = [
-      'Title (Tiêu đề)',
-      'Subject (Chủ đề)',
-      'Reference Link (Link tham khảo)',
-      'Access Type (Loại truy cập: Free/Paid)',
-      'Is Lab Owned (Tài liệu của Lab: Yes/No)',
-      'Download Link (Link tải Google Drive nếu có)'
-    ];
-    
-    const sampleRows = [
-      [
-        'CMOS VLSI Design: A Circuits and Systems Perspective',
-        'VLSI Design',
-        'https://www.amazon.com/CMOS-VLSI-Design-Circuits-Perspective/dp/0321547748',
-        'Free',
-        'Yes',
-        'https://drive.google.com/file/d/12345sampleGdriveLink/view'
-      ],
-      [
-        'Digital Integrated Circuits: A Design Perspective',
-        'Digital ICs',
-        'https://www.amazon.com/Digital-Integrated-Circuits-Design-Perspective/dp/0130905509',
-        'Paid',
-        'No',
-        ''
-      ]
-    ];
+    setBusy(true)
+    setError('')
+    try {
+      await api.post('/documents/bulk-delete', { ids: selectedIds })
+      const remaining = documents.filter((doc) => !selectedIds.includes(doc._id)).length
+      setSelectedIds([])
+      refresh(remaining === 0 && page > 1 ? page - 1 : page)
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to delete selected documents'))
+    } finally {
+      setBusy(false)
+    }
+  }
 
-    const wsData = [headers, ...sampleRows];
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
-    XLSX.utils.book_append_sheet(wb, ws, 'Documents Template');
-    XLSX.writeFile(wb, 'ICDesign_Documents_Template.xlsx');
-  };
+  const handleExcelUpload = async (e) => {
+    const input = e.target
+    const file = input.files[0]
+    if (!file) return
 
-  const handleExcelUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const data = new Uint8Array(event.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-        
-        if (jsonData.length === 0) {
-          setError('The Excel file is empty.');
-          return;
-        }
-        
-        const headers = jsonData[0].map(h => String(h).trim());
-        const rows = jsonData.slice(1);
-        
-        const findColIndex = (patterns) => {
-          return headers.findIndex(h => 
-            patterns.some(p => h.toLowerCase().includes(p.toLowerCase()))
-          );
-        };
-        
-        const titleIdx = findColIndex(['title', 'tiêu đề', 'tên sách', 'tên tài liệu']);
-        const subjectIdx = findColIndex(['subject', 'topic', 'chủ đề', 'môn học']);
-        const linkIdx = findColIndex(['link', 'reference', 'tham khảo', 'nxb', 'publisher']);
-        const typeIdx = findColIndex(['type', 'loại', 'truy cập']);
-        const ownedIdx = findColIndex(['owned', 'của lab', 'thuộc lab']);
-        const downloadIdx = findColIndex(['download', 'gdrive', 'link tải', 'đường dẫn tải']);
-        
-        if (titleIdx === -1 || subjectIdx === -1 || linkIdx === -1) {
-          setError('Could not find required columns in Excel sheet. Please make sure "Title", "Subject", and "Link" columns are present.');
-          return;
-        }
-        
-        const parsedRows = rows.map((row, index) => {
-          if (row.length === 0 || row.every(val => val === undefined || val === null || val === '')) {
-            return null;
-          }
+    try {
+      const jsonData = await readWorkbookRows(file)
 
-          const title = row[titleIdx] ? String(row[titleIdx]).trim() : '';
-          const subject = row[subjectIdx] ? String(row[subjectIdx]).trim() : '';
-          const link = row[linkIdx] ? String(row[linkIdx]).trim() : '';
-          
-          let type = 'Free';
-          if (typeIdx !== -1 && row[typeIdx]) {
-            const typeVal = String(row[typeIdx]).toLowerCase();
-            if (typeVal.includes('paid') || typeVal.includes('mua') || typeVal.includes('tính phí')) {
-              type = 'Paid';
-            }
-          }
-          
-          let isLabOwned = false;
-          if (ownedIdx !== -1 && row[ownedIdx]) {
-            const ownedVal = String(row[ownedIdx]).toLowerCase();
-            if (ownedVal.includes('yes') || ownedVal.includes('có') || ownedVal.includes('true') || ownedVal === '1') {
-              isLabOwned = true;
-            }
-          }
-          
-          const downloadUrl = (downloadIdx !== -1 && row[downloadIdx]) ? String(row[downloadIdx]).trim() : '';
-          
-          let isValid = true;
-          let rowError = '';
-          
-          if (!title) {
-            isValid = false;
-            rowError = 'Title is required. ';
-          }
-          if (!subject) {
-            isValid = false;
-            rowError += 'Subject is required. ';
-          }
-          if (!link) {
-            isValid = false;
-            rowError += 'Reference Link is required. ';
-          } else {
-            try {
-              new URL(link);
-            } catch (_) {
-              isValid = false;
-              rowError += 'Reference Link must be a valid URL. ';
-            }
-          }
-          
-          if (isLabOwned && !downloadUrl) {
-            isValid = false;
-            rowError += 'Google Drive Download Link is required for Lab Owned materials. ';
-          } else if (isLabOwned && downloadUrl) {
-            try {
-              new URL(downloadUrl);
-            } catch (_) {
-              isValid = false;
-              rowError += 'Google Drive Download Link must be a valid URL. ';
-            }
-          }
-          
-          return {
-            rowIndex: index + 2,
-            title,
-            subject,
-            link,
-            type,
-            isLabOwned,
-            downloadUrl,
-            isValid,
-            error: rowError
-          };
-        }).filter(Boolean);
-        
-        setBulkData(parsedRows);
-        setError('');
-      } catch (err) {
-        console.error(err);
-        setError('Error reading Excel file. Please ensure it is a valid format.');
+      if (jsonData.length === 0) {
+        setBulkError('The Excel file is empty.')
+        return
       }
-    };
-    
-    reader.readAsArrayBuffer(file);
-  };
+
+      const result = parseDocumentRows(jsonData)
+      if (result.error) {
+        setBulkError(result.error)
+        return
+      }
+
+      setBulkData(result.rows)
+      setBulkError('')
+    } catch (err) {
+      console.error(err)
+      setBulkError('Error reading Excel file. Please ensure it is a valid format.')
+    } finally {
+      // Lets the same file be picked again after "Clear File".
+      input.value = ''
+    }
+  }
 
   const handleConfirmBulkImport = async () => {
-    const validItems = bulkData.filter(item => item.isValid);
+    const validItems = bulkData.filter((item) => item.isValid)
     if (validItems.length === 0) {
-      setError('No valid documents to import.');
-      return;
+      setBulkError('No valid documents to import.')
+      return
     }
 
-    setBulkLoading(true);
-    setError('');
+    setBulkLoading(true)
+    setBulkError('')
     try {
-      await api.post('/documents/bulk', validItems.map(({ title, subject, link, isLabOwned, downloadUrl, type }) => ({
-        title,
-        subject,
-        link,
-        isLabOwned,
-        downloadUrl,
-        type
-      })));
-      
-      setBulkData([]);
-      setShowBulkSection(false);
-      loadDocuments(1);
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to bulk import documents.');
-    } finally {
-      setBulkLoading(false);
-    }
-  };
+      await api.post(
+        '/documents/bulk',
+        validItems.map(({ title, subject, link, isLabOwned, downloadUrl, type }) => ({
+          title,
+          subject,
+          link,
+          isLabOwned,
+          downloadUrl,
+          type,
+        })),
+      )
 
+      setBulkData([])
+      setTab('manual')
+      refresh(1)
+    } catch (err) {
+      setBulkError(errorMessage(err, 'Failed to bulk import documents.'))
+    } finally {
+      setBulkLoading(false)
+    }
+  }
 
   return (
-    <div className="space-y-8 max-w-5xl mx-auto p-4 sm:p-6 lg:p-8">
-      
-      {/* Page Header */}
-      <div className="border-b border-paper-border pb-5">
-        <h2 className="text-3xl font-extrabold tracking-tight text-ink-900">
-          Manage Books & Documents
-        </h2>
-        <p className="mt-2 text-sm text-ink-500">
-          Add, list, and delete textbook references and digital learning guides for the IC Design Lab.
-        </p>
-      </div>
+    <AdminPage
+      title="Manage Books & Documents"
+      description="Add, list, and delete textbook references and digital learning guides for the IC Design Lab."
+    >
+      {error && <InlineNotice>{error}</InlineNotice>}
 
-      {/* Error Alert */}
-      <ErrorText message={error} />
-
-      {/* Modern Card Layout Form */}
-      <div className="bg-paper-raised rounded-none shadow-sm ring-1 ring-ink-100 p-6 sm:p-8">
-        
-        {/* Toggle headers */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 border-b border-ink-100 pb-4">
-          <div>
-            <h3 className="text-lg font-bold text-ink-900">{editingId ? 'Edit Book & Reference' : 'Add Book & Reference'}</h3>
-            <p className="text-xs text-ink-500 font-medium mt-0.5">Add book references manually or upload in bulk from an Excel file.</p>
-          </div>
-          
-          <div className="flex bg-ink-100 rounded-none p-0.5" role="group">
-            <button
-              onClick={() => {
-                setShowBulkSection(false);
-                setError('');
-              }}
-              className={`px-4 py-2 text-xs font-bold rounded-none transition-all duration-200 ${
-                !showBulkSection 
-                  ? 'bg-paper-raised text-accent-600 shadow-sm' 
-                  : 'text-ink-600 hover:text-ink-900'
-              }`}
-            >
-              Manual Entry
-            </button>
-            <button
-              onClick={() => {
-                setShowBulkSection(true);
-                setError('');
-              }}
-              className={`px-4 py-2 text-xs font-bold rounded-none transition-all duration-200 ${
-                showBulkSection 
-                  ? 'bg-paper-raised text-accent-600 shadow-sm' 
-                  : 'text-ink-600 hover:text-ink-900'
-              }`}
-            >
-              Excel Bulk Import
-            </button>
-          </div>
-        </div>
-
-        {showBulkSection ? (
-          <div className="space-y-6">
-            
-            {/* Template download & upload zone */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              
-              {/* Instructions and Download Template Card */}
-              <div className="md:col-span-1 border border-accent-50 bg-accent-50/20 rounded-none p-5 space-y-4">
-                <div className="flex items-center gap-3 text-accent-700 font-bold text-sm">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  <h4>Excel Template</h4>
-                </div>
-                
-                <p className="text-xs text-ink-600 font-medium leading-relaxed">
-                  Use our standardized template to format your book references list. Supports both English and Vietnamese column headers.
-                </p>
-                
-                <button
-                  onClick={downloadSampleTemplate}
-                  className="w-full flex items-center justify-center gap-2 rounded-none bg-accent-600 px-4 py-2.5 text-xs font-bold text-paper hover:bg-accent-700 transition-colors shadow-sm"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  Download Template
-                </button>
-              </div>
-
-              {/* Upload Dropzone */}
-              <div className="md:col-span-2">
-                <label className="flex flex-col items-center justify-center border-2 border-dashed border-paper-border hover:border-accent-400 rounded-none p-8 bg-paper-sunken/50 hover:bg-paper-sunken cursor-pointer transition-all text-center group h-full">
-                  <div className="space-y-3">
-                    <div className="mx-auto w-12 h-12 rounded-none bg-ink-100 flex items-center justify-center text-ink-500 group-hover:bg-accent-50 group-hover:text-accent-600 transition-colors shrink-0">
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm font-bold text-ink-800">
-                        Upload Excel spreadsheet
-                      </p>
-                      <p className="text-xs text-ink-500 font-medium">
-                        Drag and drop or click to choose .xlsx or .xls files
-                      </p>
-                    </div>
-                  </div>
-                  <input
-                    type="file"
-                    accept=".xlsx, .xls"
-                    className="hidden"
-                    onChange={handleExcelUpload}
-                  />
-                </label>
-              </div>
-
-            </div>
-
-            {/* Preview table if data is parsed */}
-            {bulkData.length > 0 && (
-              <div className="space-y-4 pt-4 border-t border-ink-100 animate-fade-in">
-                <div className="flex justify-between items-center">
-                  <h4 className="font-bold text-sm text-ink-900">
-                    Preview Data ({bulkData.length} records parsed)
-                  </h4>
-                  <div className="flex gap-2">
-                    <span className="inline-flex items-center rounded-full bg-signal-okSoft px-2.5 py-0.5 text-xs font-semibold text-signal-ok">
-                      {bulkData.filter(d => d.isValid).length} Valid
-                    </span>
-                    {bulkData.some(d => !d.isValid) && (
-                      <span className="inline-flex items-center rounded-full bg-signal-dangerSoft px-2.5 py-0.5 text-xs font-semibold text-signal-danger">
-                        {bulkData.filter(d => !d.isValid).length} Errors
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="border border-paper-border rounded-none overflow-hidden max-h-96 overflow-y-auto">
-                  <table className="min-w-full divide-y divide-ink-100 text-xs text-left">
-                    <thead className="bg-paper-sunken text-ink-500 font-bold uppercase sticky top-0">
-                      <tr>
-                        <th className="px-4 py-3">Row</th>
-                        <th className="px-4 py-3">Title</th>
-                        <th className="px-4 py-3">Subject</th>
-                        <th className="px-4 py-3">Reference URL</th>
-                        <th className="px-4 py-3">Type</th>
-                        <th className="px-4 py-3">Lab Owned</th>
-                        <th className="px-4 py-3">GDrive Link</th>
-                        <th className="px-4 py-3">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-ink-100 bg-paper-raised">
-                      {bulkData.map((row) => (
-                        <tr key={row.rowIndex} className={`hover:bg-paper-sunken ${!row.isValid ? 'bg-signal-dangerSoft/20' : ''}`}>
-                          <td className="px-4 py-3 text-ink-500 font-bold">#{row.rowIndex}</td>
-                          <td className="px-4 py-3 font-semibold text-ink-800 max-w-xs truncate" title={row.title}>{row.title}</td>
-                          <td className="px-4 py-3 text-ink-600">{row.subject}</td>
-                          <td className="px-4 py-3 text-accent-600 truncate max-w-xs" title={row.link}>
-                            <a href={row.link} target="_blank" rel="noopener noreferrer" className="hover:underline">{row.link}</a>
-                          </td>
-                          <td className="px-4 py-3 font-medium">{row.type}</td>
-                          <td className="px-4 py-3">{row.isLabOwned ? 'Yes' : 'No'}</td>
-                          <td className="px-4 py-3 text-accent-600 truncate max-w-xs" title={row.downloadUrl}>
-                            {row.isLabOwned ? (
-                              <a href={row.downloadUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">{row.downloadUrl}</a>
-                            ) : (
-                              <span className="text-ink-400">-</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            {row.isValid ? (
-                              <span className="inline-flex items-center rounded-full bg-signal-okSoft px-2 py-0.5 text-xs font-semibold text-signal-ok">
-                                Ready
-                              </span>
-                            ) : (
-                              <span
-                                className="inline-flex items-center rounded-full bg-signal-dangerSoft px-2 py-0.5 text-xs font-semibold text-signal-danger cursor-help"
-                                title={row.error}
-                              >
-                                Error
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="flex justify-end gap-3 pt-2">
-                  <button
-                    onClick={() => {
-                      setBulkData([]);
-                      setError('');
-                    }}
-                    className="rounded-none border border-paper-border bg-paper-raised px-4 py-2 text-xs font-bold text-ink-700 hover:bg-paper-sunken transition-colors"
-                  >
-                    Clear File
-                  </button>
-                  <button
-                    onClick={handleConfirmBulkImport}
-                    disabled={bulkLoading || bulkData.filter(d => d.isValid).length === 0}
-                    className="inline-flex justify-center rounded-none bg-accent-600 px-5 py-2.5 text-xs font-bold text-paper shadow-sm hover:bg-accent-700 disabled:opacity-50 transition-colors"
-                  >
-                    {bulkLoading ? 'Importing...' : `Import ${bulkData.filter(d => d.isValid).length} Valid References`}
+      <AdminSection
+        title="Add Book & Reference"
+        description="Add book references manually or upload in bulk from an Excel file."
+      >
+        <AdminCard padded={false}>
+          <AdminTabs tabs={TABS} active={tab} onChange={switchTab} label="Entry method" className="px-5 sm:px-6" />
+          <div className="space-y-5 p-5 sm:p-6">
+            {tab === 'manual' ? (
+              <>
+                {formError && <InlineNotice>{formError}</InlineNotice>}
+                <DocumentForm id="doc-add" form={form} onChange={setForm} onSubmit={handleAdd} />
+                <div className="flex justify-end">
+                  <button type="submit" form="doc-add" disabled={saving} className="btn-primary">
+                    {saving ? 'Creating...' : 'Add Book Reference'}
                   </button>
                 </div>
-              </div>
+              </>
+            ) : (
+              <>
+                {bulkError && <InlineNotice>{bulkError}</InlineNotice>}
+                <ImportPanel
+                  rows={bulkData}
+                  importing={bulkLoading}
+                  onFile={handleExcelUpload}
+                  onClear={() => {
+                    setBulkData([])
+                    setBulkError('')
+                  }}
+                  onConfirm={handleConfirmBulkImport}
+                />
+              </>
             )}
           </div>
+        </AdminCard>
+      </AdminSection>
+
+      <AdminSection
+        title="Current Catalog"
+        count={total}
+        action={
+          documents.length > 0 && (
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-ink-600">
+              <input type="checkbox" checked={allSelected} onChange={toggleAll} className={CHECKBOX} />
+              {allSelected ? 'Deselect All' : 'Select All'}
+            </label>
+          )
+        }
+      >
+        {loadError && documents.length === 0 ? (
+          <ErrorState message={errorMessage(loadError, 'Failed to load documents')} onRetry={refetch} />
+        ) : loading ? (
+          <AdminCard padded={false}>
+            <CatalogSkeleton />
+          </AdminCard>
+        ) : documents.length === 0 ? (
+          <EmptyRow>No books found in the database catalog. Add a new book reference to get started.</EmptyRow>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-6">
-            
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-              
-              {/* Title */}
-              <div className="sm:col-span-2">
-                <label className="block text-sm font-semibold text-ink-700 mb-2">
-                  Book Title <span className="text-signal-danger">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={form.title}
-                  onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  className="block w-full rounded-none border-paper-border py-3 px-4 text-ink-900 shadow-sm focus:border-accent-500 focus:ring-accent-500 border"
-                  placeholder="e.g. CMOS VLSI Design: A Circuits and Systems Perspective"
-                  required
+          <AdminCard padded={false}>
+            <ul className="divide-hairline">
+              {documents.map((doc) => (
+                <DocumentRow
+                  key={doc._id}
+                  doc={doc}
+                  selected={selectedIds.includes(doc._id)}
+                  disabled={busy}
+                  onToggle={toggleSelected}
+                  onEdit={openEdit}
+                  onDelete={handleDelete}
                 />
-              </div>
-
-              {/* Subject / Topic */}
-              <div>
-                <label className="block text-sm font-semibold text-ink-700 mb-2">
-                  Subject/Topic <span className="text-signal-danger">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={form.subject}
-                  onChange={(e) => setForm({ ...form, subject: e.target.value })}
-                  className="block w-full rounded-none border-paper-border py-3 px-4 text-ink-900 shadow-sm focus:border-accent-500 focus:ring-accent-500 border"
-                  placeholder="e.g. VLSI Design"
-                  required
-                />
-              </div>
-
-              {/* Access Type (Free vs Paid) */}
-              <div>
-                <label className="block text-sm font-semibold text-ink-700 mb-2">
-                  Access Type <span className="text-signal-danger">*</span>
-                </label>
-                <select
-                  value={form.type}
-                  onChange={(e) => setForm({ ...form, type: e.target.value })}
-                  className="block w-full rounded-none border-paper-border py-3 px-4 text-ink-900 shadow-sm focus:border-accent-500 focus:ring-accent-500 border bg-paper-raised"
-                  required
-                >
-                  <option value="Free">Free Access</option>
-                  <option value="Paid">Purchase Required (Paid)</option>
-                </select>
-              </div>
-
-              {/* Reference URL / Link */}
-              <div className="sm:col-span-2">
-                <label className="block text-sm font-semibold text-ink-700 mb-2">
-                  Reference URL / Publisher Link <span className="text-signal-danger">*</span>
-                </label>
-                <input
-                  type="url"
-                  value={form.link}
-                  onChange={(e) => setForm({ ...form, link: e.target.value })}
-                  className="block w-full rounded-none border-paper-border py-3 px-4 text-ink-900 shadow-sm focus:border-accent-500 focus:ring-accent-500 border"
-                  placeholder="e.g. https://www.amazon.com/... or publisher page"
-                  required
-                />
-              </div>
-
-              {/* Owned by Lab Toggle */}
-              <div className="sm:col-span-2 flex items-center gap-3 py-2">
-                <input
-                  id="isLabOwned"
-                  type="checkbox"
-                  checked={form.isLabOwned}
-                  onChange={(e) => setForm({ ...form, isLabOwned: e.target.checked })}
-                  className="h-5 w-5 rounded border-ink-300 text-accent-600 focus:ring-accent-500"
-                />
-                <label htmlFor="isLabOwned" className="text-sm font-semibold text-ink-700 select-none cursor-pointer">
-                  This book is owned by the Lab (Include Google Drive download link)
-                </label>
-              </div>
-
-              {/* Conditionally Render Google Drive Download Link */}
-              {form.isLabOwned && (
-                <div className="sm:col-span-2 space-y-2 animate-fade-in">
-                  <label className="block text-sm font-semibold text-ink-700">
-                    Google Drive Download Link <span className="text-signal-danger">*</span>
-                  </label>
-                  <input
-                    type="url"
-                    value={form.downloadUrl}
-                    onChange={(e) => setForm({ ...form, downloadUrl: e.target.value })}
-                    className="block w-full rounded-none border-paper-border py-3 px-4 text-ink-900 shadow-sm focus:border-accent-500 focus:ring-accent-500 border"
-                    placeholder="e.g. https://drive.google.com/file/d/..."
-                    required={form.isLabOwned}
-                  />
-                  <p className="text-xs text-ink-500 font-medium">
-                    Ensure the sharing settings on Google Drive are set to "Anyone with the link can view".
-                  </p>
-                </div>
-              )}
-
-            </div>
-
-            {/* Submit button */}
-            <div className="flex justify-end gap-3 pt-4">
-              {editingId && (
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="inline-flex justify-center rounded-none border border-paper-border bg-paper-raised px-6 py-3 text-sm font-bold text-ink-700 hover:bg-paper-sunken transition-colors"
-                >
-                  Cancel Edit
-                </button>
-              )}
-              <button
-                type="submit"
-                disabled={loading}
-                className="inline-flex justify-center rounded-none bg-accent-600 px-6 py-3 text-sm font-bold text-paper shadow-sm hover:bg-accent-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-600 disabled:opacity-50 transition-colors"
-              >
-                {loading ? (editingId ? 'Updating...' : 'Creating...') : (editingId ? 'Update Book Reference' : 'Add Book Reference')}
-              </button>
-            </div>
-
-          </form>
+              ))}
+            </ul>
+          </AdminCard>
         )}
-      </div>
 
-      {/* Catalog Listing */}
-      <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-center gap-4">
-            <h3 className="text-xl font-bold text-ink-900">Current Catalog ({total})</h3>
-            {documents.length > 0 && (
-              <button
-                onClick={handleSelectAll}
-                className="text-xs text-accent-600 hover:text-accent-800 font-bold flex items-center gap-2 bg-accent-50/50 hover:bg-accent-50 px-3.5 py-2 rounded-none transition-all border border-accent-100"
-              >
-                <input
-                  type="checkbox"
-                  checked={documents.length > 0 && selectedIds.length === documents.length}
-                  onChange={() => {}} // handled by button click
-                  className="rounded text-accent-600 focus:ring-accent-500 h-4 w-4 border-ink-300 pointer-events-none"
-                />
-                <span>{selectedIds.length === documents.length ? 'Deselect All' : 'Select All'}</span>
-              </button>
-            )}
-          </div>
-        </div>
-        
-        <div className="grid gap-4 sm:grid-cols-2">
-          {documents.map((doc) => {
-            const isSelected = selectedIds.includes(doc._id);
-            return (
-              <div
-                key={doc._id}
-                className={`bg-paper-raised border rounded-none p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between relative group ${
-                  isSelected ? 'border-accent-500 ring-2 ring-accent-50/50 bg-accent-50/5' : 'border-ink-100'
-                }`}
-              >
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3 flex-1">
-                      {/* Checkbox for selection */}
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => handleSelectDoc(doc._id)}
-                        className="h-4.5 w-4.5 rounded border-ink-300 text-accent-600 focus:ring-accent-500 mt-1 cursor-pointer shrink-0"
-                      />
-                      <h4 
-                        className="font-bold text-ink-900 text-base leading-snug line-clamp-2 cursor-pointer select-none"
-                        onClick={() => handleSelectDoc(doc._id)}
-                      >
-                        {doc.title}
-                      </h4>
-                    </div>
-                    
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        onClick={() => handleEditClick(doc)}
-                        className="p-1.5 text-ink-400 hover:text-signal-warn hover:bg-signal-warnSoft rounded-none transition-colors"
-                        title="Edit book"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => handleDelete(doc._id)}
-                        className="p-1.5 text-ink-400 hover:text-signal-danger hover:bg-signal-dangerSoft rounded-none transition-colors"
-                        title="Delete book"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
+        <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} className="mt-6" />
+      </AdminSection>
 
-                  <div className="pl-7 flex flex-wrap gap-2">
-                    <span className="inline-flex items-center rounded-full bg-ink-100 px-2.5 py-0.5 text-xs font-semibold text-ink-600">
-                      {doc.subject}
-                    </span>
-                    
-                    {doc.type === 'Free' ? (
-                      <span className="inline-flex items-center rounded-full bg-signal-okSoft px-2.5 py-0.5 text-xs font-semibold text-signal-ok">
-                        Free Access
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center rounded-full bg-signal-warnSoft px-2.5 py-0.5 text-xs font-semibold text-signal-warn">
-                        Paid Reference
-                      </span>
-                    )}
-
-                    {doc.isLabOwned && (
-                      <span className="inline-flex items-center rounded-full bg-accent-50 px-2.5 py-0.5 text-xs font-semibold text-accent-700">
-                        Lab Owned (GDrive)
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="pl-7 text-xs space-y-1 text-ink-500 font-medium">
-                    <p className="truncate">
-                      <span className="font-bold text-ink-700">Ref:</span> <a href={doc.link} target="_blank" rel="noopener noreferrer" className="text-accent-600 hover:underline">{doc.link}</a>
-                    </p>
-                    {doc.isLabOwned && doc.downloadUrl && (
-                      <p className="truncate">
-                        <span className="font-bold text-ink-700">GDrive:</span> <a href={doc.downloadUrl} target="_blank" rel="noopener noreferrer" className="text-accent-600 hover:underline">{doc.downloadUrl}</a>
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-
-          {documents.length === 0 && (
-            <div className="col-span-full bg-paper-raised border border-ink-100 rounded-none p-12 text-center text-ink-500 font-medium shadow-sm">
-              No books found in the database catalog. Add a new book reference to get started.
-            </div>
-          )}
-        </div>
-
-        <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
-      </div>
-
-      {/* Floating Bulk Action Bar */}
       {selectedIds.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-ink-900/95 backdrop-blur-sm text-paper rounded-none px-6 py-4 shadow-2xl flex items-center justify-between gap-6 z-50 border border-ink-800 w-[calc(100%-2rem)] max-w-lg">
-          <div className="flex items-center gap-3">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-500 text-xs font-bold ring-4 ring-accent-500/20">
-              {selectedIds.length}
-            </span>
-            <span className="text-sm font-semibold tracking-wide text-paper-border">
-              {selectedIds.length === 1 ? 'Book selected' : 'Books selected'}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3 shrink-0">
-            <button
-              onClick={() => setSelectedIds([])}
-              className="px-4 py-2 text-xs font-bold text-ink-400 hover:text-paper transition-colors"
-            >
+        // Fixed, not sticky: the layout's <main> clips overflow, which stops sticky from pinning to the viewport.
+        <div className="fixed bottom-4 left-1/2 z-40 flex w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 items-center justify-between gap-4 border border-ink-900 bg-ink-950 px-5 py-3 text-paper">
+          <p className="text-sm font-medium">
+            <span className="mr-2 font-mono">{selectedIds.length}</span>
+            {selectedIds.length === 1 ? 'Book selected' : 'Books selected'}
+          </p>
+          <div className="flex shrink-0 items-center gap-3">
+            <button type="button" onClick={() => setSelectedIds([])} className="btn-secondary btn-sm">
               Clear
             </button>
-            <button
-              onClick={handleBulkDelete}
-              disabled={loading}
-              className="inline-flex items-center justify-center gap-2 rounded-none bg-signal-danger hover:bg-signal-danger active:bg-signal-danger px-5 py-2.5 text-xs font-bold text-paper shadow-md transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-              <span>Delete Selected</span>
+            <button type="button" onClick={handleBulkDelete} disabled={busy} className="btn-danger btn-sm">
+              Delete Selected
             </button>
           </div>
         </div>
       )}
 
-    </div>
-  );
+      <Modal
+        isOpen={editing !== null}
+        onClose={closeEdit}
+        title="Edit Book & Reference"
+        footer={
+          <>
+            <button type="button" onClick={closeEdit} className="btn-secondary">
+              Cancel
+            </button>
+            <button type="submit" form="doc-edit" disabled={saving} className="btn-primary">
+              {saving ? 'Updating...' : 'Update Book Reference'}
+            </button>
+          </>
+        }
+      >
+        {editError && <InlineNotice>{editError}</InlineNotice>}
+        <DocumentForm id="doc-edit" form={editForm} onChange={setEditForm} onSubmit={handleEditSave} />
+      </Modal>
+    </AdminPage>
+  )
 }

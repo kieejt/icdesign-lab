@@ -1,18 +1,36 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import * as XLSX from 'xlsx';
-import api from '../../lib/api';
-import ErrorText from '../../components/ErrorText';
-import Pagination from '../../components/Pagination';
-import Modal from '../../components/Modal';
-import Toast from '../../components/Toast';
-import { bibtexToResearchFields } from '../../utils/bibtex';
+import React, { useMemo, useState } from 'react'
+
+import api from '../../lib/api'
+import { invalidateQueries, useApiQuery } from '../../hooks/useApiQuery'
+import {
+  AdminCard,
+  AdminPage,
+  AdminTabs,
+  AdminThumb,
+  EmptyRow,
+  FormField,
+  InlineNotice,
+  RowActions,
+} from '../../components/admin'
+import Modal from '../../components/Modal'
+import Pagination from '../../components/Pagination'
+import Toast from '../../components/Toast'
+import { Badge, Skeleton, formatDate } from '../../components/ui'
+import { bibtexToResearchFields } from '../../utils/bibtex'
+
+const PAGE_SIZE = 10
+
+const TABS = [
+  { id: 'Project', label: 'Manage Projects' },
+  { id: 'Publications', label: 'Manage Publications' },
+]
 
 const EMPTY_PROJECT_FORM = {
   title: '',
   description: '',
   link: '',
   image: '',
-  date: ''
+  date: '',
 }
 
 const EMPTY_PUB_FORM = {
@@ -20,17 +38,14 @@ const EMPTY_PUB_FORM = {
   bibtex: '',
 }
 
+const BIBTEX_PLACEHOLDER = '@article{key,\n  title={...},\n  author={Last, First and Last2, First2},\n  journal={...},\n  year={2025}\n}'
+
 function CitationLine({ title, authors, journal, date, link }) {
   return (
     <p className="text-[15px] leading-relaxed text-ink-800">
       {authors && <span>{authors}, </span>}
       {link ? (
-        <a
-          href={link}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-ink-900 underline decoration-ink-300 underline-offset-2 hover:text-accent-700 hover:decoration-accent-400"
-        >
+        <a href={link} target="_blank" rel="noopener noreferrer" className="link">
           &ldquo;{title},&rdquo;
         </a>
       ) : (
@@ -42,77 +57,362 @@ function CitationLine({ title, authors, journal, date, link }) {
   )
 }
 
-export default function AdminResearchPage() {
-  const [researchItems, setResearchItems] = useState([])
-  const [activeTab, setActiveTab] = useState('Project')
-  const [page, setPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
+/**
+ * Reads the first sheet of an Excel file into preview rows.
+ * `XLSX` is passed in because the library is loaded on demand, not at module top.
+ *
+ * @returns {{error: string} | {rows: object[]}}
+ */
+function parsePublicationSheet(XLSX, buffer) {
+  const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' })
+  const worksheet = workbook.Sheets[workbook.SheetNames[0]]
+  const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+
+  if (jsonData.length === 0) return { error: 'The Excel file is empty.' }
+
+  const headers = jsonData[0].map((h) => String(h).trim())
+  const findColIndex = (patterns) =>
+    headers.findIndex((h) => patterns.some((p) => h.toLowerCase().includes(p.toLowerCase())))
+
+  const linkIdx = findColIndex(['link', 'url'])
+  const bibtexIdx = findColIndex(['bibtex', 'bib'])
+
+  if (bibtexIdx === -1) return { error: 'Could not find a "BibTeX" column in the Excel sheet.' }
+
+  const rows = jsonData
+    .slice(1)
+    .map((row, index) => {
+      if (row.length === 0 || row.every((val) => val === undefined || val === null || val === '')) {
+        return null
+      }
+
+      const link = linkIdx !== -1 && row[linkIdx] ? String(row[linkIdx]).trim() : ''
+      const bibtex = row[bibtexIdx] ? String(row[bibtexIdx]).trim() : ''
+      const parsed = bibtex ? bibtexToResearchFields(bibtex, link) : null
+
+      return {
+        rowIndex: index + 2,
+        link,
+        bibtex,
+        parsedTitle: parsed?.title || '',
+        parsedAuthors: parsed?.authors || '',
+        parsedJournal: parsed?.journal || '',
+        parsedYear: parsed?.date ? new Date(parsed.date).getFullYear() : '',
+        isValid: !!parsed,
+        error: parsed ? '' : 'Could not extract a title from the BibTeX entry.',
+      }
+    })
+    .filter(Boolean)
+
+  return { rows }
+}
+
+function ListSkeleton() {
+  return (
+    <div className="divide-hairline" aria-hidden="true">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="flex items-start gap-4 px-5 py-4">
+          <div className="min-w-0 flex-1 space-y-2">
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-3 w-1/3" />
+          </div>
+          <Skeleton className="h-8 w-28" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ProjectRow({ item, onEdit, onDelete }) {
+  return (
+    <div className="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center">
+      <div className="flex min-w-0 flex-1 items-center gap-4">
+        <AdminThumb src={item.image} alt="" icon="document" />
+        <div className="min-w-0">
+          <p className="truncate font-semibold text-ink-950">{item.title}</p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+            <Badge tone="accent">{item.category}</Badge>
+            {item.date && <span className="font-mono text-[11px] text-ink-400">{formatDate(item.date)}</span>}
+          </div>
+          {item.link && (
+            <a
+              href={item.link}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-1.5 block truncate text-sm text-ink-500 hover:text-accent-600"
+            >
+              {item.link}
+            </a>
+          )}
+        </div>
+      </div>
+      <RowActions onEdit={onEdit} onDelete={onDelete} />
+    </div>
+  )
+}
+
+function PublicationRow({ item, expanded, onToggleBibtex, onEdit, onDelete }) {
+  return (
+    <div className="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-start">
+      <div className="min-w-0 flex-1">
+        <CitationLine title={item.title} authors={item.authors} journal={item.journal} date={item.date} link={item.link} />
+        {item.bibtex ? (
+          <div className="mt-2">
+            <button
+              type="button"
+              onClick={onToggleBibtex}
+              aria-expanded={expanded}
+              className="font-mono text-[11px] font-medium uppercase tracking-label text-ink-400 hover:text-accent-600"
+            >
+              {expanded ? 'Hide BibTeX' : 'View BibTeX'}
+            </button>
+            {expanded && (
+              <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words border border-paper-border bg-paper-sunken p-3 font-mono text-xs text-ink-600">
+                {item.bibtex}
+              </pre>
+            )}
+          </div>
+        ) : (
+          <p className="mt-2 text-xs italic text-ink-400">Legacy entry — no BibTeX stored.</p>
+        )}
+      </div>
+      <RowActions onEdit={onEdit} onDelete={onDelete} />
+    </div>
+  )
+}
+
+function BulkImport({ onImported, onToast }) {
+  const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(false)
-  const [projectForm, setProjectForm] = useState(EMPTY_PROJECT_FORM)
-  const [pubForm, setPubForm] = useState(EMPTY_PUB_FORM)
-  const [editingId, setEditingId] = useState('')
-  const [isModalOpen, setIsModalOpen] = useState(false)
   const [error, setError] = useState('')
-  const [toast, setToast] = useState(null)
-  const [expandedBibtexIds, setExpandedBibtexIds] = useState(new Set())
 
-  // Excel bulk import (Publications only)
-  const [showBulkSection, setShowBulkSection] = useState(false)
-  const [bulkData, setBulkData] = useState([])
-  const [bulkLoading, setBulkLoading] = useState(false)
+  const validCount = rows.filter((r) => r.isValid).length
+  const errorCount = rows.length - validCount
 
-  const showToast = (message, type = 'info') => setToast({ message, type })
+  const downloadTemplate = async () => {
+    const XLSX = await import('xlsx')
+    const sample = [
+      'https://ieeexplore.ieee.org/document/example',
+      '@article{example2025, title={Sample Paper Title}, author={Nguyen, Van A and Tran, Thi B}, journal={IEEE Transactions on Example}, year={2025}}',
+    ]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Link', 'BibTeX'], sample]), 'Publications Template')
+    XLSX.writeFile(wb, 'ICDesign_Publications_Template.xlsx')
+  }
 
-  const loadResearch = async () => {
-    setLoading(true)
+  const handleFile = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
     try {
-      const { data } = await api.get('/research', { params: { category: activeTab, page, limit: 10 } })
-      setResearchItems(data.data)
-      setTotalPages(data.totalPages)
+      const [XLSX, buffer] = await Promise.all([import('xlsx'), file.arrayBuffer()])
+      const result = parsePublicationSheet(XLSX, buffer)
+      if (result.error) {
+        setError(result.error)
+        return
+      }
+      setRows(result.rows)
+      setError('')
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to load research')
+      console.error(err)
+      setError('Error reading Excel file. Please ensure it is a valid format.')
+    }
+  }
+
+  const confirmImport = async () => {
+    const valid = rows.filter((r) => r.isValid)
+    if (valid.length === 0) {
+      setError('No valid publications to import.')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+    try {
+      await api.post('/research/bulk', valid.map(({ link, bibtex }) => ({ link, bibtex })))
+      onToast(`Imported ${valid.length} publication(s) successfully.`, 'success')
+      setRows([])
+      onImported()
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to bulk import publications.')
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => {
-    loadResearch()
-  }, [activeTab, page])
+  return (
+    <AdminCard className="space-y-6">
+      {error && <InlineNotice>{error}</InlineNotice>}
+
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+        <div className="space-y-3 border border-paper-border bg-paper-sunken p-5">
+          <p className="eyebrow">Excel template</p>
+          <p className="text-sm leading-relaxed text-ink-600">
+            Just 2 columns: Link and BibTeX. Paste one full BibTeX entry per row.
+          </p>
+          <button type="button" onClick={downloadTemplate} className="btn-secondary btn-sm">
+            Download Template
+          </button>
+        </div>
+
+        <label className="flex cursor-pointer flex-col items-center justify-center border border-dashed border-ink-200 bg-paper-sunken/50 p-8 text-center transition-colors focus-within:border-ink-900 hover:border-ink-900 md:col-span-2">
+          <span className="text-sm font-semibold text-ink-900">Upload Excel spreadsheet</span>
+          <span className="mt-1 text-xs text-ink-500">Click to choose a .xlsx or .xls file</span>
+          <input type="file" accept=".xlsx, .xls" className="sr-only" onChange={handleFile} />
+        </label>
+      </div>
+
+      {rows.length > 0 && (
+        <div className="space-y-4 border-t border-paper-border pt-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-ink-950">Preview ({rows.length} rows parsed)</h3>
+            <div className="flex gap-2">
+              <Badge tone="ok">{validCount} Valid</Badge>
+              {errorCount > 0 && <Badge tone="danger">{errorCount} Errors</Badge>}
+            </div>
+          </div>
+
+          <div className="max-h-96 overflow-auto border border-paper-border">
+            <table className="min-w-full text-left text-sm">
+              <thead className="sticky top-0 bg-paper-sunken">
+                <tr className="border-b border-paper-border">
+                  {['Row', 'Title', 'Authors', 'Journal', 'Year', 'Status'].map((col) => (
+                    <th key={col} scope="col" className="eyebrow px-4 py-3 font-medium">
+                      {col}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-paper-border bg-paper-raised">
+                {rows.map((row) => (
+                  <tr key={row.rowIndex} className={row.isValid ? '' : 'bg-signal-dangerSoft/30'}>
+                    <td className="px-4 py-3 font-mono text-xs text-ink-400">#{row.rowIndex}</td>
+                    <td className="max-w-xs truncate px-4 py-3 font-medium text-ink-900" title={row.parsedTitle}>
+                      {row.parsedTitle || '-'}
+                    </td>
+                    <td className="max-w-xs truncate px-4 py-3 text-ink-600" title={row.parsedAuthors}>
+                      {row.parsedAuthors || '-'}
+                    </td>
+                    <td className="max-w-xs truncate px-4 py-3 italic text-ink-600" title={row.parsedJournal}>
+                      {row.parsedJournal || '-'}
+                    </td>
+                    <td className="px-4 py-3 text-ink-600">{row.parsedYear || '-'}</td>
+                    <td className="px-4 py-3">
+                      {row.isValid ? (
+                        <Badge tone="ok">Ready</Badge>
+                      ) : (
+                        <Badge tone="danger" className="cursor-help">
+                          <span title={row.error}>Error</span>
+                        </Badge>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex justify-end gap-3">
+            <button type="button" onClick={() => setRows([])} className="btn-secondary btn-sm">
+              Clear File
+            </button>
+            <button
+              type="button"
+              onClick={confirmImport}
+              disabled={loading || validCount === 0}
+              className="btn-primary btn-sm"
+            >
+              {loading ? 'Importing...' : `Import ${validCount} Valid Publications`}
+            </button>
+          </div>
+        </div>
+      )}
+    </AdminCard>
+  )
+}
+
+export default function AdminResearchPage() {
+  const [activeTab, setActiveTab] = useState('Project')
+  const [page, setPage] = useState(1)
+  const [projectForm, setProjectForm] = useState(EMPTY_PROJECT_FORM)
+  const [pubForm, setPubForm] = useState(EMPTY_PUB_FORM)
+  const [editingId, setEditingId] = useState('')
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [formError, setFormError] = useState('')
+  const [toast, setToast] = useState(null)
+  const [expandedBibtexIds, setExpandedBibtexIds] = useState(new Set())
+  const [showBulk, setShowBulk] = useState(false)
+  const { data, loading, error, refetch } = useApiQuery('/research', {
+    params: { category: activeTab, page, limit: PAGE_SIZE },
+    staleTime: 0,
+  })
+  const refresh = () => invalidateQueries('/research')
+
+  const items = data?.data ?? []
+  const totalPages = data?.totalPages ?? 1
+  const isPublications = activeTab === 'Publications'
+  const listError = error && !data
+  const label = isPublications ? 'Publication' : 'Project'
+
+  const showToast = (message, type = 'info') => setToast({ message, type })
 
   const pubPreview = useMemo(() => {
-    if (activeTab !== 'Publications') return null
     if (!pubForm.bibtex.trim()) return { parsed: null, attempted: false }
     return { parsed: bibtexToResearchFields(pubForm.bibtex, pubForm.link), attempted: true }
-  }, [activeTab, pubForm.bibtex, pubForm.link])
+  }, [pubForm.bibtex, pubForm.link])
+
+  const closeModal = () => {
+    setIsModalOpen(false)
+    setProjectForm(EMPTY_PROJECT_FORM)
+    setPubForm(EMPTY_PUB_FORM)
+    setEditingId('')
+    setFormError('')
+  }
+
+  const openAddModal = () => {
+    setEditingId('')
+    setProjectForm(EMPTY_PROJECT_FORM)
+    setPubForm(EMPTY_PUB_FORM)
+    setFormError('')
+    setIsModalOpen(true)
+  }
+
+  const openEditModal = (item) => {
+    setEditingId(item._id)
+    if (isPublications) {
+      setPubForm({ link: item.link || '', bibtex: item.bibtex || '' })
+    } else {
+      setProjectForm({
+        title: item.title,
+        description: item.description,
+        link: item.link || '',
+        image: item.image || '',
+        date: item.date ? new Date(item.date).toISOString().split('T')[0] : '',
+      })
+    }
+    setFormError('')
+    setIsModalOpen(true)
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    setError('')
+    setFormError('')
     try {
-      if (activeTab === 'Publications') {
-        const payload = { link: pubForm.link, bibtex: pubForm.bibtex, category: 'Publications' }
-        if (editingId) {
-          await api.put(`/research/${editingId}`, payload)
-          showToast('Publication updated successfully.', 'success')
-        } else {
-          await api.post('/research', payload)
-          showToast('Publication added successfully.', 'success')
-        }
+      const payload = isPublications
+        ? { link: pubForm.link, bibtex: pubForm.bibtex, category: 'Publications' }
+        : { ...projectForm, category: activeTab }
+
+      if (editingId) {
+        await api.put(`/research/${editingId}`, payload)
+        showToast(`${label} updated successfully.`, 'success')
       } else {
-        const payload = { ...projectForm, category: activeTab }
-        if (editingId) {
-          await api.put(`/research/${editingId}`, payload)
-          showToast('Project updated successfully.', 'success')
-        } else {
-          await api.post('/research', payload)
-          showToast('Project added successfully.', 'success')
-        }
+        await api.post('/research', payload)
+        showToast(`${label} added successfully.`, 'success')
       }
       closeModal()
-      loadResearch()
+      refresh()
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to save research')
+      setFormError(err.response?.data?.message || 'Failed to save research')
     }
   }
 
@@ -121,50 +421,16 @@ export default function AdminResearchPage() {
     try {
       await api.delete(`/research/${id}`)
       showToast('Item deleted.', 'success')
-      loadResearch()
+      refresh()
     } catch (err) {
       showToast(err.response?.data?.message || 'Failed to delete research', 'error')
     }
   }
 
-  const closeModal = () => {
-    setIsModalOpen(false)
-    setProjectForm(EMPTY_PROJECT_FORM)
-    setPubForm(EMPTY_PUB_FORM)
-    setEditingId('')
-    setError('')
-  }
-
-  const openAddModal = () => {
-    setEditingId('')
-    setProjectForm(EMPTY_PROJECT_FORM)
-    setPubForm(EMPTY_PUB_FORM)
-    setError('')
-    setIsModalOpen(true)
-  }
-
-  const openEditModal = (item) => {
-    setEditingId(item._id)
-    if (activeTab === 'Publications') {
-      setPubForm({ link: item.link || '', bibtex: item.bibtex || '' })
-    } else {
-      setProjectForm({
-        title: item.title,
-        description: item.description,
-        link: item.link || '',
-        image: item.image || '',
-        date: item.date ? new Date(item.date).toISOString().split('T')[0] : ''
-      })
-    }
-    setError('')
-    setIsModalOpen(true)
-  }
-
   const handleTabChange = (tab) => {
     setActiveTab(tab)
     setPage(1)
-    setShowBulkSection(false)
-    setBulkData([])
+    setShowBulk(false)
   }
 
   const toggleBibtexView = (id) => {
@@ -184,348 +450,85 @@ export default function AdminResearchPage() {
     formData.append('image', file)
 
     try {
-      const { data } = await api.post('/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+      const { data: uploaded } = await api.post('/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       })
-      setProjectForm((prev) => ({ ...prev, image: data.url }))
+      setProjectForm((prev) => ({ ...prev, image: uploaded.url }))
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to upload image')
+      setFormError(err.response?.data?.message || 'Failed to upload image')
     }
   }
 
-  // In prod VITE_API_URL is '/api' (same-origin, proxied by nginx); stripping that
-  // suffix leaves '', so uploads resolve as same-origin relative paths. In local dev
-  // it leaves 'http://localhost:5000', matching the backend's own port.
-  const uploadsBase = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '')
-  const resolveImageSrc = (image) => (image?.startsWith('/') ? `${uploadsBase}${image}` : image)
-
-  // ---- Excel bulk import (Publications: Link + BibTeX columns only) ----
-
-  const downloadSampleTemplate = () => {
-    const headers = ['Link', 'BibTeX']
-    const sampleRows = [
-      [
-        'https://ieeexplore.ieee.org/document/example',
-        '@article{example2025, title={Sample Paper Title}, author={Nguyen, Van A and Tran, Thi B}, journal={IEEE Transactions on Example}, year={2025}}'
-      ],
-    ]
-    const wsData = [headers, ...sampleRows]
-    const wb = XLSX.utils.book_new()
-    const ws = XLSX.utils.aoa_to_sheet(wsData)
-    XLSX.utils.book_append_sheet(wb, ws, 'Publications Template')
-    XLSX.writeFile(wb, 'ICDesign_Publications_Template.xlsx')
-  }
-
-  const handleExcelUpload = (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      try {
-        const data = new Uint8Array(event.target.result)
-        const workbook = XLSX.read(data, { type: 'array' })
-        const sheetName = workbook.SheetNames[0]
-        const worksheet = workbook.Sheets[sheetName]
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
-
-        if (jsonData.length === 0) {
-          setError('The Excel file is empty.')
-          return
-        }
-
-        const headers = jsonData[0].map((h) => String(h).trim())
-        const rows = jsonData.slice(1)
-
-        const findColIndex = (patterns) =>
-          headers.findIndex((h) => patterns.some((p) => h.toLowerCase().includes(p.toLowerCase())))
-
-        const linkIdx = findColIndex(['link', 'url'])
-        const bibtexIdx = findColIndex(['bibtex', 'bib'])
-
-        if (bibtexIdx === -1) {
-          setError('Could not find a "BibTeX" column in the Excel sheet.')
-          return
-        }
-
-        const parsedRows = rows.map((row, index) => {
-          if (row.length === 0 || row.every((val) => val === undefined || val === null || val === '')) {
-            return null
-          }
-
-          const link = linkIdx !== -1 && row[linkIdx] ? String(row[linkIdx]).trim() : ''
-          const bibtex = row[bibtexIdx] ? String(row[bibtexIdx]).trim() : ''
-
-          const parsed = bibtex ? bibtexToResearchFields(bibtex, link) : null
-
-          return {
-            rowIndex: index + 2,
-            link,
-            bibtex,
-            parsedTitle: parsed?.title || '',
-            parsedAuthors: parsed?.authors || '',
-            parsedJournal: parsed?.journal || '',
-            parsedYear: parsed?.date ? new Date(parsed.date).getFullYear() : '',
-            isValid: !!parsed,
-            error: parsed ? '' : "Could not extract a title from the BibTeX entry.",
-          }
-        }).filter(Boolean)
-
-        setBulkData(parsedRows)
-        setError('')
-      } catch (err) {
-        console.error(err)
-        setError('Error reading Excel file. Please ensure it is a valid format.')
-      }
-    }
-
-    reader.readAsArrayBuffer(file)
-  }
-
-  const handleConfirmBulkImport = async () => {
-    const validItems = bulkData.filter((item) => item.isValid)
-    if (validItems.length === 0) {
-      setError('No valid publications to import.')
-      return
-    }
-
-    setBulkLoading(true)
-    setError('')
-    try {
-      await api.post('/research/bulk', validItems.map(({ link, bibtex }) => ({ link, bibtex })))
-      showToast(`Imported ${validItems.length} publication(s) successfully.`, 'success')
-      setBulkData([])
-      setShowBulkSection(false)
-      loadResearch()
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to bulk import publications.')
-    } finally {
-      setBulkLoading(false)
-    }
-  }
+  const setProject = (field) => (e) => setProjectForm((prev) => ({ ...prev, [field]: e.target.value }))
+  const setPub = (field) => (e) => setPubForm((prev) => ({ ...prev, [field]: e.target.value }))
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-paper-border pb-4">
-        <h2 className="text-2xl font-semibold tracking-tight text-ink-900">Manage Research & Publications</h2>
-        <div className="flex items-center gap-2">
-          {activeTab === 'Publications' && (
-            <button
-              type="button"
-              onClick={() => { setShowBulkSection((prev) => !prev); setError('') }}
-              className="rounded-none border border-paper-border bg-paper-raised px-4 py-2 text-sm font-semibold text-ink-700 hover:bg-paper-sunken transition-colors"
-            >
-              {showBulkSection ? 'Hide Bulk Import' : 'Excel Bulk Import'}
+    <AdminPage
+      title="Manage Research & Publications"
+      description="Projects and publications shown on the public Research pages."
+      actions={
+        <>
+          {isPublications && (
+            <button type="button" onClick={() => setShowBulk((prev) => !prev)} className="btn-secondary">
+              {showBulk ? 'Hide Bulk Import' : 'Excel Bulk Import'}
             </button>
           )}
-          <button
-            type="button"
-            onClick={openAddModal}
-            className="rounded-none bg-accent-600 px-4 py-2 text-sm font-semibold text-paper hover:bg-accent-700 transition-colors"
-          >
-            + Add New {activeTab}
+          <button type="button" onClick={openAddModal} className="btn-primary">
+            Add {label}
           </button>
-        </div>
-      </div>
+        </>
+      }
+    >
+      <div className="space-y-5">
+        <AdminTabs label="Research sections" tabs={TABS} active={activeTab} onChange={handleTabChange} />
 
-      <ErrorText message={error && !isModalOpen ? error : ''} />
+        {isPublications && showBulk && (
+          <BulkImport
+            onImported={() => {
+              setShowBulk(false)
+              refresh()
+            }}
+            onToast={showToast}
+          />
+        )}
 
-      {/* Top Level Tabs */}
-      <div className="flex gap-6 border-b border-paper-border">
-        <button
-          type="button"
-          className={`pb-3 px-2 ${activeTab === 'Project' ? 'border-b-2 border-accent-600 font-semibold text-ink-900' : 'text-ink-500 font-medium hover:text-ink-700'}`}
-          onClick={() => handleTabChange('Project')}
-        >
-          Manage Projects
-        </button>
-        <button
-          type="button"
-          className={`pb-3 px-2 ${activeTab === 'Publications' ? 'border-b-2 border-accent-600 font-semibold text-ink-900' : 'text-ink-500 font-medium hover:text-ink-700'}`}
-          onClick={() => handleTabChange('Publications')}
-        >
-          Manage Publications
-        </button>
-      </div>
-
-      {/* Excel Bulk Import (Publications only) */}
-      {activeTab === 'Publications' && showBulkSection && (
-        <div className="space-y-6 rounded-none border border-paper-border bg-paper-raised p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="md:col-span-1 border border-accent-50 bg-accent-50/20 rounded-none p-5 space-y-4">
-              <h4 className="text-sm font-bold text-accent-700">Excel Template</h4>
-              <p className="text-xs text-ink-600 leading-relaxed">
-                Just 2 columns: Link and BibTeX. Paste one full BibTeX entry per row.
-              </p>
-              <button
-                onClick={downloadSampleTemplate}
-                className="w-full rounded-none bg-accent-600 px-4 py-2.5 text-xs font-bold text-paper hover:bg-accent-700 transition-colors"
-              >
-                Download Template
-              </button>
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="flex flex-col items-center justify-center border-2 border-dashed border-paper-border hover:border-accent-400 rounded-none p-8 bg-paper-sunken/50 hover:bg-paper-sunken cursor-pointer transition-all text-center h-full">
-                <p className="text-sm font-bold text-ink-800">Upload Excel spreadsheet</p>
-                <p className="text-xs text-ink-500 mt-1">Drag and drop or click to choose .xlsx or .xls files</p>
-                <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleExcelUpload} />
-              </label>
-            </div>
-          </div>
-
-          {bulkData.length > 0 && (
-            <div className="space-y-4 pt-4 border-t border-ink-100">
-              <div className="flex justify-between items-center">
-                <h4 className="font-bold text-sm text-ink-900">Preview ({bulkData.length} rows parsed)</h4>
-                <div className="flex gap-2">
-                  <span className="rounded-full bg-signal-okSoft px-2.5 py-0.5 text-xs font-semibold text-signal-ok">
-                    {bulkData.filter((d) => d.isValid).length} Valid
-                  </span>
-                  {bulkData.some((d) => !d.isValid) && (
-                    <span className="rounded-full bg-signal-dangerSoft px-2.5 py-0.5 text-xs font-semibold text-signal-danger">
-                      {bulkData.filter((d) => !d.isValid).length} Errors
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <div className="border border-paper-border rounded-none overflow-hidden max-h-96 overflow-y-auto">
-                <table className="min-w-full divide-y divide-ink-100 text-xs text-left">
-                  <thead className="bg-paper-sunken text-ink-500 font-bold uppercase sticky top-0">
-                    <tr>
-                      <th className="px-4 py-3">Row</th>
-                      <th className="px-4 py-3">Title</th>
-                      <th className="px-4 py-3">Authors</th>
-                      <th className="px-4 py-3">Journal</th>
-                      <th className="px-4 py-3">Year</th>
-                      <th className="px-4 py-3">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-ink-100 bg-paper-raised">
-                    {bulkData.map((row) => (
-                      <tr key={row.rowIndex} className={!row.isValid ? 'bg-signal-dangerSoft/20' : ''}>
-                        <td className="px-4 py-3 font-bold text-ink-500">#{row.rowIndex}</td>
-                        <td className="px-4 py-3 max-w-xs truncate font-semibold text-ink-800" title={row.parsedTitle}>{row.parsedTitle || '-'}</td>
-                        <td className="px-4 py-3 max-w-xs truncate text-ink-600" title={row.parsedAuthors}>{row.parsedAuthors || '-'}</td>
-                        <td className="px-4 py-3 max-w-xs truncate text-ink-600 italic" title={row.parsedJournal}>{row.parsedJournal || '-'}</td>
-                        <td className="px-4 py-3 text-ink-600">{row.parsedYear || '-'}</td>
-                        <td className="px-4 py-3">
-                          {row.isValid ? (
-                            <span className="rounded-full bg-signal-okSoft px-2 py-0.5 text-xs font-semibold text-signal-ok">Ready</span>
-                          ) : (
-                            <span className="rounded-full bg-signal-dangerSoft px-2 py-0.5 text-xs font-semibold text-signal-danger cursor-help" title={row.error}>Error</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  onClick={() => setBulkData([])}
-                  className="rounded-none border border-paper-border bg-paper-raised px-4 py-2 text-xs font-bold text-ink-700 hover:bg-paper-sunken"
-                >
-                  Clear File
-                </button>
-                <button
-                  onClick={handleConfirmBulkImport}
-                  disabled={bulkLoading || bulkData.filter((d) => d.isValid).length === 0}
-                  className="rounded-none bg-accent-600 px-5 py-2.5 text-xs font-bold text-paper hover:bg-accent-700 disabled:opacity-50"
-                >
-                  {bulkLoading ? 'Importing...' : `Import ${bulkData.filter((d) => d.isValid).length} Valid Publications`}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Filtered List */}
-      <div className="space-y-4">
-        {loading ? (
-          <div className="flex h-24 items-center justify-center rounded-none border border-paper-border bg-paper-raised">
-            <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-ink-900" />
-          </div>
-        ) : researchItems.length === 0 ? (
-          <p className="text-ink-500 py-8 text-center bg-paper-sunken rounded-none border border-paper-border border-dashed">
-            No {activeTab.toLowerCase()} records found. Use "Add New {activeTab}" to create one.
-          </p>
-        ) : activeTab === 'Publications' ? (
-          researchItems.map((item) => (
-            <div key={item._id} className="rounded border border-paper-border bg-paper-raised p-5 hover:shadow-sm transition-shadow">
-              <CitationLine title={item.title} authors={item.authors} journal={item.journal} date={item.date} link={item.link} />
-
-              {item.bibtex ? (
-                <div className="mt-3">
-                  <button
-                    type="button"
-                    onClick={() => toggleBibtexView(item._id)}
-                    className="text-xs font-medium text-accent-600 hover:underline"
-                  >
-                    {expandedBibtexIds.has(item._id) ? 'Hide BibTeX' : 'View BibTeX'}
-                  </button>
-                  {expandedBibtexIds.has(item._id) && (
-                    <pre className="mt-2 whitespace-pre-wrap break-words rounded bg-paper-sunken border border-ink-100 p-3 text-xs font-mono text-ink-600">
-                      {item.bibtex}
-                    </pre>
-                  )}
-                </div>
-              ) : (
-                <p className="mt-3 text-xs italic text-ink-400">Legacy entry — no BibTeX stored.</p>
-              )}
-
-              <div className="mt-5 flex gap-2 pt-4 border-t border-ink-100">
-                <button
-                  type="button"
-                  onClick={() => openEditModal(item)}
-                  className="rounded bg-signal-warn px-4 py-1.5 text-xs font-semibold text-paper hover:bg-signal-warn transition-colors shadow-sm"
-                >
-                  Edit
-                </button>
-                <button type="button" onClick={() => handleDelete(item._id)} className="rounded bg-signal-danger px-4 py-1.5 text-xs font-semibold text-paper hover:bg-signal-danger transition-colors shadow-sm">
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))
+        {listError ? (
+          <InlineNotice>
+            {error.response?.data?.message || 'Failed to load research'}{' '}
+            <button type="button" onClick={refetch} className="font-semibold underline underline-offset-2">
+              Retry
+            </button>
+          </InlineNotice>
+        ) : loading ? (
+          <AdminCard padded={false}>
+            <ListSkeleton />
+          </AdminCard>
+        ) : items.length === 0 ? (
+          <EmptyRow>
+            No {activeTab.toLowerCase()} records found. Use &ldquo;Add {label}&rdquo; to create one.
+          </EmptyRow>
         ) : (
-          researchItems.map((item) => (
-            <div key={item._id} className="rounded border border-paper-border bg-paper-raised p-5 hover:shadow-sm transition-shadow">
-              <div className="flex justify-between items-start gap-4">
-                <div className="min-w-0">
-                  <p className="font-semibold text-ink-900 text-lg">{item.title}</p>
-                  <div className="flex gap-2 items-center mt-2 flex-wrap">
-                    <span className="text-xs font-semibold uppercase tracking-wider text-accent-600 bg-accent-100 px-2 py-0.5 rounded-full">{item.category}</span>
-                    {item.date && <span className="text-xs font-medium text-ink-500 bg-ink-100 px-2 py-0.5 rounded-full">{new Date(item.date).toLocaleDateString()}</span>}
-                  </div>
-                  {item.link && (
-                     <p className="text-sm text-ink-600 mt-3 truncate"><span className="font-medium">Link:</span> <a href={item.link} className="text-accent-500 hover:underline" target="_blank" rel="noreferrer">{item.link}</a></p>
-                  )}
-                </div>
-                {item.image && (
-                  <div className="w-16 h-16 rounded overflow-hidden border bg-paper-raised shrink-0">
-                    <img src={resolveImageSrc(item.image)} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none' }} />
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-5 flex gap-2 pt-4 border-t border-ink-100">
-                <button
-                  type="button"
-                  onClick={() => openEditModal(item)}
-                  className="rounded bg-signal-warn px-4 py-1.5 text-xs font-semibold text-paper hover:bg-signal-warn transition-colors shadow-sm"
-                >
-                  Edit
-                </button>
-                <button type="button" onClick={() => handleDelete(item._id)} className="rounded bg-signal-danger px-4 py-1.5 text-xs font-semibold text-paper hover:bg-signal-danger transition-colors shadow-sm">
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))
+          <AdminCard padded={false} className="divide-hairline">
+            {items.map((item) =>
+              isPublications ? (
+                <PublicationRow
+                  key={item._id}
+                  item={item}
+                  expanded={expandedBibtexIds.has(item._id)}
+                  onToggleBibtex={() => toggleBibtexView(item._id)}
+                  onEdit={() => openEditModal(item)}
+                  onDelete={() => handleDelete(item._id)}
+                />
+              ) : (
+                <ProjectRow
+                  key={item._id}
+                  item={item}
+                  onEdit={() => openEditModal(item)}
+                  onDelete={() => handleDelete(item._id)}
+                />
+              ),
+            )}
+          </AdminCard>
         )}
 
         <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} loading={loading} />
@@ -534,53 +537,68 @@ export default function AdminResearchPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={closeModal}
-        title={editingId ? `Edit ${activeTab}` : `Add New ${activeTab}`}
+        title={editingId ? `Edit ${label}` : `Add New ${label}`}
         footer={
           <>
-            <button
-              type="button"
-              onClick={closeModal}
-              className="px-4 py-2 text-sm font-medium text-ink-600 hover:text-ink-900"
-            >
+            <button type="button" onClick={closeModal} className="btn-secondary">
               Cancel
             </button>
             <button
               type="submit"
               form="research-form"
-              disabled={activeTab === 'Publications' && pubPreview?.attempted && !pubPreview.parsed}
-              className="px-4 py-2 bg-accent-600 text-paper rounded-none text-sm font-medium hover:bg-accent-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isPublications && pubPreview.attempted && !pubPreview.parsed}
+              className="btn-primary"
             >
-              {editingId ? `Update ${activeTab}` : `Save ${activeTab}`}
+              {editingId ? `Update ${label}` : `Save ${label}`}
             </button>
           </>
         }
       >
-        <ErrorText message={error} />
-        {activeTab === 'Publications' ? (
-          <form id="research-form" onSubmit={handleSubmit} className="space-y-4">
-            <input
-              type="url"
-              value={pubForm.link}
-              onChange={(e) => setPubForm({ ...pubForm, link: e.target.value })}
-              className="w-full rounded border px-3 py-2"
-              placeholder="Link to publication (optional — falls back to BibTeX url/doi)"
-            />
-            <textarea
-              value={pubForm.bibtex}
-              onChange={(e) => setPubForm({ ...pubForm, bibtex: e.target.value })}
-              className="min-h-40 w-full rounded border px-3 py-2 font-mono text-xs"
-              placeholder={'@article{key,\n  title={...},\n  author={Last, First and Last2, First2},\n  journal={...},\n  year={2025}\n}'}
-              required={!editingId}
-            />
-            <p className="text-xs text-ink-500">
-              Paste the full BibTeX entry (not <code>@string</code> macro abbreviations). Only the first entry is used if multiple are pasted.
-              {editingId && ' Leave blank to keep this publication\'s current citation unchanged (only the link will update).'}
-            </p>
+        {formError && <InlineNotice className="mb-4">{formError}</InlineNotice>}
 
-            <div className="rounded-none border border-paper-border bg-paper-sunken p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-ink-500 mb-2">Parsed Preview</p>
-              {!pubPreview?.attempted ? (
-                <p className="text-sm text-ink-400 italic">Paste a BibTeX entry to see the compiled citation here.</p>
+        {isPublications ? (
+          <form id="research-form" onSubmit={handleSubmit} className="space-y-5">
+            <FormField
+              label="Link"
+              htmlFor="pub-link"
+              hint="Optional — falls back to the BibTeX url/doi."
+            >
+              <input
+                id="pub-link"
+                type="url"
+                value={pubForm.link}
+                onChange={setPub('link')}
+                className="field"
+                placeholder="Link to publication"
+              />
+            </FormField>
+
+            <FormField
+              label="BibTeX"
+              htmlFor="pub-bibtex"
+              required={!editingId}
+              hint={
+                <>
+                  Paste the full BibTeX entry (not <code>@string</code> macro abbreviations). Only the first entry is
+                  used if multiple are pasted.
+                  {editingId && " Leave blank to keep this publication's current citation unchanged (only the link will update)."}
+                </>
+              }
+            >
+              <textarea
+                id="pub-bibtex"
+                value={pubForm.bibtex}
+                onChange={setPub('bibtex')}
+                className="field min-h-40 font-mono text-xs"
+                placeholder={BIBTEX_PLACEHOLDER}
+                required={!editingId}
+              />
+            </FormField>
+
+            <div className="border border-paper-border bg-paper-sunken p-4">
+              <p className="eyebrow mb-2">Parsed preview</p>
+              {!pubPreview.attempted ? (
+                <p className="text-sm italic text-ink-400">Paste a BibTeX entry to see the compiled citation here.</p>
               ) : pubPreview.parsed ? (
                 <>
                   <CitationLine
@@ -598,41 +616,84 @@ export default function AdminResearchPage() {
                 </>
               ) : (
                 <p className="text-sm font-medium text-signal-danger">
-                  Could not detect a 'title' field yet — check the BibTeX syntax.
+                  Could not detect a &lsquo;title&rsquo; field yet — check the BibTeX syntax.
                 </p>
               )}
             </div>
           </form>
         ) : (
-          <form id="research-form" onSubmit={handleSubmit} className="space-y-4">
-            <input value={projectForm.title} onChange={(e) => setProjectForm({ ...projectForm, title: e.target.value })} className="w-full rounded border px-3 py-2" placeholder="Project Title" required />
-            <textarea value={projectForm.description} onChange={(e) => setProjectForm({ ...projectForm, description: e.target.value })} className="min-h-24 w-full rounded border px-3 py-2" placeholder="Description" required />
+          <form id="research-form" onSubmit={handleSubmit} className="space-y-5">
+            <FormField label="Project Title" htmlFor="project-title" required>
+              <input
+                id="project-title"
+                value={projectForm.title}
+                onChange={setProject('title')}
+                className="field"
+                placeholder="Project Title"
+                required
+              />
+            </FormField>
 
-            <input type="url" value={projectForm.link} onChange={(e) => setProjectForm({ ...projectForm, link: e.target.value })} className="w-full rounded border px-3 py-2" placeholder="Link to Project URL" />
+            <FormField label="Description" htmlFor="project-description" required>
+              <textarea
+                id="project-description"
+                value={projectForm.description}
+                onChange={setProject('description')}
+                className="field min-h-24"
+                placeholder="Description"
+                required
+              />
+            </FormField>
 
-            <div className="flex items-center gap-4 border rounded p-3 bg-paper-sunken">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-ink-700 mb-1">Cover Image (Optional)</label>
-                <input type="file" accept="image/*" onChange={handleImageUpload} className="w-full text-sm text-ink-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-accent-50 file:text-accent-700 hover:file:bg-accent-100" />
-                <div className="mt-2 text-xs text-ink-500">Or enter URL manually:</div>
-                <input value={projectForm.image} onChange={(e) => setProjectForm({ ...projectForm, image: e.target.value })} className="w-full rounded border px-3 py-1.5 text-sm mt-1" placeholder="Image URL" />
+            <FormField label="Project URL" htmlFor="project-link">
+              <input
+                id="project-link"
+                type="url"
+                value={projectForm.link}
+                onChange={setProject('link')}
+                className="field"
+                placeholder="Link to Project URL"
+              />
+            </FormField>
+
+            <div className="flex items-start gap-4 border border-paper-border bg-paper-sunken p-4">
+              <div className="min-w-0 flex-1 space-y-3">
+                <FormField label="Cover Image (Optional)" htmlFor="project-image-file">
+                  <input
+                    id="project-image-file"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="field file:mr-4 file:border-0 file:bg-ink-100 file:px-3 file:py-1 file:text-xs file:font-medium file:text-ink-800"
+                  />
+                </FormField>
+                <FormField label="Or enter URL manually" htmlFor="project-image-url">
+                  <input
+                    id="project-image-url"
+                    value={projectForm.image}
+                    onChange={setProject('image')}
+                    className="field"
+                    placeholder="Image URL"
+                  />
+                </FormField>
               </div>
-              {projectForm.image && (
-                <div className="w-20 h-20 rounded overflow-hidden border bg-paper-raised shrink-0">
-                  <img src={resolveImageSrc(projectForm.image)} alt="Preview" className="w-full h-full object-cover" onError={(e) => { e.target.src = 'https://via.placeholder.com/80?text=Error' }} />
-                </div>
-              )}
+              {projectForm.image && <AdminThumb key={projectForm.image} src={projectForm.image} alt="Cover preview" size="h-20 w-20" />}
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-ink-600 mb-1">Project Date (Optional)</label>
-              <input type="date" value={projectForm.date} onChange={(e) => setProjectForm({ ...projectForm, date: e.target.value })} className="w-full md:w-1/2 rounded border px-3 py-2" />
-            </div>
+            <FormField label="Project Date (Optional)" htmlFor="project-date" className="md:w-1/2">
+              <input
+                id="project-date"
+                type="date"
+                value={projectForm.date}
+                onChange={setProject('date')}
+                className="field"
+              />
+            </FormField>
           </form>
         )}
       </Modal>
 
       <Toast toast={toast} onDismiss={() => setToast(null)} />
-    </div>
+    </AdminPage>
   )
 }

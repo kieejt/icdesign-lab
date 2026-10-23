@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
-import ErrorText from '../../components/ErrorText'
+import { FormField, InlineNotice } from '../../components/admin'
 import { useAuth } from '../../contexts/AuthContext'
 import { Icon, Shell } from '../../components/ui'
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { t } = useTranslation()
   const { currentUser, login } = useAuth()
 
@@ -21,8 +22,14 @@ export default function LoginPage() {
   // portal, which is the only member-gated area they can use.
   useEffect(() => {
     if (!currentUser) return
-    navigate(currentUser.role === 'admin' ? '/admin/dashboard' : '/lectures', { replace: true })
-  }, [currentUser, navigate])
+    // Return to the page that sent them here (ProtectedAdminRoute records it) so
+    // a session that expired mid-task resumes where it stopped.
+    const from = location.state?.from
+    const fallback = currentUser.role === 'admin' ? '/admin/dashboard' : '/lectures'
+    navigate(typeof from === 'string' && from.startsWith('/admin') && currentUser.role === 'admin' ? from : fallback, {
+      replace: true,
+    })
+  }, [currentUser, navigate, location.state])
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -55,10 +62,7 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="surface space-y-5 p-7">
-          <div>
-            <label htmlFor="email" className="field-label">
-              Email
-            </label>
+          <FormField label="Email" htmlFor="email">
             <input
               id="email"
               type="email"
@@ -70,19 +74,16 @@ export default function LoginPage() {
               autoFocus
               required
             />
-          </div>
+          </FormField>
 
-          <div>
-            <label htmlFor="password" className="field-label">
-              Password
-            </label>
+          <FormField label="Password" htmlFor="password">
             <div className="relative">
               <input
                 id="password"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="field pr-16"
+                className="field pr-20"
                 placeholder="••••••••"
                 autoComplete="current-password"
                 required
@@ -90,14 +91,15 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 font-mono text-[10px] uppercase tracking-label text-ink-400 transition-colors hover:text-ink-900"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                className="btn-ghost btn-sm absolute right-1 top-1/2 -translate-y-1/2 font-mono text-[10px] uppercase tracking-label"
               >
                 {showPassword ? 'Hide' : 'Show'}
               </button>
             </div>
-          </div>
+          </FormField>
 
-          <ErrorText message={error} />
+          {error && <InlineNotice>{error}</InlineNotice>}
 
           <button type="submit" disabled={loading} className="btn-primary w-full">
             {loading ? 'Signing in…' : t('nav.Login')}

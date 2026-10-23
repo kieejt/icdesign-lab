@@ -1,9 +1,16 @@
-import React, { useEffect, useState } from 'react';
-import api from '../../lib/api';
-import ErrorText from '../../components/ErrorText';
-import Pagination from '../../components/Pagination'
+import React, { useCallback, useState } from 'react'
+
+import { AdminCard, AdminPage, AdminTabs, AdminThumb, EmptyRow, FormField, InlineNotice, RowActions } from '../../components/admin'
 import Modal from '../../components/Modal'
+import Pagination from '../../components/Pagination'
 import Toast from '../../components/Toast'
+import { ErrorState, Skeleton } from '../../components/ui'
+import useDebouncedValue from '../../hooks/useDebouncedValue'
+import { invalidateQueries, useApiQuery } from '../../hooks/useApiQuery'
+import api from '../../lib/api'
+import { responsiveImage } from '../../lib/image'
+
+const PAGE_SIZE = 12
 
 const CATEGORY_TABS = [
   { id: 'Professors', label: 'Professors' },
@@ -20,63 +27,77 @@ const EMPTY_FORM = {
   image: '',
 }
 
+function MemberRow({ member, onEdit, onDelete }) {
+  return (
+    <li className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <div className="flex min-w-0 items-center gap-4">
+        <AdminThumb src={member.image} icon="user" size="h-12 w-12" />
+        <div className="min-w-0">
+          <p className="truncate font-medium text-ink-950">{member.name}</p>
+          <p className="truncate text-sm text-ink-500">
+            {member.role} · {member.email}
+          </p>
+        </div>
+      </div>
+      <RowActions onEdit={() => onEdit(member)} onDelete={() => onDelete(member._id)} />
+    </li>
+  )
+}
+
+function MemberListSkeleton() {
+  return (
+    <ul className="divide-hairline" aria-hidden="true">
+      {Array.from({ length: 6 }, (_, i) => (
+        <li key={i} className="flex items-center gap-4 px-5 py-4">
+          <Skeleton className="h-12 w-12 shrink-0" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-4 w-1/3" />
+            <Skeleton className="h-3 w-1/2" />
+          </div>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 export default function AdminPeoplePage() {
-  const [members, setMembers] = useState([])
   const [memberForm, setMemberForm] = useState(EMPTY_FORM)
   const [editingId, setEditingId] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [error, setError] = useState('')
+  const [formError, setFormError] = useState('')
   const [toast, setToast] = useState(null)
   const [activeCategory, setActiveCategory] = useState('Professors')
   const [page, setPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [total, setTotal] = useState(0)
-  const [listLoading, setListLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const search = useDebouncedValue(searchTerm, 400)
+
+  const { data, loading, error, isValidating, refetch } = useApiQuery('/members', {
+    params: { page, limit: PAGE_SIZE, search, category: activeCategory },
+    staleTime: 0,
+  })
+
+  const members = data?.data ?? []
+  const totalPages = data?.totalPages || 1
+  const total = data?.total || 0
 
   const showToast = (message, type = 'info') => setToast({ message, type })
-
-  const loadMembers = async () => {
-    try {
-      setListLoading(true)
-      const { data } = await api.get('/members', {
-        params: { page, limit: 12, search: debouncedSearch, category: activeCategory },
-      })
-      setMembers(data.data)
-      setTotalPages(data.totalPages || 1)
-      setTotal(data.total || 0)
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to load members')
-    } finally {
-      setListLoading(false)
-    }
-  }
-
-  // Debounce the free-text search so we don't fire a request on every keystroke
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 400)
-    return () => clearTimeout(timer)
-  }, [searchTerm])
-
-  // Jump back to page 1 whenever the search term changes
-  useEffect(() => {
-    setPage(1)
-  }, [debouncedSearch])
-
-  useEffect(() => {
-    loadMembers()
-  }, [page, debouncedSearch, activeCategory])
+  const dismissToast = useCallback(() => setToast(null), [])
+  const setField = (field) => (e) => setMemberForm((prev) => ({ ...prev, [field]: e.target.value }))
 
   const handleTabChange = (category) => {
     setActiveCategory(category)
     setPage(1)
   }
 
+  const handleSearchChange = (e) => {
+    setSearchTerm(e.target.value)
+    setPage(1)
+  }
+
   const openAddModal = () => {
     setEditingId('')
     setMemberForm({ ...EMPTY_FORM, category: activeCategory })
-    setError('')
+    setFormError('')
     setIsModalOpen(true)
   }
 
@@ -90,20 +111,22 @@ export default function AdminPeoplePage() {
       research: member.research || '',
       image: member.image || '',
     })
-    setError('')
+    setFormError('')
     setIsModalOpen(true)
   }
 
-  const closeModal = () => {
+  // Stable identity: Modal re-runs its focus effect whenever `onClose` changes,
+  // which would pull focus out of the field being typed in.
+  const closeModal = useCallback(() => {
     setIsModalOpen(false)
     setEditingId('')
     setMemberForm(EMPTY_FORM)
-    setError('')
-  }
+    setFormError('')
+  }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    setError('')
+    setFormError('')
     try {
       if (editingId) {
         await api.put(`/members/${editingId}`, memberForm)
@@ -113,9 +136,9 @@ export default function AdminPeoplePage() {
         showToast('Member added successfully.', 'success')
       }
       closeModal()
-      loadMembers()
+      invalidateQueries('/members')
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to save member')
+      setFormError(err.response?.data?.message || 'Failed to save member')
     }
   }
 
@@ -124,11 +147,9 @@ export default function AdminPeoplePage() {
     try {
       await api.delete(`/members/${id}`)
       showToast('Member deleted.', 'success')
-      if (members.length === 1 && page > 1) {
-        setPage(page - 1)
-      } else {
-        loadMembers()
-      }
+      // Deleting the last row of a later page would otherwise leave an empty page.
+      if (members.length === 1 && page > 1) setPage(page - 1)
+      invalidateQueries('/members')
     } catch (err) {
       showToast(err.response?.data?.message || 'Failed to delete member', 'error')
     }
@@ -142,107 +163,75 @@ export default function AdminPeoplePage() {
     formData.append('image', file)
 
     try {
-      const { data } = await api.post('/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+      const { data: uploaded } = await api.post('/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       })
-      setMemberForm((prev) => ({ ...prev, image: data.url }))
+      setMemberForm((prev) => ({ ...prev, image: uploaded.url }))
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to upload image')
+      setFormError(err.response?.data?.message || 'Failed to upload image')
     }
   }
 
-  // In prod VITE_API_URL is '/api' (same-origin, proxied by nginx); stripping that
-  // suffix leaves '', so uploads resolve as same-origin relative paths. In local dev
-  // it leaves 'http://localhost:5000', matching the backend's own port.
-  const uploadsBase = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '')
-  const resolveImageSrc = (image) => (image?.startsWith('/') ? `${uploadsBase}${image}` : image)
+  const listError = error && !data
+  const empty = !loading && !listError && members.length === 0
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-paper-border pb-4">
-        <h2 className="text-2xl font-semibold tracking-tight text-ink-900">Manage People</h2>
-        <button
-          type="button"
-          onClick={openAddModal}
-          className="rounded-none bg-accent-600 px-4 py-2 text-sm font-semibold text-paper hover:bg-accent-700 transition-colors"
-        >
-          + Add Member
+    <AdminPage
+      title="Manage People"
+      description="Professors, students and alumni shown on the public People pages."
+      actions={
+        <button type="button" onClick={openAddModal} className="btn-primary">
+          Add Member
         </button>
-      </div>
-
-      {/* Category Tabs */}
-      <div className="flex space-x-1 rounded-none bg-ink-100 p-1 w-full max-w-xl">
-        {CATEGORY_TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => handleTabChange(tab.id)}
-            className={`flex-1 rounded-none py-2 text-sm font-medium transition-all ${
-              activeCategory === tab.id
-                ? 'bg-paper-raised text-ink-900 shadow'
-                : 'text-ink-600 hover:text-ink-900'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex items-center justify-between gap-4">
-        <h3 className="text-sm font-medium text-ink-700">{activeCategory} {total ? `(${total})` : ''}</h3>
-        <input
-          type="text"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Search by name or email..."
-          className="rounded border px-3 py-2 text-sm"
+      }
+    >
+      <div className="space-y-5">
+        <AdminTabs
+          label="Member categories"
+          tabs={CATEGORY_TABS.map((tab) => (tab.id === activeCategory && total ? { ...tab, count: total } : tab))}
+          active={activeCategory}
+          onChange={handleTabChange}
         />
-      </div>
 
-      <div className="space-y-2">
-        {listLoading ? (
-          <div className="flex h-24 items-center justify-center rounded-none border border-paper-border bg-paper-raised">
-            <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-ink-900" />
-          </div>
-        ) : members.length === 0 ? (
-          <p className="text-ink-500 py-8 text-center bg-paper-sunken rounded-none border border-paper-border border-dashed">
-            No {activeCategory.toLowerCase()} found. Use "Add Member" to create one.
-          </p>
+        <div className="max-w-md">
+          <label htmlFor="people-search" className="sr-only">
+            Search members
+          </label>
+          <input
+            id="people-search"
+            type="search"
+            value={searchTerm}
+            onChange={handleSearchChange}
+            placeholder="Search by name or email..."
+            className="field"
+          />
+        </div>
+
+        {listError ? (
+          <ErrorState
+            message={error.response?.data?.message || 'Failed to load members'}
+            onRetry={refetch}
+          />
+        ) : empty ? (
+          <EmptyRow>
+            {search ? 'No members match your search.' : `No ${activeCategory.toLowerCase()} found. Use "Add Member" to create one.`}
+          </EmptyRow>
         ) : (
-          members.map((member) => (
-            <div key={member._id} className="flex items-center justify-between rounded-none border border-paper-border bg-paper-raised p-3 shadow-sm">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 rounded-full overflow-hidden border bg-ink-100 shrink-0">
-                  {member.image ? (
-                    <img
-                      src={resolveImageSrc(member.image)}
-                      alt=""
-                      className="w-full h-full object-cover"
-                      onError={(e) => { e.target.style.display = 'none' }}
-                    />
-                  ) : null}
-                </div>
-                <div className="min-w-0">
-                  <p className="font-medium text-ink-900 truncate">{member.name}</p>
-                  <p className="text-sm text-ink-500 truncate">{member.role} · {member.email}</p>
-                </div>
-              </div>
-              <div className="flex gap-2 shrink-0">
-                <button
-                  onClick={() => openEditModal(member)}
-                  className="rounded bg-signal-warn px-3 py-1 text-sm text-paper hover:bg-signal-warn"
-                >
-                  Edit
-                </button>
-                <button onClick={() => handleDelete(member._id)} className="rounded bg-signal-danger px-3 py-1 text-sm text-paper hover:bg-signal-danger">
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))
+          <AdminCard padded={false} aria-busy={isValidating}>
+            {loading ? (
+              <MemberListSkeleton />
+            ) : (
+              <ul className="divide-hairline">
+                {members.map((member) => (
+                  <MemberRow key={member._id} member={member} onEdit={openEditModal} onDelete={handleDelete} />
+                ))}
+              </ul>
+            )}
+          </AdminCard>
         )}
+
+        <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} loading={isValidating} />
       </div>
-      <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} loading={listLoading} />
 
       <Modal
         isOpen={isModalOpen}
@@ -250,52 +239,82 @@ export default function AdminPeoplePage() {
         title={editingId ? 'Edit Member' : 'Add New Member'}
         footer={
           <>
-            <button
-              type="button"
-              onClick={closeModal}
-              className="px-4 py-2 text-sm font-medium text-ink-600 hover:text-ink-900"
-            >
+            <button type="button" onClick={closeModal} className="btn-secondary">
               Cancel
             </button>
-            <button
-              type="submit"
-              form="member-form"
-              className="px-4 py-2 bg-accent-600 text-paper rounded-none text-sm font-medium hover:bg-accent-700"
-            >
+            <button type="submit" form="member-form" className="btn-primary">
               {editingId ? 'Update' : 'Create'}
             </button>
           </>
         }
       >
-        <ErrorText message={error} />
-        <form id="member-form" onSubmit={handleSubmit} className="space-y-3">
-          <input value={memberForm.name} onChange={(e) => setMemberForm({ ...memberForm, name: e.target.value })} className="w-full rounded border px-3 py-2" placeholder="Name" required />
-          <input value={memberForm.role} onChange={(e) => setMemberForm({ ...memberForm, role: e.target.value })} className="w-full rounded border px-3 py-2" placeholder="Role (e.g. PhD Student, Lecturer)" required />
-          <select value={memberForm.category} onChange={(e) => setMemberForm({ ...memberForm, category: e.target.value })} className="w-full rounded border px-3 py-2">
-            <option value="Professors">Professors</option>
-            <option value="Students">Students</option>
-            <option value="Alumni">Alumni</option>
-          </select>
-          <input type="email" value={memberForm.email} onChange={(e) => setMemberForm({ ...memberForm, email: e.target.value })} className="w-full rounded border px-3 py-2" placeholder="Email" required />
-          <input value={memberForm.research} onChange={(e) => setMemberForm({ ...memberForm, research: e.target.value })} className="w-full rounded border px-3 py-2" placeholder="Research" />
+        {formError && <InlineNotice>{formError}</InlineNotice>}
+        <form id="member-form" onSubmit={handleSubmit} className="space-y-4">
+          <FormField label="Name" htmlFor="member-name" required>
+            <input id="member-name" value={memberForm.name} onChange={setField('name')} className="field" required />
+          </FormField>
+          <FormField label="Role" htmlFor="member-role" required>
+            <input
+              id="member-role"
+              value={memberForm.role}
+              onChange={setField('role')}
+              className="field"
+              placeholder="e.g. PhD Student, Lecturer"
+              required
+            />
+          </FormField>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField label="Category" htmlFor="member-category">
+              <select id="member-category" value={memberForm.category} onChange={setField('category')} className="field">
+                {CATEGORY_TABS.map((tab) => (
+                  <option key={tab.id} value={tab.id}>
+                    {tab.label}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <FormField label="Email" htmlFor="member-email" required>
+              <input id="member-email" type="email" value={memberForm.email} onChange={setField('email')} className="field" required />
+            </FormField>
+          </div>
+          <FormField label="Research" htmlFor="member-research">
+            <input id="member-research" value={memberForm.research} onChange={setField('research')} className="field" />
+          </FormField>
 
-          <div className="flex items-center gap-4 border rounded p-3 bg-paper-sunken">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-ink-700 mb-1">Profile Image</label>
-              <input type="file" accept="image/*" onChange={handleImageUpload} className="w-full text-sm text-ink-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-accent-50 file:text-accent-700 hover:file:bg-accent-100" />
-              <div className="mt-2 text-xs text-ink-500">Or enter URL manually:</div>
-              <input value={memberForm.image} onChange={(e) => setMemberForm({ ...memberForm, image: e.target.value })} className="w-full rounded border px-3 py-1.5 text-sm mt-1" placeholder="Image URL" />
+          <div className="flex items-start gap-4 border border-paper-border bg-paper-sunken p-4">
+            <div className="min-w-0 flex-1 space-y-3">
+              <FormField label="Profile Image" htmlFor="member-image-file">
+                <input
+                  id="member-image-file"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="w-full text-sm text-ink-500 file:mr-4 file:cursor-pointer file:border file:border-ink-200 file:bg-paper-raised file:px-3 file:py-2 file:text-sm file:font-medium file:text-ink-800"
+                />
+              </FormField>
+              <FormField label="Or image URL" htmlFor="member-image-url">
+                <input
+                  id="member-image-url"
+                  value={memberForm.image}
+                  onChange={setField('image')}
+                  className="field"
+                  placeholder="/uploads/photo.webp"
+                />
+              </FormField>
             </div>
             {memberForm.image && (
-              <div className="w-16 h-16 rounded overflow-hidden border bg-paper-raised shrink-0">
-                <img src={resolveImageSrc(memberForm.image)} alt="Preview" className="w-full h-full object-cover" onError={(e) => { e.target.src = 'https://via.placeholder.com/64?text=Error' }} />
-              </div>
+              <img
+                {...responsiveImage(memberForm.image)}
+                sizes="96px"
+                alt="Preview"
+                className="h-24 w-24 shrink-0 border border-paper-border bg-paper-raised object-cover"
+              />
             )}
           </div>
         </form>
       </Modal>
 
-      <Toast toast={toast} onDismiss={() => setToast(null)} />
-    </div>
+      <Toast toast={toast} onDismiss={dismissToast} />
+    </AdminPage>
   )
 }

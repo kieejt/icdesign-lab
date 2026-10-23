@@ -1,370 +1,562 @@
-import React, { useEffect, useState } from 'react';
-import api from '../../lib/api';
-import ErrorText from '../../components/ErrorText';
-import Pagination from '../../components/Pagination';
+import React, { useRef, useState } from 'react'
+
+import api from '../../lib/api'
+import { invalidateQueries, useApiQuery } from '../../hooks/useApiQuery'
+import {
+  AdminCard,
+  AdminPage,
+  AdminSection,
+  AdminTabs,
+  AdminThumb,
+  EmptyRow,
+  FormField,
+  InlineNotice,
+  RowActions,
+} from '../../components/admin'
+import Pagination from '../../components/Pagination'
+import { Badge, Icon, Skeleton, cx } from '../../components/ui'
+
+const TABS = [
+  { id: 'events', label: 'Lab Events' },
+  { id: 'gallery', label: 'Gallery' },
+]
+
+const EMPTY_EVENT = { title: '', date: '', location: '', status: 'Upcoming', description: '' }
+const EMPTY_ALBUM = { title: '', category: '', coverImage: '', images: [] }
 
 export default function AdminLabEventPage() {
-  const [activeTab, setActiveTab] = useState('events');
+  const [activeTab, setActiveTab] = useState('events')
 
   return (
-    <div className="flex flex-col gap-6">
-      <h2 className="text-2xl font-semibold tracking-tight text-ink-900 border-b border-paper-border pb-4">Manage Lab Events & Gallery</h2>
-      
-      <div className="mb-6 flex gap-4 border-b border-paper-border">
-        <button
-          className={`pb-2 px-2 ${activeTab === 'events' ? 'border-b-2 border-accent-600 font-semibold text-accent-600' : 'text-ink-500'}`}
-          onClick={() => setActiveTab('events')}
-        >
-          Lab Events
-        </button>
-        <button
-          className={`pb-2 px-2 ${activeTab === 'gallery' ? 'border-b-2 border-accent-600 font-semibold text-accent-600' : 'text-ink-500'}`}
-          onClick={() => setActiveTab('gallery')}
-        >
-          Gallery
-        </button>
+    <AdminPage
+      title="Manage Lab Events & Gallery"
+      description="Events listed on the public Events page and the photo albums in the Gallery."
+    >
+      <div className="space-y-6">
+        <AdminTabs label="Lab events sections" tabs={TABS} active={activeTab} onChange={setActiveTab} />
+        {activeTab === 'events' ? <EventsManager /> : <GalleryManager />}
       </div>
+    </AdminPage>
+  )
+}
 
-      {activeTab === 'events' ? <EventsManager /> : <GalleryManager />}
+/** Failed list load with a retry, shown in place of the list. */
+function LoadError({ message, onRetry }) {
+  return (
+    <InlineNotice>
+      {message}{' '}
+      <button type="button" onClick={onRetry} className="font-semibold underline underline-offset-2">
+        Retry
+      </button>
+    </InlineNotice>
+  )
+}
+
+function EventRow({ event, onEdit, onDelete }) {
+  return (
+    <div className="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <p className="font-semibold text-ink-950">{event.title}</p>
+          <Badge tone={event.status === 'Upcoming' ? 'warn' : 'neutral'}>{event.status}</Badge>
+        </div>
+        <p className="mt-1 text-sm text-ink-500">
+          {event.date} &bull; {event.location}
+        </p>
+        <p className="mt-1 line-clamp-2 text-sm text-ink-500">{event.description}</p>
+      </div>
+      <RowActions onEdit={onEdit} onDelete={onDelete} />
     </div>
-  );
+  )
 }
 
 function EventsManager() {
-  const [events, setEvents] = useState([]);
-  const [form, setForm] = useState({ title: '', date: '', location: '', status: 'Upcoming', description: '' });
-  const [editingId, setEditingId] = useState('');
-  const [error, setError] = useState('');
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState(EMPTY_EVENT)
+  const [editingId, setEditingId] = useState('')
+  const [error, setError] = useState('')
+  const [page, setPage] = useState(1)
 
-  const loadEvents = async () => {
-    setLoading(true);
-    try {
-      const { data } = await api.get('/lab-events', { params: { page, limit: 10 } });
-      setEvents(data.data);
-      setTotalPages(data.totalPages);
-    } catch (err) {
-      setError('Failed to load events');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data, loading, error: loadError, refetch } = useApiQuery('/lab-events', {
+    params: { page, limit: 10 },
+    staleTime: 0,
+  })
+  const refresh = () => invalidateQueries('/lab-events')
 
-  useEffect(() => { loadEvents(); }, [page]);
+  const events = data?.data ?? []
+  const totalPages = data?.totalPages ?? 1
+
+  const setField = (field) => (e) => setForm((prev) => ({ ...prev, [field]: e.target.value }))
+
+  const resetForm = () => {
+    setEditingId('')
+    setForm(EMPTY_EVENT)
+  }
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
+    e.preventDefault()
+    setError('')
     try {
       if (editingId) {
-        await api.put(`/lab-events/${editingId}`, form);
+        await api.put(`/lab-events/${editingId}`, form)
       } else {
-        await api.post('/lab-events', form);
+        await api.post('/lab-events', form)
       }
-      setForm({ title: '', date: '', location: '', status: 'Upcoming', description: '' });
-      setEditingId('');
-      loadEvents();
+      resetForm()
+      refresh()
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to save event');
+      setError(err.response?.data?.message || 'Failed to save event')
     }
-  };
+  }
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this event?')) return;
+    if (!window.confirm('Delete this event?')) return
     try {
-      await api.delete(`/lab-events/${id}`);
-      loadEvents();
-    } catch (err) {
-      setError('Failed to delete event');
+      await api.delete(`/lab-events/${id}`)
+      refresh()
+    } catch {
+      setError('Failed to delete event')
     }
-  };
+  }
+
+  const handleEdit = (event) => {
+    setEditingId(event._id)
+    setForm({
+      title: event.title,
+      date: event.date,
+      location: event.location,
+      status: event.status,
+      description: event.description,
+    })
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   return (
-    <div>
-      <ErrorText message={error} />
-      <form onSubmit={handleSubmit} className="space-y-3 mb-6">
-        <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="w-full rounded border px-3 py-2" placeholder="Event Title" required />
-        <div className="flex gap-3">
-          <input value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="w-full rounded border px-3 py-2" placeholder="Date (e.g. August 15, 2026)" required />
-          <input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="w-full rounded border px-3 py-2" placeholder="Location" required />
-          <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full rounded border px-3 py-2" required>
-            <option value="Upcoming">Upcoming</option>
-            <option value="Past">Past</option>
-          </select>
-        </div>
-        <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="min-h-24 w-full rounded border px-3 py-2" placeholder="Description" required />
-        <div className="flex gap-2">
-          <button type="submit" className="rounded bg-accent-600 px-4 py-2 text-paper">{editingId ? 'Update Event' : 'Create Event'}</button>
-          {editingId && <button type="button" onClick={() => { setEditingId(''); setForm({ title: '', date: '', location: '', status: 'Upcoming', description: '' }); }} className="rounded bg-ink-500 px-4 py-2 text-paper">Cancel</button>}
-        </div>
-      </form>
-      <div className="space-y-2">
-        {events.map((event) => (
-          <div key={event._id} className="rounded bg-ink-100 p-3">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="font-bold">{event.title}</p>
-                <p className="text-sm text-ink-600">{event.date} • {event.location} • <span className={event.status === 'Upcoming' ? 'text-signal-warn font-medium' : 'text-ink-500'}>{event.status}</span></p>
-                <p className="text-sm text-ink-500 mt-1 line-clamp-2">{event.description}</p>
-              </div>
-              <div className="flex gap-2 shrink-0 ml-4">
-                <button
-                  onClick={() => {
-                    setEditingId(event._id);
-                    setForm({ title: event.title, date: event.date, location: event.location, status: event.status, description: event.description });
-                  }}
-                  className="rounded bg-signal-warn px-3 py-1 text-sm text-paper"
-                >
-                  Edit
-                </button>
-                <button onClick={() => handleDelete(event._id)} className="rounded bg-signal-danger px-3 py-1 text-sm text-paper">Delete</button>
-              </div>
+    <div className="space-y-8">
+      <AdminSection title={editingId ? 'Edit Event' : 'Create New Event'}>
+        <AdminCard>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {error && <InlineNotice>{error}</InlineNotice>}
+
+            <FormField label="Event Title" htmlFor="event-title" required>
+              <input
+                id="event-title"
+                value={form.title}
+                onChange={setField('title')}
+                className="field"
+                placeholder="Event Title"
+                required
+              />
+            </FormField>
+
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+              <FormField label="Date" htmlFor="event-date" required>
+                <input
+                  id="event-date"
+                  value={form.date}
+                  onChange={setField('date')}
+                  className="field"
+                  placeholder="Date (e.g. August 15, 2026)"
+                  required
+                />
+              </FormField>
+              <FormField label="Location" htmlFor="event-location" required>
+                <input
+                  id="event-location"
+                  value={form.location}
+                  onChange={setField('location')}
+                  className="field"
+                  placeholder="Location"
+                  required
+                />
+              </FormField>
+              <FormField label="Status" htmlFor="event-status" required>
+                <select id="event-status" value={form.status} onChange={setField('status')} className="field" required>
+                  <option value="Upcoming">Upcoming</option>
+                  <option value="Past">Past</option>
+                </select>
+              </FormField>
             </div>
-          </div>
-        ))}
+
+            <FormField label="Description" htmlFor="event-description" required>
+              <textarea
+                id="event-description"
+                value={form.description}
+                onChange={setField('description')}
+                className="field min-h-24"
+                placeholder="Description"
+                required
+              />
+            </FormField>
+
+            <div className="flex gap-3">
+              <button type="submit" className="btn-primary">
+                {editingId ? 'Update Event' : 'Create Event'}
+              </button>
+              {editingId && (
+                <button type="button" onClick={resetForm} className="btn-secondary">
+                  Cancel
+                </button>
+              )}
+            </div>
+          </form>
+        </AdminCard>
+      </AdminSection>
+
+      <AdminSection title="Events">
+        {loadError && !data ? (
+          <LoadError message="Failed to load events" onRetry={refetch} />
+        ) : loading ? (
+          <AdminCard padded={false} className="divide-hairline" aria-hidden="true">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="space-y-2 px-5 py-4">
+                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="h-3 w-1/3" />
+                <Skeleton className="h-3 w-3/4" />
+              </div>
+            ))}
+          </AdminCard>
+        ) : events.length === 0 ? (
+          <EmptyRow>No events yet.</EmptyRow>
+        ) : (
+          <AdminCard padded={false} className="divide-hairline">
+            {events.map((event) => (
+              <EventRow
+                key={event._id}
+                event={event}
+                onEdit={() => handleEdit(event)}
+                onDelete={() => handleDelete(event._id)}
+              />
+            ))}
+          </AdminCard>
+        )}
+        <div className="pt-4">
+          <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} loading={loading} />
+        </div>
+      </AdminSection>
+    </div>
+  )
+}
+
+/** Selectable thumbnail of an album image, with a "Set Cover" shortcut. */
+function AlbumImageTile({ url, selected, isCover, onToggle, onSetCover }) {
+  return (
+    <div className="group relative h-20 w-20 shrink-0">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-pressed={selected}
+        aria-label={selected ? 'Deselect image' : 'Select image'}
+        className={cx(
+          'block h-full w-full outline outline-2 outline-offset-0 transition-opacity',
+          selected ? 'opacity-80 outline-accent-600' : 'outline-transparent hover:opacity-90',
+        )}
+      >
+        <AdminThumb src={url} size="h-20 w-20" />
+      </button>
+      {selected && (
+        <span className="pointer-events-none absolute right-1 top-1 flex h-4 w-4 items-center justify-center bg-accent-600 text-paper">
+          <Icon name="check" className="h-3 w-3" strokeWidth={2.5} />
+        </span>
+      )}
+      {isCover && !selected && (
+        <span className="pointer-events-none absolute left-0 top-0 bg-ink-950 px-1.5 py-0.5 font-mono text-[9px] font-medium uppercase tracking-label text-paper">
+          Cover
+        </span>
+      )}
+      {!selected && !isCover && (
+        <button
+          type="button"
+          onClick={onSetCover}
+          className="absolute inset-x-0 bottom-0 bg-ink-950/75 py-0.5 text-center font-mono text-[9px] font-medium uppercase tracking-label text-paper opacity-0 transition-opacity focus:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+        >
+          Set Cover
+        </button>
+      )}
+    </div>
+  )
+}
+
+function AlbumCard({ item, onEdit, onDelete }) {
+  return (
+    <div className="surface flex flex-col">
+      <div className="relative">
+        <AdminThumb src={item.coverImage} alt={item.title} size="aspect-[4/3] w-full" className="border-0 border-b" />
+        <Badge className="absolute bottom-2 right-2 bg-paper-raised">{item.images?.length || 0} photos</Badge>
       </div>
-      <div className="pt-4">
-        <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} loading={loading} />
+      <div className="flex-1 p-4">
+        <p className="truncate font-semibold text-ink-950" title={item.title}>
+          {item.title}
+        </p>
+        <p className="eyebrow mt-1">{item.category}</p>
+      </div>
+      <div className="px-4 pb-4">
+        <RowActions onEdit={onEdit} onDelete={onDelete} />
       </div>
     </div>
-  );
+  )
 }
 
 function GalleryManager() {
-  const [items, setItems] = useState([]);
-  const [form, setForm] = useState({ title: '', category: '', coverImage: '', images: [] });
-  const [files, setFiles] = useState(null);
-  const [editingId, setEditingId] = useState('');
-  const [error, setError] = useState('');
-  const [uploadProgress, setUploadProgress] = useState(null);
-  const [selectedImages, setSelectedImages] = useState([]);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState(EMPTY_ALBUM)
+  const [files, setFiles] = useState(null)
+  const [editingId, setEditingId] = useState('')
+  const [error, setError] = useState('')
+  const [uploadProgress, setUploadProgress] = useState(null)
+  const [selectedImages, setSelectedImages] = useState([])
+  const [page, setPage] = useState(1)
+  const fileInputRef = useRef(null)
 
-  const loadItems = async () => {
-    setLoading(true);
-    try {
-      const { data } = await api.get('/gallery', { params: { page, limit: 12 } });
-      setItems(data.data);
-      setTotalPages(data.totalPages);
-    } catch (err) {
-      setError('Failed to load gallery albums');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data, loading, error: loadError, refetch } = useApiQuery('/gallery', {
+    params: { page, limit: 12 },
+    staleTime: 0,
+  })
+  const refresh = () => invalidateQueries('/gallery')
 
-  useEffect(() => { loadItems(); }, [page]);
+  const items = data?.data ?? []
+  const totalPages = data?.totalPages ?? 1
+  const busy = uploadProgress !== null
+
+  const setField = (field) => (e) => setForm((prev) => ({ ...prev, [field]: e.target.value }))
+
+  const resetForm = () => {
+    setEditingId('')
+    setForm(EMPTY_ALBUM)
+    setFiles(null)
+    setSelectedImages([])
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setUploadProgress(0);
+    e.preventDefault()
+    setError('')
+    setUploadProgress(0)
     try {
-      let uploadedUrls = [];
+      let uploadedUrls = []
       if (files && files.length > 0) {
-        const formData = new FormData();
-        Array.from(files).forEach(f => formData.append('images', f));
+        const formData = new FormData()
+        Array.from(files).forEach((f) => formData.append('images', f))
         const res = await api.post('/upload/batch', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
           onUploadProgress: (progressEvent) => {
             if (progressEvent.total) {
-              const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-              setUploadProgress(percentCompleted);
+              setUploadProgress(Math.round((progressEvent.loaded * 100) / progressEvent.total))
             }
-          }
-        });
-        uploadedUrls = res.data.urls;
+          },
+        })
+        uploadedUrls = res.data.urls
       }
 
-      setUploadProgress('Saving...');
+      setUploadProgress('Saving...')
 
-      const newImages = [...(form.images || []), ...uploadedUrls];
+      const newImages = [...(form.images || []), ...uploadedUrls]
       const payload = {
         title: form.title,
         category: form.category,
         images: newImages,
-        coverImage: form.coverImage || newImages[0] || ''
-      };
+        coverImage: form.coverImage || newImages[0] || '',
+      }
 
       if (editingId) {
-        await api.put(`/gallery/${editingId}`, payload);
+        await api.put(`/gallery/${editingId}`, payload)
       } else {
-        await api.post('/gallery', payload);
+        await api.post('/gallery', payload)
       }
-      setForm({ title: '', category: '', coverImage: '', images: [] });
-      setFiles(null);
-      setEditingId('');
-      setSelectedImages([]);
-      // reset file input
-      document.getElementById('album-files').value = '';
-      loadItems();
+      resetForm()
+      refresh()
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to save album');
+      setError(err.response?.data?.message || 'Failed to save album')
     } finally {
-      setUploadProgress(null);
+      setUploadProgress(null)
     }
-  };
+  }
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this album and all its images?')) return;
+    if (!window.confirm('Delete this album and all its images?')) return
     try {
-      await api.delete(`/gallery/${id}`);
-      loadItems();
-    } catch (err) {
-      setError('Failed to delete album');
+      await api.delete(`/gallery/${id}`)
+      refresh()
+    } catch {
+      setError('Failed to delete album')
     }
-  };
+  }
 
   const toggleSelectImage = (index) => {
-    setSelectedImages(prev => 
-      prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index]
-    );
-  };
+    setSelectedImages((prev) => (prev.includes(index) ? prev.filter((i) => i !== index) : [...prev, index]))
+  }
 
   const handleBulkRemove = () => {
-    if (!window.confirm(`Remove ${selectedImages.length} selected image(s)?`)) return;
-    
-    // Check if the cover image is among the removed ones
-    const coverImageRemoved = selectedImages.some(i => form.images[i] === form.coverImage);
-    
-    const remainingImages = form.images.filter((_, i) => !selectedImages.includes(i));
-    
+    if (!window.confirm(`Remove ${selectedImages.length} selected image(s)?`)) return
+
+    const coverImageRemoved = selectedImages.some((i) => form.images[i] === form.coverImage)
+    const remainingImages = form.images.filter((_, i) => !selectedImages.includes(i))
+
     setForm({
       ...form,
       images: remainingImages,
-      coverImage: coverImageRemoved ? (remainingImages[0] || '') : form.coverImage
-    });
-    setSelectedImages([]);
-  };
+      coverImage: coverImageRemoved ? remainingImages[0] || '' : form.coverImage,
+    })
+    setSelectedImages([])
+  }
 
   const handleEditClick = (item) => {
-    setEditingId(item._id);
-    setForm({ title: item.title, category: item.category, coverImage: item.coverImage || '', images: item.images || [] });
-    setSelectedImages([]);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+    setEditingId(item._id)
+    setForm({
+      title: item.title,
+      category: item.category,
+      coverImage: item.coverImage || '',
+      images: item.images || [],
+    })
+    setSelectedImages([])
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   return (
-    <div>
-      <ErrorText message={error} />
-      <form onSubmit={handleSubmit} className="space-y-4 mb-8 bg-paper-sunken p-4 border border-paper-border rounded-none">
-        <h3 className="font-semibold text-ink-900">{editingId ? 'Edit Album' : 'Create New Album'}</h3>
-        <div className="flex gap-3">
-          <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="flex-1 rounded border px-3 py-2" placeholder="Album Title" required />
-          <input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="w-1/3 rounded border px-3 py-2" placeholder="Category (e.g. 2026, Event)" required />
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-ink-700 mb-1">Add Images to Album (Max 50)</label>
-          <input id="album-files" type="file" multiple accept="image/*" onChange={(e) => setFiles(e.target.files)} className="w-full rounded border px-3 py-2 bg-paper-raised" />
-        </div>
+    <div className="space-y-8">
+      <AdminSection title={editingId ? 'Edit Album' : 'Create New Album'}>
+        <AdminCard>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {error && <InlineNotice>{error}</InlineNotice>}
 
-        {editingId && form.images && form.images.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex justify-between items-end">
-              <p className="text-sm font-medium text-ink-700">Existing Images in Album</p>
-              {selectedImages.length > 0 && (
-                <button type="button" onClick={handleBulkRemove} className="text-xs font-bold bg-signal-danger/20 text-signal-danger px-3 py-1 rounded hover:bg-signal-danger/25 transition-colors">
-                  Remove Selected ({selectedImages.length})
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+              <FormField label="Album Title" htmlFor="album-title" required className="md:col-span-2">
+                <input
+                  id="album-title"
+                  value={form.title}
+                  onChange={setField('title')}
+                  className="field"
+                  placeholder="Album Title"
+                  required
+                />
+              </FormField>
+              <FormField label="Category" htmlFor="album-category" required>
+                <input
+                  id="album-category"
+                  value={form.category}
+                  onChange={setField('category')}
+                  className="field"
+                  placeholder="Category (e.g. 2026, Event)"
+                  required
+                />
+              </FormField>
+            </div>
+
+            <FormField
+              label="Add Images to Album (Max 50)"
+              htmlFor="album-files"
+              hint={files?.length ? `${files.length} file(s) selected — uploaded when you save.` : undefined}
+            >
+              <input
+                ref={fileInputRef}
+                id="album-files"
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={(e) => setFiles(e.target.files)}
+                className="field file:mr-4 file:border-0 file:bg-ink-100 file:px-3 file:py-1 file:text-xs file:font-medium file:text-ink-800"
+              />
+            </FormField>
+
+            {editingId && form.images?.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-end justify-between gap-3">
+                  <p className="field-label !mb-0">Existing Images in Album</p>
+                  {selectedImages.length > 0 && (
+                    <button type="button" onClick={handleBulkRemove} className="btn-danger btn-sm">
+                      Remove Selected ({selectedImages.length})
+                    </button>
+                  )}
+                </div>
+                <div className="flex max-h-60 flex-wrap gap-2 overflow-y-auto border border-paper-border bg-paper-sunken p-3">
+                  {form.images.map((imgUrl, i) => (
+                    <AlbumImageTile
+                      key={`${imgUrl}-${i}`}
+                      url={imgUrl}
+                      selected={selectedImages.includes(i)}
+                      isCover={form.coverImage === imgUrl}
+                      onToggle={() => toggleSelectImage(i)}
+                      onSetCover={() => setForm((prev) => ({ ...prev, coverImage: imgUrl }))}
+                    />
+                  ))}
+                </div>
+                <FormField label="Cover Image URL" htmlFor="album-cover">
+                  <input
+                    id="album-cover"
+                    value={form.coverImage}
+                    onChange={setField('coverImage')}
+                    className="field"
+                    placeholder="Cover Image URL (optional, defaults to first image)"
+                  />
+                </FormField>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex gap-3">
+                <button type="submit" disabled={busy} className="btn-primary">
+                  {busy
+                    ? typeof uploadProgress === 'number'
+                      ? `Uploading... ${uploadProgress}%`
+                      : uploadProgress
+                    : editingId
+                      ? 'Update Album'
+                      : 'Create Album'}
                 </button>
+                {editingId && (
+                  <button type="button" onClick={resetForm} disabled={busy} className="btn-secondary">
+                    Cancel
+                  </button>
+                )}
+              </div>
+
+              {typeof uploadProgress === 'number' && (
+                <div
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={uploadProgress}
+                  className="h-1.5 w-full max-w-xs bg-paper-border"
+                >
+                  <div className="h-full bg-accent-600 transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                </div>
               )}
             </div>
-            <div className="flex flex-wrap gap-2 max-h-60 overflow-y-auto p-2 border border-paper-border rounded bg-paper-raised">
-              {form.images.map((imgUrl, i) => {
-                const isSelected = selectedImages.includes(i);
-                return (
-                  <div 
-                    key={i} 
-                    onClick={() => toggleSelectImage(i)}
-                    className={`group relative w-20 h-20 rounded overflow-hidden cursor-pointer border-2 transition-all ${isSelected ? 'border-accent-600 scale-95 opacity-80' : 'border-transparent hover:opacity-90'}`}
-                  >
-                    <img src={imgUrl} alt="" className="w-full h-full object-cover" />
-                    {isSelected && (
-                      <div className="absolute top-1 right-1 bg-accent-600 rounded-full w-4 h-4 flex items-center justify-center shadow-sm">
-                        <svg className="w-3 h-3 text-paper" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                      </div>
-                    )}
-                    {form.coverImage === imgUrl && !isSelected && <span className="absolute top-0 left-0 bg-ink-900/80 text-paper text-[9px] font-bold px-1.5 py-0.5 uppercase backdrop-blur-sm shadow-sm">Cover</span>}
-                    
-                    {!isSelected && form.coverImage !== imgUrl && (
-                      <button 
-                        type="button" 
-                        onClick={(e) => { e.stopPropagation(); setForm({ ...form, coverImage: imgUrl }); }} 
-                        className="absolute bottom-0 inset-x-0 bg-black/60 text-paper text-[10px] font-bold uppercase py-0.5 opacity-0 group-hover:opacity-100 hover:bg-black/80 transition-all text-center"
-                      >
-                        Set Cover
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            <div className="pt-2">
-              <input value={form.coverImage} onChange={(e) => setForm({ ...form, coverImage: e.target.value })} className="w-full rounded border px-3 py-2 text-sm" placeholder="Cover Image URL (optional, defaults to first image)" />
-            </div>
+          </form>
+        </AdminCard>
+      </AdminSection>
+
+      <AdminSection title="Albums">
+        {loadError && !data ? (
+          <LoadError message="Failed to load gallery albums" onRetry={refetch} />
+        ) : loading ? (
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-hidden="true">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="surface">
+                <Skeleton className="aspect-[4/3] w-full" />
+                <div className="space-y-2 p-4">
+                  <Skeleton className="h-4 w-2/3" />
+                  <Skeleton className="h-3 w-1/3" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : items.length === 0 ? (
+          <EmptyRow>No albums yet.</EmptyRow>
+        ) : (
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {items.map((item) => (
+              <AlbumCard
+                key={item._id}
+                item={item}
+                onEdit={() => handleEditClick(item)}
+                onDelete={() => handleDelete(item._id)}
+              />
+            ))}
           </div>
         )}
-
-        <div className="flex items-center gap-4 pt-2">
-          <div className="flex gap-2">
-            <button type="submit" disabled={uploadProgress !== null} className="rounded bg-accent-600 px-5 py-2 text-paper font-medium disabled:opacity-50">
-              {uploadProgress !== null ? (typeof uploadProgress === 'number' ? `Uploading... ${uploadProgress}%` : uploadProgress) : (editingId ? 'Update Album' : 'Create Album')}
-            </button>
-            {editingId && (
-              <button type="button" onClick={() => { setEditingId(''); setForm({ title: '', category: '', coverImage: '', images: [] }); setFiles(null); setSelectedImages([]); document.getElementById('album-files').value = ''; }} className="rounded bg-ink-500 px-4 py-2 text-paper font-medium disabled:opacity-50" disabled={uploadProgress !== null}>
-                Cancel
-              </button>
-            )}
-          </div>
-          
-          {uploadProgress !== null && typeof uploadProgress === 'number' && (
-            <div className="flex-1 max-w-xs bg-paper-border rounded-full h-2.5 overflow-hidden">
-              <div className="bg-accent-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
-            </div>
-          )}
+        <div className="pt-6">
+          <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} loading={loading} />
         </div>
-      </form>
-
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-        {items.map((item) => (
-          <div key={item._id} className="rounded-none bg-paper-raised border border-paper-border overflow-hidden relative group shadow-sm">
-            <div className="w-full h-40 bg-ink-100 relative">
-              {item.coverImage ? (
-                <img src={item.coverImage} alt={item.title} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-ink-400 font-light text-sm">No cover</div>
-              )}
-              <div className="absolute bottom-2 right-2 bg-black/70 text-paper text-xs font-bold px-2 py-1 rounded backdrop-blur-sm">
-                {item.images?.length || 0} photos
-              </div>
-            </div>
-            <div className="p-4">
-              <p className="font-semibold text-ink-900 truncate" title={item.title}>{item.title}</p>
-              <p className="text-xs text-ink-500 mt-1 uppercase tracking-wider font-bold">{item.category}</p>
-            </div>
-            <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button
-                onClick={() => handleEditClick(item)}
-                className="rounded bg-signal-warn p-1.5 text-paper shadow hover:bg-signal-warn transition-colors"
-                title="Edit Album"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-              </button>
-              <button onClick={() => handleDelete(item._id)} className="rounded bg-signal-danger p-1.5 text-paper shadow hover:bg-signal-danger transition-colors" title="Delete Album">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="pt-6">
-        <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} loading={loading} />
-      </div>
+      </AdminSection>
     </div>
-  );
+  )
 }
-

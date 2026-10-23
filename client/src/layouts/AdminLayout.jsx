@@ -123,7 +123,7 @@ export default function AdminLayout() {
 
       {/* --- Content ---------------------------------------------------- */}
       <main className="min-w-0 flex-1 overflow-x-hidden px-4 py-8 sm:px-8 lg:px-12 lg:py-12">
-        <div className="mx-auto max-w-5xl">
+        <div className="mx-auto max-w-6xl">
           <Outlet />
         </div>
       </main>
