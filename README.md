@@ -491,6 +491,23 @@ gets and renews the certificate by itself. `client/nginx.conf` trusts
 still sees the real visitor address (rate limits, analytics) and scheme. Both app
 ports are published on `127.0.0.1` only (`docker-compose.yml`).
 
+### Edge caching and page speed
+
+The server is in Sydney, so any request that has to reach it pays a long round trip;
+for the 3 kB HTML shell that was ~0.9 s of time-to-first-byte, most of the
+Lighthouse LCP. When the domain is proxied through Cloudflare, a Cache Rule lets it
+store whatever the origin explicitly marks `Cache-Control: public`
+(`edge_ttl: bypass_by_default`): the HTML shell (`s-maxage=600`), public API reads
+and the sitemap. It never caches for a request carrying the login cookie or an
+`Authorization` header, nor for link-preview bots, which are served a different page
+on the same URL. The deploy job purges the zone's cache afterwards with a token that
+can do only that (`CLOUDFLARE_PURGE_TOKEN`, `CLOUDFLARE_ZONE_ID`). A visitor holding
+an old page after a deploy reloads once (`vite:preloadError`).
+
+The hero image has 480/768/1024 px variants in `client/src/assets/hero`, fingerprinted
+by the build and preloaded from `index.html`; the two main font faces are preloaded
+too.
+
 ### First-time setup of a new server
 
 1. Launch Ubuntu 24.04 with Docker, the compose plugin and Caddy (`docker`, `caddy`,

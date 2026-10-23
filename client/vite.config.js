@@ -2,10 +2,35 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { compression } from 'vite-plugin-compression2'
 
+/*
+ * Vite fingerprints files that JavaScript imports and rewrites <link href> in
+ * index.html, but it leaves `imagesrcset` untouched, so the hero preload would
+ * point at a source path that does not exist in the build. This rewrites any
+ * `/src/...` URL in index.html to the fingerprinted file the build emitted for it
+ * (the one HomePage imports), so the preload and the <img> request the same URL.
+ */
+function fingerprintHtmlAssets() {
+  return {
+    name: 'fingerprint-html-assets',
+    transformIndexHtml: {
+      order: 'post',
+      handler(html, ctx) {
+        if (!ctx.bundle) return html // dev server: /src paths resolve as they are
+        const emitted = new Map()
+        for (const chunk of Object.values(ctx.bundle)) {
+          for (const original of chunk.originalFileNames ?? []) emitted.set(`/${original}`, `/${chunk.fileName}`)
+        }
+        return html.replace(/\/src\/[\w./-]+\.(?:webp|png|jpe?g|svg|avif)/g, (url) => emitted.get(url) ?? url)
+      },
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
+    fingerprintHtmlAssets(),
     /*
      * Pre-compress every text asset at build time.
      *
