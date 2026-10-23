@@ -52,7 +52,7 @@ export default function MemberDetailPage() {
       jobTitle: member.role,
       image: member.image || undefined,
       description: member.research || undefined,
-      worksFor: { '@type': 'ResearchOrganization', name: 'IC Design Lab' },
+      worksFor: { '@type': 'ResearchOrganization', name: 'IC design Lab' },
     },
   })
 

@@ -19,7 +19,7 @@ import Research from '../models/Research.js'
 
 const router = express.Router()
 
-const SITE_NAME = 'IC Design Lab'
+const SITE_NAME = 'IC design Lab'
 const DEFAULT_DESCRIPTION =
   'Integrated Circuit Design Laboratory at Hanoi University of Science and Technology. Research and training in advanced IC technology, embedded systems and computer engineering.'
 

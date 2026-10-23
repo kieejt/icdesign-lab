@@ -685,7 +685,7 @@ export default function AdminDocumentsPage() {
   return (
     <AdminPage
       title="Manage Books & Documents"
-      description="Add, list, and delete textbook references and digital learning guides for the IC Design Lab."
+      description="Add, list, and delete textbook references and digital learning guides for the IC design Lab."
     >
       {error && <InlineNotice>{error}</InlineNotice>}
 

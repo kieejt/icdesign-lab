@@ -5,8 +5,8 @@ import api from '../lib/api'
 import { Icon, cx } from './ui'
 
 const GREETING = {
-  vi: 'Xin chào! Tôi là trợ lý ảo của IC Design Lab. Tôi có thể giúp gì cho bạn về thông tin của lab hoặc kiến thức thiết kế vi mạch?',
-  en: "Hello! I'm the IC Design Lab assistant. Ask me about the lab or about integrated circuit design.",
+  vi: 'Xin chào! Tôi là trợ lý ảo của IC design Lab. Tôi có thể giúp gì cho bạn về thông tin của lab hoặc kiến thức thiết kế vi mạch?',
+  en: "Hello! I'm the IC design Lab assistant. Ask me about the lab or about integrated circuit design.",
 }
 
 const ERROR_REPLY = {

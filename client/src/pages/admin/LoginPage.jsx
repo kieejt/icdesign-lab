@@ -57,7 +57,7 @@ export default function LoginPage() {
           />
           <h1 className="mt-5 font-display text-2xl font-semibold text-ink-950">Lab sign-in</h1>
           <p className="mt-2 text-sm text-ink-500">
-            Members and administrators of the IC Design Lab.
+            Members and administrators of the IC design Lab.
           </p>
         </div>
 

@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-const SITE_NAME = 'IC Design Lab'
+const SITE_NAME = 'IC design Lab'
 
 function setMeta(attr, key, content) {
   let el = document.head.querySelector(`meta[${attr}="${key}"]`)
@@ -30,7 +30,7 @@ const absolute = (url) => (url ? new URL(url, window.location.origin).href : und
  *
  * The site is a single-page app, so every route used to share the title and
  * description from index.html — search results and browser tabs all read
- * "IC Design Lab", and Scholar-style crawlers could not tell a publication from
+ * "IC design Lab", and Scholar-style crawlers could not tell a publication from
  * the homepage. Pass `undefined` while data is loading; the previous values are
  * kept until real ones arrive.
  *

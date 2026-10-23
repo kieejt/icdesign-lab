@@ -420,7 +420,7 @@ export default function SiteHeader() {
                     condensed ? 'text-base' : 'text-lg sm:text-xl',
                   )}
                 >
-                  IC Design Lab
+                  IC design Lab
                 </span>
                 <span
                   className={cx(
@@ -428,7 +428,7 @@ export default function SiteHeader() {
                     condensed ? 'max-h-0 opacity-0' : 'max-h-4 opacity-100',
                   )}
                 >
-                  Hanoi University of Science &amp; Technology
+                  School of Electrical and Electronic Engineering - HUST
                 </span>
               </span>
             </Link>

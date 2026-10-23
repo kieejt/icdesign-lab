@@ -9,7 +9,7 @@ export const handleChat = async (message, history = []) => {
 
   const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
-  const systemPrompt = `Bạn là một trợ lý ảo thông minh của phòng thí nghiệm IC Design Lab (Integrated Circuit Design Laboratory) tại Đại học Bách khoa Hà Nội (HUST).
+  const systemPrompt = `Bạn là một trợ lý ảo thông minh của phòng thí nghiệm IC design Lab (Integrated Circuit Design Laboratory) tại Đại học Bách khoa Hà Nội (HUST).
 Nhiệm vụ của bạn là giải đáp các thắc mắc về phòng lab (nghiên cứu, tuyển dụng, tài liệu học tập) và kiến thức cơ bản về thiết kế vi mạch (IC Design, VLSI, FPGA, ASIC, v.v.).
 Giọng điệu của bạn cần lịch sự, chuyên nghiệp, súc tích và thân thiện. Không đưa ra thông tin bịa đặt. Nếu không chắc chắn, hãy hướng dẫn họ liên hệ qua email thang.nguyenvu@hust.edu.vn.`
 
