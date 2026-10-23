@@ -149,7 +149,7 @@ function CreateStudentForm({ onCreated, onError }) {
           <input id="new-sid" value={form.studentId} onChange={set('studentId')} className="field" placeholder="20250001" maxLength={30} />
         </FormField>
         <FormField label="Email" htmlFor="new-email" required>
-          <input id="new-email" type="email" value={form.email} onChange={set('email')} className="field" placeholder="student@hust.edu.vn" required />
+          <input id="new-email" type="email" value={form.email} onChange={set('email')} className="field" placeholder="student@sis.hust.edu.vn" required />
         </FormField>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -207,7 +207,7 @@ function ImportForm({ onImported, onError }) {
           onChange={(e) => setText(e.target.value)}
           rows={6}
           className="field font-mono text-sm"
-          placeholder={'an@hust.edu.vn, Nguyen Van An, 20250001\nbinh@hust.edu.vn, Tran Thi Binh, 20250002'}
+          placeholder={'an@sis.hust.edu.vn, Nguyen Van An, 20250001\nbinh@sis.hust.edu.vn, Tran Thi Binh, 20250002'}
         />
       </FormField>
 
