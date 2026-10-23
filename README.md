@@ -462,6 +462,54 @@ nothing else in CI would notice.
 job targets a `production` environment, which is where to add a manual approval
 step if you ever want one.
 
+## Hosting on AWS EC2 (single server)
+
+The production deploy target is one EC2 instance running the compose stack, with
+Caddy in front for HTTPS.
+
+```
+browser --HTTPS--> Caddy (host, :443) --> nginx container (127.0.0.1:3000) --> API container (:5000) --> MongoDB
+```
+
+| | |
+|---|---|
+| Region | `ap-southeast-2` (Sydney) |
+| Instance | `t3.small` (2 vCPU, 2 GB) + 2 GB swap, 20 GB encrypted gp3, Ubuntu 24.04 |
+| Network | Elastic IP; security group opens only 22 (key-only SSH, needed by CI), 80, 443 |
+| Cost | about 19 USD instance + 3.7 IPv4 + 2 disk per month (Sydney, on-demand) |
+
+**The AWS Free plan is not "12 months free".** It is 100 USD of credits, valid until
+the plan's expiry date (6 months from sign-up). At about 25 USD a month the credits
+last roughly four months; check `aws freetier get-account-plan-state` and AWS
+Settings > Billing. When they run out the project pauses until it is upgraded.
+
+### Why there is a proxy in front
+
+The session cookie is `Secure` in production, so login only works over HTTPS. Caddy
+gets and renews the certificate by itself. `client/nginx.conf` trusts
+`X-Forwarded-For` / `X-Forwarded-Proto` from private addresses only, so the API
+still sees the real visitor address (rate limits, analytics) and scheme. Both app
+ports are published on `127.0.0.1` only (`docker-compose.yml`).
+
+### First-time setup of a new server
+
+1. Launch Ubuntu 24.04 with Docker, the compose plugin and Caddy (`docker`, `caddy`,
+   2 GB swap, Docker log rotation); allow ports 22/80/443 only.
+2. Point the domain's A record at the server's address.
+3. On the server: `git clone https://github.com/kieejt/icdesign-lab.git`, then create
+   `.env` (MongoDB root credentials) and `server/.env` (`MONGO_URI` using those
+   credentials with `@mongodb:27017/icdesign_lab?authSource=admin`, `JWT_SECRET`,
+   `CORS_ORIGINS=https://<domain>`, `SITE_URL=https://<domain>`, `GROQ_API_KEY`).
+   Generate secrets with `openssl rand -base64 32`.
+4. Copy `deploy/Caddyfile` to `/etc/caddy/Caddyfile`, set the domain, `sudo systemctl reload caddy`.
+5. `docker compose up -d --build --wait`. The first build takes several minutes.
+6. Create the first admin: `POST /api/auth/register` works only while no admin exists.
+7. Set the repository secrets `HOST`, `USERNAME`, `SSH_KEY` (a key used only by CI);
+   from then on every push to `main` deploys.
+
+Day to day: `ssh ubuntu@<host>` then `docker compose ps`, `docker compose logs -f backend`.
+Backups are written by the `backup` service; copy them off the machine (see Backups).
+
 ## Deployment guide (step-by-step)
 
 ### 1) Prepare MongoDB (Atlas)

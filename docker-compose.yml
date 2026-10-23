@@ -94,8 +94,11 @@ services:
       # schema change instead of rebuilding indexes on every boot).
       - NODE_ENV=production
 
+    # Loopback only: the public entry point is the HTTPS proxy on the host (see
+    # deploy/Caddyfile). Published on 0.0.0.0 these would reach the internet
+    # directly whenever a firewall rule allowed them.
     ports:
-      - "5000:5000"
+      - "127.0.0.1:5000:5000"
 
     volumes:
       - uploads_data:/app/uploads
@@ -131,7 +134,7 @@ services:
     restart: unless-stopped
 
     ports:
-      - "3000:80"
+      - "127.0.0.1:3000:80"
 
     healthcheck:
       test: ['CMD', 'wget', '-q', '--spider', 'http://127.0.0.1/']
