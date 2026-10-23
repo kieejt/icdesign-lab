@@ -501,11 +501,38 @@ ports are published on `127.0.0.1` only (`docker-compose.yml`).
    credentials with `@mongodb:27017/icdesign_lab?authSource=admin`, `JWT_SECRET`,
    `CORS_ORIGINS=https://<domain>`, `SITE_URL=https://<domain>`, `GROQ_API_KEY`).
    Generate secrets with `openssl rand -base64 32`.
-4. Copy `deploy/Caddyfile` to `/etc/caddy/Caddyfile`, set the domain, `sudo systemctl reload caddy`.
+4. Install `deploy/Caddyfile` as `/etc/caddy/Caddyfile` (set the domain) and create the two files it imports; see "Cloudflare in front". Then `sudo systemctl reload caddy`.
 5. `docker compose up -d --build --wait`. The first build takes several minutes.
 6. Create the first admin: `POST /api/auth/register` works only while no admin exists.
 7. Set the repository secrets `HOST`, `USERNAME`, `SSH_KEY` (a key used only by CI);
    from then on every push to `main` deploys.
+
+### Cloudflare in front
+
+The domain's DNS is on Cloudflare with the records **proxied** (orange cloud), so
+visitors never talk to the server directly.
+
+| Layer | Setting |
+|---|---|
+| TLS | SSL mode **Full (strict)**, minimum TLS 1.2, "Always Use HTTPS" on |
+| WAF | Cloudflare's managed Free ruleset and DDoS protection (on by default); custom rules block probes for `.env`, `.git`, `wp-*`, `phpmyadmin`, `*.php`, `vendor/` and unused HTTP methods, and challenge path-traversal attempts |
+| Rate limit | `POST /api/auth/login` and `/register`: more than 5 per 10 s per address is blocked (the API has its own limiter on top) |
+| Bots | Bot Fight Mode on (it was already enabled). It challenges clients that are not browsers; verified crawlers such as Googlebot pass, but a link-preview bot it does not recognise (Zalo, for one) may be challenged |
+| Origin lock | Caddy requires Cloudflare's client certificate (Authenticated Origin Pulls), and the AWS security group allows ports 80/443 from Cloudflare's ranges only; a request straight to the server's address cannot complete the TLS handshake |
+| Real client IP | Caddy trusts `CF-Connecting-IP` from Cloudflare's ranges only and forwards a single `X-Forwarded-For`; nginx and the API see the visitor |
+| Mail | The domain sends no mail: SPF `-all`, DMARC `reject`, null DKIM and a null MX stop anyone spoofing it. Change these before using the domain for email |
+| Injected scripts | Email obfuscation, Rocket Loader and Web Analytics auto-injection are off: the Content-Security-Policy only allows the site's own scripts |
+| DNSSEC | Enabled at Cloudflare; **it is only effective once the DS record is added at the registrar** (Cloudflare dashboard > DNS > Settings shows it) |
+
+Files on the server: `/etc/caddy/Caddyfile` (from `deploy/Caddyfile`),
+`/etc/caddy/cloudflare-ips.caddy` and `/etc/caddy/cloudflare-origin-pull-ca.pem`.
+Cloudflare changes its address ranges rarely. When it does, run
+`sudo /opt/icdesign/refresh-cloudflare-ips.sh` (Caddy) and add the new ranges to the
+security group's rules for ports 80 and 443.
+
+**Switching the proxy off** (grey cloud) breaks the site until you also (1) remove the
+`tls { client_auth ... }` block from the Caddyfile and reload Caddy, and (2) reopen
+ports 80/443 to `0.0.0.0/0` in the security group. Do both first, then change the DNS.
 
 Day to day: `ssh ubuntu@<host>` then `docker compose ps`, `docker compose logs -f backend`.
 Backups are written by the `backup` service; copy them off the machine (see Backups).

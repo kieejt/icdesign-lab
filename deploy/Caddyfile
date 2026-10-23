@@ -1,13 +1,44 @@
-# HTTPS in front of the app, for a single-host deployment (AWS EC2).
+# HTTPS for a single-host deployment, behind Cloudflare (proxied records).
 #
-# Caddy obtains and renews the Let's Encrypt certificate by itself; ports 80 and
-# 443 must be open and the domain's A record must point at this host.
+# Install as /etc/caddy/Caddyfile, replace example.com, and create the two files it
+# references (see "Cloudflare" in the README):
+#   /etc/caddy/cloudflare-ips.caddy          written by deploy/refresh-cloudflare-ips.sh
+#   /etc/caddy/cloudflare-origin-pull-ca.pem https://developers.cloudflare.com/ssl/static/authenticated_origin_pull_ca.pem
 #
-# Install as /etc/caddy/Caddyfile, replacing example.com, then:
-#   sudo systemctl reload caddy
+# Caddy gets and renews the Let's Encrypt certificate by itself.
+{
+	servers {
+		# Cloudflare's addresses may tell us who the visitor is (CF-Connecting-IP);
+		# nobody else's may, so the header cannot be spoofed.
+		import /etc/caddy/cloudflare-ips.caddy
+		client_ip_headers CF-Connecting-IP X-Forwarded-For
+	}
+}
+
+(cloudflare_only) {
+	tls {
+		# Only Cloudflare may connect: it presents a client certificate signed by this
+		# CA (Authenticated Origin Pulls). A direct request to the server's address
+		# fails the TLS handshake, so the WAF and rate limits cannot be bypassed.
+		client_auth {
+			mode require_and_verify
+			trusted_ca_cert_file /etc/caddy/cloudflare-origin-pull-ca.pem
+		}
+	}
+}
+
 example.com {
-	# The frontend container (nginx) listens on loopback only; see docker-compose.yml.
-	reverse_proxy 127.0.0.1:3000
+	import cloudflare_only
+
+	reverse_proxy 127.0.0.1:3000 {
+		# One address only: the visitor's. nginx and the API read this as the client.
+		header_up X-Forwarded-For {client_ip}
+	}
 
 	header Strict-Transport-Security "max-age=15552000"
+}
+
+www.example.com {
+	import cloudflare_only
+	redir https://example.com{uri} permanent
 }
