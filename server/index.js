@@ -17,7 +17,7 @@ import MongoRateLimitStore from './middleware/mongoRateLimitStore.js'
 import Document from './models/Document.js'
 import Member from './models/Member.js'
 
-import analyticsRoutes from './routes/analyticsRoutes.js'
+import analyticsRoutes, { flushPageViews } from './routes/analyticsRoutes.js'
 import authRoutes from './routes/authRoutes.js'
 import chatRoutes from './routes/chatRoutes.js'
 import documentRoutes from './routes/documentRoutes.js'
@@ -278,11 +278,12 @@ const server = app.listen(PORT, () => {
 const shutdown = (signal) => {
   console.log(`${signal} received — shutting down gracefully...`)
   stopNewsCronJob()
+  setTimeout(() => process.exit(1), 10_000).unref()
+  // Buffered page views are written before the connection goes away.
   server.close(() => {
     console.log('HTTP server closed.')
-    process.exit(0)
+    flushPageViews().finally(() => process.exit(0))
   })
-  setTimeout(() => process.exit(1), 10_000).unref()
 }
 
 process.on('SIGTERM', () => shutdown('SIGTERM'))

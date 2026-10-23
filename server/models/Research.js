@@ -17,7 +17,6 @@ const researchSchema = new mongoose.Schema(
 
 // Projects and Publications are always read as "one category, newest first".
 researchSchema.index({ category: 1, createdAt: -1 })
-researchSchema.index({ category: 1, date: -1 })
 
 const Research = mongoose.model('Research', researchSchema)
 

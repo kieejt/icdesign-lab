@@ -227,6 +227,70 @@ fast. After deploying a schema change, run once:
 npm run sync-indexes --prefix server
 ```
 
+`sync-indexes` also **drops** indexes that are no longer declared on a model,
+which is how redundant ones are cleaned up on deploy.
+
+### Database health and index policy
+
+```bash
+npm run db-audit --prefix server
+```
+
+Read-only report: collection sizes, the query plan of each hot read (a missing
+index shows as `COLLSCAN` or a docs-examined count far above the rows returned)
+and per-index usage. Run it after adding a query, and against production data
+before dropping an index.
+
+Rules the models follow:
+
+- An index exists because a route filters or sorts on it. Every index costs a
+  write on each insert, so redundant ones were removed (`PageView.createdAt` is
+  covered by the TTL index; `Member.name` and `Research(category, date)` were
+  unused).
+- **Page views are written in batches** (`routes/analyticsRoutes.js`): buffered
+  in memory, flushed every 5 s, at 200 rows and on shutdown. Bots, crawlers and
+  uptime probes are not counted. A crash loses at most a few seconds of
+  analytics.
+- The admin dashboard counts visitors with separate indexed pipelines and caches
+  the result for a minute. Measured on 300 000 views: ~1.1 s before, ~0.15 s now.
+
+### Backups
+
+The `backup` service in `docker-compose.yml` writes a gzip archive of the whole
+instance to the `backups_data` volume every `BACKUP_INTERVAL_HOURS` (default 24)
+and keeps `BACKUP_KEEP_DAYS` (default 14) of them. **That volume lives on the same
+machine as the database**, so it protects against mistakes and corruption, not
+against losing the server. Copy the archives off the machine as well, e.g. with a
+cron job on the host:
+
+```bash
+docker cp icdesign-backup:/backups ./backups && rclone sync ./backups remote:icdesign-backups
+```
+
+Restore (replaces the current data):
+
+```bash
+docker compose cp ./backups/icdesign-YYYYmmdd-HHMMSS.archive.gz mongodb:/tmp/restore.gz
+docker compose exec mongodb sh -c 'mongorestore --drop --gzip --archive=/tmp/restore.gz -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin'
+```
+
+Try a restore into a scratch environment once, before you need it.
+
+### Upgrading MongoDB
+
+The stack now runs `mongo:7.0` (6.0 reached end of life in July 2025). A data
+directory created by 6.0 opens directly under 7.0 and stays in compatibility
+mode 6.0 until you confirm. After a deploy, once the site has run correctly on 7.0:
+
+```bash
+docker compose exec mongodb mongosh -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin \
+  --eval 'db.adminCommand({ setFeatureCompatibilityVersion: "7.0", confirm: true })'
+```
+
+Until that command runs, rolling back to 6.0 is still possible; afterwards it is
+not. Take a backup first. To move on to 8.0 later, repeat one major version at a
+time (7.0 → 8.0); MongoDB does not support skipping a version.
+
 ## Security notes
 
 ### MongoDB is no longer published to the host

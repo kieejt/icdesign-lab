@@ -13,12 +13,13 @@ const pageViewSchema = new mongoose.Schema(
 )
 
 // Analytics only ever looks at recent windows and groups by url or ip.
-pageViewSchema.index({ createdAt: -1 })
 pageViewSchema.index({ url: 1, createdAt: -1 })
 pageViewSchema.index({ ip: 1, createdAt: -1 })
 
 // Raw hits are only useful for the rolling 30-day dashboard. Expiring them keeps
-// the collection bounded instead of growing without limit forever.
+// the collection bounded instead of growing without limit forever. This index
+// also serves every createdAt range query, so there is deliberately no separate
+// createdAt index: a second one only added a write to every page view.
 pageViewSchema.index(
   { createdAt: 1 },
   { expireAfterSeconds: 60 * 60 * 24 * 180 },
