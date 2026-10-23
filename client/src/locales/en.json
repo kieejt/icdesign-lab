@@ -154,6 +154,7 @@
     "errorLoad": "Failed to validate session token or load lecture contents."
   },
   "home": {
+    "heroAlt": "A bright, modern lab: students at workstations running chip-layout and circuit tools beside oscilloscopes, with a cleanroom behind glass.",
     "heroSubtitle": "IC Design Lab",
     "heroDesc": "Research and graduate training in integrated circuit design, embedded systems and computer engineering.",
     "exploreResearch": "Explore Research",

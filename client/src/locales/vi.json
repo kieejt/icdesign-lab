@@ -154,6 +154,7 @@
     "errorLoad": "Không xác thực được phiên đăng nhập hoặc không thể tải nội dung bài giảng."
   },
   "home": {
+    "heroAlt": "Phòng thí nghiệm sáng sủa, hiện đại: sinh viên làm việc tại các máy trạm thiết kế layout và mạch, cạnh máy hiện sóng, phía sau là phòng sạch sau lớp kính.",
     "heroSubtitle": "IC Design Lab",
     "heroDesc": "Nghiên cứu và đào tạo sau đại học về thiết kế vi mạch, hệ thống nhúng và kỹ thuật máy tính.",
     "exploreResearch": "Khám phá Nghiên cứu",

@@ -179,73 +179,72 @@ export default function HomePage() {
       {/* ================================================================= */}
       {/* Banner                                                            */}
       {/* ================================================================= */}
-      <section className="relative w-full border-b border-paper-border">
-        {/* A restrained band rather than a full-viewport hero: the lab is
-            identified and the page moves on to content. */}
-        <div className="relative h-[300px] w-full overflow-hidden bg-ink-950 sm:h-[380px]">
-          {/* AVIF is about half the size of the WebP (800 px: 29 kB vs 64 kB), which
-              matters here: on a slow connection the hero is the last thing the LCP
-              waits for. Browsers without AVIF take the WebP. */}
-          <picture>
-            <source
-              type="image/avif"
-              srcSet={`${heroAvif480} 480w, ${heroAvif800} 800w, ${heroAvif1024} 1024w`}
-              sizes="100vw"
-            />
-            <img
-              src={hero1024}
-              srcSet={`${hero480} 480w, ${hero800} 800w, ${hero1024} 1024w`}
-              width="1024"
-              height="1024"
-              sizes="100vw"
-              alt=""
-              // The LCP element: fetched eagerly and decoded synchronously so it
-              // is not queued behind lazy images further down the page.
-              loading="eager"
-              fetchPriority="high"
-              decoding="sync"
-              className="h-full w-full object-cover opacity-45"
-            />
-          </picture>
-          <div className="absolute inset-0 bg-gradient-to-r from-ink-950 via-ink-950/85 to-ink-950/40" />
+      <section className="w-full border-b border-paper-border bg-ink-950">
+        {/* The whole photograph is shown, uncropped and unshaded: it is square, so
+            on a wide screen it sits beside the text instead of behind it (a wide
+            band would have to crop away most of the lab); on a phone the text comes
+            first and the photo fills the width below it. */}
+        <Shell>
+          <div className="grid items-center gap-10 py-10 sm:py-12 lg:grid-cols-12 lg:gap-14 lg:py-14">
+            <div className="animate-fade-up lg:col-span-6">
+              <p className="eyebrow text-accent-300">{t('home.heroSubtitle')}</p>
 
-          <div className="absolute inset-0 flex items-center">
-            <Shell>
-              <div className="max-w-3xl animate-fade-up">
-                <p className="eyebrow text-accent-300">{t('home.heroSubtitle')}</p>
+              <h1 className="mt-4 font-display text-3xl font-semibold leading-tight text-paper sm:text-4xl lg:text-[2.75rem]">
+                {t('home.labTitle')}
+              </h1>
 
-                <h1 className="mt-4 font-display text-3xl font-semibold leading-tight text-paper sm:text-4xl lg:text-[2.75rem]">
-                  {t('home.labTitle')}
-                </h1>
+              <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-ink-200 sm:text-base">
+                {t('home.heroDesc')}
+              </p>
 
-                <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-ink-200 sm:text-base">
-                  {t('home.heroDesc')}
-                </p>
-
-                <div className="mt-7 flex flex-wrap gap-3">
-                  <Link
-                    to="/research/project"
-                    className="btn border-paper bg-paper text-ink-950 hover:border-accent-400 hover:bg-accent-600 hover:text-paper"
-                  >
-                    {t('home.exploreResearch')}
-                  </Link>
-                  <Link
-                    to="/research/publications"
-                    className="btn border-paper/35 text-paper hover:border-paper hover:bg-paper/10"
-                  >
-                    {t('nav.Publications')}
-                  </Link>
-                  <Link
-                    to="/contact"
-                    className="btn border-transparent text-paper/80 hover:text-paper"
-                  >
-                    {t('home.contactUs')}
-                  </Link>
-                </div>
+              <div className="mt-7 flex flex-wrap gap-3">
+                <Link
+                  to="/research/project"
+                  className="btn border-paper bg-paper text-ink-950 hover:border-accent-400 hover:bg-accent-600 hover:text-paper"
+                >
+                  {t('home.exploreResearch')}
+                </Link>
+                <Link
+                  to="/research/publications"
+                  className="btn border-paper/35 text-paper hover:border-paper hover:bg-paper/10"
+                >
+                  {t('nav.Publications')}
+                </Link>
+                <Link
+                  to="/contact"
+                  className="btn border-transparent text-paper/80 hover:text-paper"
+                >
+                  {t('home.contactUs')}
+                </Link>
               </div>
-            </Shell>
+            </div>
+
+            {/* AVIF is about half the size of the WebP (800 px: 29 kB vs 64 kB), which
+                matters here: the photo is the LCP element. Browsers without AVIF take
+                the WebP. */}
+            <picture className="block lg:col-span-6">
+              <source
+                type="image/avif"
+                srcSet={`${heroAvif480} 480w, ${heroAvif800} 800w, ${heroAvif1024} 1024w`}
+                sizes="(min-width: 1024px) 560px, 100vw"
+              />
+              <img
+                src={hero1024}
+                srcSet={`${hero480} 480w, ${hero800} 800w, ${hero1024} 1024w`}
+                width="1024"
+                height="1024"
+                sizes="(min-width: 1024px) 560px, 100vw"
+                alt={t('home.heroAlt')}
+                // The LCP element: fetched eagerly and decoded synchronously so it
+                // is not queued behind lazy images further down the page.
+                loading="eager"
+                fetchPriority="high"
+                decoding="sync"
+                className="mx-auto aspect-square w-full max-w-[560px] border border-paper/15 object-cover lg:ml-auto lg:mr-0"
+              />
+            </picture>
           </div>
-        </div>
+        </Shell>
       </section>
 
       {/* ================================================================= */}
