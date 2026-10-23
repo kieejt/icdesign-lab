@@ -85,7 +85,7 @@ jobs:
 
     services:
       mongodb:
-        image: mongo:6.0
+        image: mongo:7.0
         ports: ['27017:27017']
         options: >-
           --health-cmd "mongosh --quiet --eval 'db.adminCommand({ping:1})'"
@@ -267,9 +267,9 @@ jobs:
             || fail "SPA fallback broken"
 
   compose:
-    name: Compose — configuration is valid
+    name: Compose — configuration and backups
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
 
@@ -295,6 +295,27 @@ jobs:
             exit 1
           fi
           echo "Compose correctly refuses to start without database credentials."
+
+      - name: Backup service produces an archive
+        # Starts the real MongoDB 7 container with authentication plus the backup
+        # service, and waits for the first archive. This also proves the data
+        # directory initialises under 7.0 and that the dump credentials work.
+        env:
+          MONGO_ROOT_USER: ci
+          MONGO_ROOT_PASSWORD: ci
+        run: |
+          docker compose up -d mongodb backup
+          for i in $(seq 1 40); do
+            docker compose logs backup 2>&1 | grep -q 'backup written' && break
+            if [ "$i" = "40" ]; then
+              echo "::error::the backup service did not write an archive"
+              docker compose logs
+              exit 1
+            fi
+            sleep 3
+          done
+          docker compose logs backup
+          docker compose down -v
 
   audit:
     name: Dependency audit (advisory)

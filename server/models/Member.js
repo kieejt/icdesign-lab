@@ -16,7 +16,6 @@ const memberSchema = new mongoose.Schema(
 
 // Every public listing filters by category and sorts newest-first.
 memberSchema.index({ category: 1, createdAt: -1 })
-memberSchema.index({ name: 1 })
 
 memberSchema.plugin(searchTokensPlugin, { fields: ['name', 'email'] })
 const Member = mongoose.model('Member', memberSchema)

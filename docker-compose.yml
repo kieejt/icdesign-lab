@@ -1,6 +1,9 @@
 services:
   mongodb:
-    image: mongo:6.0
+    # 7.0 rather than 6.0: 6.0 reached end of life in July 2025 and no longer gets
+    # security fixes. A data directory written by 6.0 opens directly under 7.0; see
+    # "Upgrading MongoDB" in the README for the one follow-up command.
+    image: mongo:7.0
     container_name: icdesign-mongodb
     restart: unless-stopped
 
@@ -34,6 +37,45 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+
+  backup:
+    # Nightly logical backup of the whole instance. Before this there was no copy
+    # of the data anywhere except the one Docker volume it lives on.
+    image: mongo:7.0
+    container_name: icdesign-backup
+    restart: unless-stopped
+
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+    environment:
+      MONGO_ROOT_USER: ${MONGO_ROOT_USER:?set MONGO_ROOT_USER in .env}
+      MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?set MONGO_ROOT_PASSWORD in .env}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+
+    volumes:
+      - backups_data:/backups
+
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - |
+        while true; do
+          file="/backups/icdesign-$$(date +%Y%m%d-%H%M%S).archive.gz"
+          # Separate flags rather than a URI, so a password containing @ or : needs
+          # no URL-encoding.
+          if mongodump --quiet --archive="$$file" --gzip --host mongodb \
+               --username "$$MONGO_ROOT_USER" --password "$$MONGO_ROOT_PASSWORD" \
+               --authenticationDatabase admin; then
+            echo "backup written: $$file ($$(du -h "$$file" | cut -f1))"
+          else
+            echo "backup FAILED" >&2
+            rm -f "$$file"
+          fi
+          find /backups -name 'icdesign-*.archive.gz' -mtime +"$$BACKUP_KEEP_DAYS" -delete
+          sleep "$$((BACKUP_INTERVAL_HOURS * 3600))"
+        done
 
   backend:
     build:
@@ -107,3 +149,4 @@ services:
 volumes:
   mongodb_data:
   uploads_data:
+  backups_data:
