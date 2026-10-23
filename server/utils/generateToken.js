@@ -8,6 +8,9 @@ const generateToken = (user) => {
       id: user._id,
       email: user.email,
       role: user.role,
+      // Compared with the account's current value on every request, so bumping
+      // it signs the account out everywhere (see utils/session.js).
+      tv: user.tokenVersion || 0,
     },
     process.env.JWT_SECRET,
     // Matched to the cookie's lifetime — see constants/auth.js.

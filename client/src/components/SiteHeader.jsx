@@ -222,7 +222,8 @@ function AccountMenu({ user, onSignOut }) {
   const close = useCallback(() => setOpen(false), [])
   const ref = useDismissable(open, close)
 
-  const initial = user?.email?.charAt(0).toUpperCase() || 'U'
+  const shownName = user?.name || user?.email
+  const initial = shownName?.charAt(0).toUpperCase() || 'U'
 
   return (
     <div className="relative" ref={ref}>
@@ -245,8 +246,9 @@ function AccountMenu({ user, onSignOut }) {
           <div className="flex flex-col gap-2 border-b border-paper-border p-5">
             <span className="eyebrow">Lab identity</span>
             <span className="truncate text-sm font-medium text-ink-900" title={user.email}>
-              {user.email}
+              {shownName}
             </span>
+            {user.name && <span className="truncate text-xs text-ink-500">{user.email}</span>}
             <span className="badge-neutral w-fit">{user.role}</span>
           </div>
 
@@ -268,6 +270,14 @@ function AccountMenu({ user, onSignOut }) {
               className="px-3 py-2.5 text-sm font-medium text-ink-600 transition-colors hover:bg-paper-sunken hover:text-ink-950"
             >
               Lectures portal →
+            </Link>
+            <Link
+              to="/account"
+              role="menuitem"
+              onClick={close}
+              className="px-3 py-2.5 text-sm font-medium text-ink-600 transition-colors hover:bg-paper-sunken hover:text-ink-950"
+            >
+              {t('account.menuLink')} →
             </Link>
           </div>
 

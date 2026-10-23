@@ -2,8 +2,31 @@ import express from 'express'
 import verifyToken from '../middleware/verifyToken.js'
 import Lecture from '../models/Lecture.js'
 import { logAdminAction } from '../utils/auditLogger.js'
+import { displayName } from '../utils/passwords.js'
 
 const router = express.Router()
+
+const MAX_COMMENT_LENGTH = 2000
+
+/**
+ * A lecture as the viewer may see it. Students used to receive every
+ * commenter's e-mail address in the JSON; now they get a display name only, and
+ * the e-mail stays with admins (who moderate).
+ */
+function present(lecture, viewerIsAdmin) {
+  const plain = typeof lecture.toObject === 'function' ? lecture.toObject() : lecture
+  const person = (entry) => {
+    const { email, name, ...rest } = entry
+    return { ...rest, author: displayName({ name, email }), ...(viewerIsAdmin ? { email } : {}) }
+  }
+  return {
+    ...plain,
+    comments: (plain.comments ?? []).map((comment) => ({
+      ...person(comment),
+      replies: (comment.replies ?? []).map(person),
+    })),
+  }
+}
 
 // 1. Fetch all lectures (any logged-in student or admin)
 router.get('/', verifyToken, async (req, res) => {
@@ -33,7 +56,7 @@ router.get('/:id', verifyToken, async (req, res) => {
     if (!lecture) {
       return res.status(404).json({ message: 'Lecture not found' })
     }
-    return res.json(lecture)
+    return res.json(present(lecture, req.user.role === 'admin'))
   } catch (error) {
     return res.status(500).json({ message: 'Failed to fetch lecture' })
   }
@@ -117,8 +140,11 @@ router.put('/:id', verifyToken, async (req, res) => {
 router.post('/:id/comments', verifyToken, async (req, res) => {
   try {
     const { text } = req.body
-    if (!text || !text.trim()) {
+    if (typeof text !== 'string' || !text.trim()) {
       return res.status(400).json({ message: 'Comment text is required' })
+    }
+    if (text.length > MAX_COMMENT_LENGTH) {
+      return res.status(400).json({ message: `Keep questions under ${MAX_COMMENT_LENGTH} characters` })
     }
 
     const lecture = await Lecture.findById(req.params.id)
@@ -129,6 +155,7 @@ router.post('/:id/comments', verifyToken, async (req, res) => {
     const comment = {
       user: req.user.id,
       email: req.user.email,
+      name: req.user.name || '',
       text: text.trim(),
       replies: []
     }
@@ -136,7 +163,7 @@ router.post('/:id/comments', verifyToken, async (req, res) => {
     lecture.comments.push(comment)
     await lecture.save()
 
-    return res.status(201).json(lecture)
+    return res.status(201).json(present(lecture, req.user.role === 'admin'))
   } catch (error) {
     return res.status(500).json({ message: 'Failed to add comment' })
   }
@@ -149,8 +176,11 @@ router.post('/:id/comments/:commentId/replies', verifyToken, async (req, res) =>
       return res.status(403).json({ message: 'Forbidden: Only the Professor can reply' })
     }
     const { text } = req.body
-    if (!text || !text.trim()) {
+    if (typeof text !== 'string' || !text.trim()) {
       return res.status(400).json({ message: 'Reply text is required' })
+    }
+    if (text.length > MAX_COMMENT_LENGTH) {
+      return res.status(400).json({ message: `Keep replies under ${MAX_COMMENT_LENGTH} characters` })
     }
 
     const lecture = await Lecture.findById(req.params.id)
@@ -166,6 +196,7 @@ router.post('/:id/comments/:commentId/replies', verifyToken, async (req, res) =>
     const reply = {
       user: req.user.id,
       email: req.user.email,
+      name: req.user.name || '',
       text: text.trim()
     }
 
@@ -174,7 +205,7 @@ router.post('/:id/comments/:commentId/replies', verifyToken, async (req, res) =>
 
     await logAdminAction(req, 'REPLY_COMMENT', `Replied to comment on lecture: ${lecture.title} (Question by: ${comment.email})`)
 
-    return res.status(201).json(lecture)
+    return res.status(201).json(present(lecture, true))
   } catch (error) {
     console.error('Failed to add reply:', error)
     return res.status(500).json({ message: 'Failed to add reply' })
@@ -203,7 +234,7 @@ router.delete('/:id/comments/:commentId', verifyToken, async (req, res) => {
 
     await logAdminAction(req, 'DELETE_COMMENT', `Deleted comment by ${comment.email} on lecture: ${lecture.title}`)
 
-    return res.json(lecture)
+    return res.json(present(lecture, true))
   } catch (error) {
     console.error('Failed to delete comment:', error)
     return res.status(500).json({ message: 'Failed to delete comment' })

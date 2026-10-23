@@ -55,6 +55,9 @@ export function AuthProvider({ children }) {
     return data.user
   }, [])
 
+  /** Replaces the cached account after the server changed it (profile, password). */
+  const updateUser = useCallback((user) => setCurrentUser(user), [])
+
   const logout = useCallback(async () => {
     try {
       await api.post('/auth/logout')
@@ -70,8 +73,8 @@ export function AuthProvider({ children }) {
 
   // Memoised so consumers don't re-render on every provider render.
   const value = useMemo(
-    () => ({ currentUser, loading, login, logout }),
-    [currentUser, loading, login, logout],
+    () => ({ currentUser, loading, login, logout, updateUser }),
+    [currentUser, loading, login, logout, updateUser],
   )
 
   /*

@@ -20,6 +20,24 @@ const userSchema = new mongoose.Schema(
       enum: ['admin', 'student'],
       default: 'admin',
     },
+
+    // --- Profile ---------------------------------------------------------
+    /** Shown in discussions instead of the e-mail address. */
+    name: { type: String, trim: true, maxlength: 100, default: '' },
+    /** Student number. Kept unique by the routes (a sparse unique index would
+        need an index build on every deployment). */
+    studentId: { type: String, trim: true, maxlength: 30 },
+
+    // --- Access ----------------------------------------------------------
+    /** A suspended account cannot sign in and its open sessions stop working. */
+    status: { type: String, enum: ['active', 'suspended'], default: 'active' },
+    /** Set when an admin issued the password: the owner must replace it first. */
+    mustChangePassword: { type: Boolean, default: false },
+    /** Bumped to invalidate every token already issued to this account. */
+    tokenVersion: { type: Number, default: 0 },
+
+    lastLoginAt: Date,
+    passwordChangedAt: Date,
   },
   {
     timestamps: true,

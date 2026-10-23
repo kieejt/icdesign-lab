@@ -4,7 +4,8 @@ const commentSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     email: { type: String, required: true },
-    text: { type: String, required: true },
+    name: { type: String, trim: true, maxlength: 100 },
+    text: { type: String, required: true, maxlength: 2000 },
   },
   { timestamps: true }
 )
@@ -13,7 +14,8 @@ const replySchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     email: { type: String, required: true },
-    text: { type: String, required: true },
+    name: { type: String, trim: true, maxlength: 100 },
+    text: { type: String, required: true, maxlength: 2000 },
   },
   { timestamps: true }
 )

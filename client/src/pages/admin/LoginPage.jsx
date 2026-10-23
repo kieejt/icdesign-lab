@@ -24,6 +24,10 @@ export default function LoginPage() {
     if (!currentUser) return
     // Return to the page that sent them here (ProtectedAdminRoute records it) so
     // a session that expired mid-task resumes where it stopped.
+    if (currentUser.mustChangePassword) {
+      navigate('/account', { replace: true })
+      return
+    }
     const from = location.state?.from
     const fallback = currentUser.role === 'admin' ? '/admin/dashboard' : '/lectures'
     navigate(typeof from === 'string' && from.startsWith('/admin') && currentUser.role === 'admin' ? from : fallback, {
@@ -115,7 +119,7 @@ export default function LoginPage() {
         <p className="mt-8 flex items-start justify-center gap-2 text-center text-[12.5px] leading-relaxed text-ink-400">
           <Icon name="mail" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>
-            No account? Contact the lab at{' '}
+            Accounts are issued by the lab. Need one, or forgot your password? Contact{' '}
             <a href="mailto:thang.nguyenvu@hust.edu.vn" className="link">
               thang.nguyenvu@hust.edu.vn
             </a>

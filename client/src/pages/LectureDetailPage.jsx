@@ -17,8 +17,8 @@ import {
 } from '../components/ui'
 
 /** Circular initial avatar. */
-function Avatar({ email, tone = 'muted' }) {
-  const initial = email?.charAt(0).toUpperCase() || '?'
+function Avatar({ name, tone = 'muted' }) {
+  const initial = name?.charAt(0).toUpperCase() || '?'
   return (
     <span
       aria-hidden="true"
@@ -318,14 +318,14 @@ export default function LectureDetailPage() {
                   >
                     {/* Question */}
                     <div className="flex items-start gap-4">
-                      <Avatar email={comment.email} />
+                      <Avatar name={comment.author} />
                       <div className="min-w-0 flex-1">
                         <p className="whitespace-pre-wrap text-[16.5px] leading-relaxed text-ink-900">
                           {comment.text}
                         </p>
                         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
                           <p className="font-mono text-[12.5px] text-ink-400">
-                            {comment.email}
+                            {comment.author}
                             <span aria-hidden="true" className="mx-2">
                               ·
                             </span>
@@ -351,13 +351,13 @@ export default function LectureDetailPage() {
                         key={reply._id}
                         className="mt-6 flex items-start gap-4 border-l-2 border-accent-200 pl-5 sm:ml-12"
                       >
-                        <Avatar email={reply.email} tone="strong" />
+                        <Avatar name={reply.author} tone="strong" />
                         <div className="min-w-0 flex-1">
                           <p className="whitespace-pre-wrap text-[16.5px] leading-relaxed text-ink-800">
                             {reply.text}
                           </p>
                           <div className="mt-2 flex flex-wrap items-center gap-2.5">
-                            <span className="font-mono text-[12.5px] text-ink-400">{reply.email}</span>
+                            <span className="font-mono text-[12.5px] text-ink-400">{reply.author}</span>
                             <Badge tone="accent">{t('education.professorRole')}</Badge>
                             <span className="font-mono text-[12.5px] text-ink-300">
                               {formatDate(reply.createdAt, 'short', locale)}

@@ -1,10 +1,11 @@
 import React, { Suspense, lazy, useEffect } from 'react'
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 
 import ErrorBoundary from './components/ErrorBoundary'
 import ScrollToTop from './components/ScrollToTop'
 import SiteHeader from './components/SiteHeader'
 import { Shell, SkeletonGrid } from './components/ui'
+import { useAuth } from './contexts/AuthContext'
 import { trackPageView } from './lib/analytics'
 import usePageMeta from './hooks/usePageMeta'
 import LegacyPageRedirect from './routes/LegacyPageRedirect'
@@ -45,6 +46,7 @@ const VietnamNewsPage = lazy(() => import('./pages/VietnamNewsPage'))
 const JobsInternshipPage = lazy(() => import('./pages/JobsInternshipPage'))
 const ContactPage = lazy(() => import('./pages/ContactPage'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
+const AccountPage = lazy(() => import('./pages/AccountPage'))
 
 /*
  * The assistant is off.
@@ -111,6 +113,7 @@ const STATIC_TITLES = {
   '/news/vietnam-news': 'Vietnam news',
   '/news/jobs': 'Jobs and internships',
   '/contact': 'Contact',
+  '/account': 'Account settings',
 }
 
 /**
@@ -146,6 +149,23 @@ const HOME_JSON_LD = {
   ],
 }
 
+/**
+ * An account whose password an admin issued can do nothing else until it has
+ * chosen its own (the API refuses every other request). Send it to the page
+ * where it does that, wherever it tries to go.
+ */
+function PasswordChangeGate() {
+  const { currentUser } = useAuth()
+  const { pathname } = useLocation()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    if (currentUser?.mustChangePassword && pathname !== '/account') navigate('/account', { replace: true })
+  }, [currentUser, pathname, navigate])
+
+  return null
+}
+
 /** Gives list pages their own <title>; detail pages set theirs from loaded data. */
 function StaticPageMeta() {
   const { pathname } = useLocation()
@@ -178,6 +198,7 @@ export default function App() {
       <ScrollToTop />
       <AnalyticsTracker />
       <StaticPageMeta />
+      <PasswordChangeGate />
 
       {/* The admin console has its own chrome, so the public shell is skipped there. */}
       {!isAdminArea && <SiteHeader />}
@@ -235,6 +256,7 @@ export default function App() {
 
               <Route path="/contact" element={<ContactPage />} />
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/account" element={<AccountPage />} />
 
               <Route element={<ProtectedAdminRoute />}>
                 <Route path="/admin" element={<AdminLayout />}>

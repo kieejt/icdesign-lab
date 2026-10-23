@@ -201,6 +201,7 @@ const trackLimiter = rateLimit({
 app.use('/api', apiLimiter)
 app.use('/api/analytics/track', trackLimiter)
 app.use('/api/auth/login', authLimiter)
+app.use('/api/auth/change-password', authLimiter) // guesses at the current password
 if (CHATBOT_ENABLED) app.use('/api/chat', chatLimiter)
 
 // Health check — never cached, so uptime probes always see live status.
