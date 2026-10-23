@@ -587,10 +587,9 @@ too.
    Generate secrets with `openssl rand -base64 32`.
 4. Install `deploy/Caddyfile` as `/etc/caddy/Caddyfile` (set the domain) and create the two files it imports; see "Cloudflare in front". Then `sudo systemctl reload caddy`.
 5. `docker compose up -d --build --wait`. The first build takes several minutes.
-6. Create the first admin on the server (the HTTP `register` endpoint is off unless
-   `ADMIN_SETUP_TOKEN` is set, so nobody can claim the site first):
+6. Create the first admin by inserting it into the database (there is no sign-up API):
    `docker exec -e ADMIN_EMAIL=you@example.com -e ADMIN_PASSWORD='a long passphrase' icdesign-backend node scripts/create-admin.js`
-   (at least 10 characters; it refuses to run once an admin exists).
+   (at least 10 characters; the script hashes the password and refuses to run once an admin exists).
 7. Set the repository secrets `HOST`, `USERNAME`, `SSH_KEY` (a key used only by CI);
    from then on every push to `main` deploys.
 
@@ -603,7 +602,7 @@ visitors never talk to the server directly.
 |---|---|
 | TLS | SSL mode **Full (strict)**, minimum TLS 1.2, "Always Use HTTPS" on |
 | WAF | Cloudflare's managed Free ruleset and DDoS protection (on by default); custom rules block probes for `.env`, `.git`, `wp-*`, `phpmyadmin`, `*.php`, `vendor/` and unused HTTP methods, and challenge path-traversal attempts |
-| Rate limit | `POST /api/auth/login` and `/register`: more than 5 per 10 s per address is blocked (the API has its own limiter on top) |
+| Rate limit | `POST /api/auth/login`: more than 5 per 10 s per address is blocked (the API has its own limiter on top) |
 | Bots | Bot Fight Mode on (it was already enabled). It challenges clients that are not browsers; verified crawlers such as Googlebot pass, but a link-preview bot it does not recognise (Zalo, for one) may be challenged |
 | Origin lock | Caddy requires Cloudflare's client certificate (Authenticated Origin Pulls), and the AWS security group allows ports 80/443 from Cloudflare's ranges only; a request straight to the server's address cannot complete the TLS handshake |
 | Real client IP | Caddy trusts `CF-Connecting-IP` from Cloudflare's ranges only and forwards a single `X-Forwarded-For`; nginx and the API see the visitor |
