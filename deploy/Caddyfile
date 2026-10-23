@@ -1,0 +1,13 @@
+# HTTPS in front of the app, for a single-host deployment (AWS EC2).
+#
+# Caddy obtains and renews the Let's Encrypt certificate by itself; ports 80 and
+# 443 must be open and the domain's A record must point at this host.
+#
+# Install as /etc/caddy/Caddyfile, replacing example.com, then:
+#   sudo systemctl reload caddy
+example.com {
+	# The frontend container (nginx) listens on loopback only; see docker-compose.yml.
+	reverse_proxy 127.0.0.1:3000
+
+	header Strict-Transport-Security "max-age=15552000"
+}
