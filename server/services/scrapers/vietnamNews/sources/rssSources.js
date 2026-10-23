@@ -13,6 +13,8 @@ const VIETNAM_RSS_FEEDS = [
   { name: 'Genk', url: 'https://genk.vn/rss/home.rss' },
   { name: 'Tinh tế', url: 'https://tinhte.vn/rss' },
   { name: 'VietnamPlus (Công nghệ)', url: 'https://www.vietnamplus.vn/rss/congnghe-212.rss' },
+  // English-language, but Vietnam-based and it carries the local chip-industry stories.
+  { name: 'VnExpress International (Tech)', url: 'https://e.vnexpress.net/rss/tech.rss' },
 ]
 
 const VIETNAM_KEYWORDS_STRICT = [

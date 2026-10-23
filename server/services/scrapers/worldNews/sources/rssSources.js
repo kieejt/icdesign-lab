@@ -13,6 +13,16 @@ const RSS_FEEDS = [
   { name: 'Ars Technica', url: 'https://feeds.arstechnica.com/arstechnica/index' },
   { name: 'Electronics Weekly', url: 'https://www.electronicsweekly.com/feed/' },
   { name: 'Semiconductor Digest', url: 'https://www.semiconductor-digest.com/feed/' },
+  // Added after measuring each candidate feed for on-topic items and freshness.
+  { name: 'SemiWiki', url: 'https://semiwiki.com/feed/' },
+  { name: 'IEEE Spectrum (Semiconductors)', url: 'https://spectrum.ieee.org/feeds/topic/semiconductors.rss' },
+  { name: 'Chips and Cheese', url: 'https://chipsandcheese.com/feed/' },
+  { name: 'EDN', url: 'https://www.edn.com/feed/' },
+  { name: 'Siemens EDA (Verification Horizons)', url: 'https://blogs.sw.siemens.com/verificationhorizons/feed/' },
+  // Research: a daily list of computer-architecture and hardware preprints.
+  { name: 'arXiv cs.AR', url: 'https://rss.arxiv.org/rss/cs.AR', max: 40 },
+  // A very large archive feed (thousands of items); only the newest are read.
+  { name: 'Semiconductor Today', url: 'https://www.semiconductor-today.com/rss/news.xml', max: 30 },
 ]
 
 const SEMICONDUCTOR_KEYWORDS = [
@@ -60,7 +70,7 @@ export const fetchWorldNewsRss = async (ctx) => {
 
       // Every scraped item is kept — admin review is the relevance gate, and
       // strictMatch only decides sort priority so on-topic items surface first.
-      return (parsed.items || []).slice(0, MAX_SCAN_PER_FEED).map((item) => ({
+      return (parsed.items || []).slice(0, feed.max ?? MAX_SCAN_PER_FEED).map((item) => ({
         title: item.title,
         summary: item.contentSnippet || item.content || '',
         url: item.link,
