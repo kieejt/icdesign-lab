@@ -1,59 +1,75 @@
-import axios from 'axios'
 import * as cheerio from 'cheerio'
-import { JOB_SEARCH_QUERIES } from '../../../../constants/jobKeywords.js'
-import { buildJobArticle, getBrowserHeaders, isJobRelevant, delay } from '../utils.js'
 
-export async function fetchCareerlink() {
-  const articles = []
-  const seen = new Set()
+import { trackSource } from '../../../runReport.js'
+import { get, mapLimit, sleep } from '../../http.js'
+import { buildJobArticle, getBrowserHeaders, isJobRelevant } from '../utils.js'
 
-  // Use a subset of queries to avoid sending too many requests
-  const queries = ['ic-design', 'semiconductor', 'embedded', 'fpga', 'vlsi']
+// A subset of the search terms, to keep the request count low.
+const QUERIES = ['ic-design', 'semiconductor', 'embedded', 'fpga', 'vlsi']
 
-  for (const query of queries) {
-    try {
-      const { data } = await axios.get(`https://www.careerlink.vn/viec-lam/k/${query}`, {
-        headers: getBrowserHeaders({ Accept: 'text/html' }),
-        timeout: 20000,
-      })
+/** Parses a Careerlink search page into job articles. Exported for tests. */
+export function parseCareerlinkJobs(html) {
+  const $ = cheerio.load(html)
+  const jobs = []
 
-      const $ = cheerio.load(data)
+  $('.job-link').each((_, el) => {
+    const title = $(el).find('h2, .job-title').text().trim() || $(el).attr('title')
+    let link = $(el).attr('href')
+    if (!link) return
+    if (link.startsWith('/')) link = `https://www.careerlink.vn${link}`
 
-      $('.job-link').each((_, el) => {
-        const title = $(el).find('h2, .job-title').text().trim() || $(el).attr('title')
-        let link = $(el).attr('href')
-        
-        if (!link) return
-        if (link.startsWith('/')) {
-          link = `https://www.careerlink.vn${link}`
-        }
+    const company = $(el).find('.company-name').text().trim() || 'Careerlink Job'
+    if (!isJobRelevant(title || link, company)) return
 
-        if (seen.has(link)) return
+    const article = buildJobArticle({
+      title: title || 'Careerlink Job',
+      summary: company,
+      url: link,
+      source: 'Careerlink',
+      // The listing shows no machine-readable date.
+      publishedAt: new Date(),
+    })
+    if (article) jobs.push(article)
+  })
 
-        const company = $(el).find('.company-name').text().trim() || 'Careerlink Job'
-        const summary = `${company}`
+  return jobs
+}
 
-        if (!isJobRelevant(title || link, summary)) return
+/**
+ * @param {{report: import('../../../runReport.js').RunReport, signal?: AbortSignal}} ctx
+ */
+export async function fetchCareerlink(ctx) {
+  return trackSource(ctx, 'Careerlink', async (note) => {
+    const outcomes = await mapLimit(QUERIES, 2, async (query) => {
+      if (ctx.signal?.aborted) return []
+      const { data } = await get(
+        `https://www.careerlink.vn/viec-lam/k/${query}`,
+        { headers: getBrowserHeaders({ Accept: 'text/html' }), timeout: 20_000 },
+        { signal: ctx.signal },
+      )
+      await sleep(500)
+      return parseCareerlinkJobs(data)
+    })
 
-        seen.add(link)
-
-        const article = buildJobArticle({
-          title: title || 'Careerlink Job',
-          summary,
-          url: link,
-          source: 'Careerlink',
-          publishedAt: new Date(),
-        })
-
-        if (article) articles.push(article)
-      })
-
-      await delay(1000)
-    } catch (err) {
-      console.error(`Careerlink search "${query}":`, err.message)
+    const seen = new Set()
+    const articles = []
+    let failures = 0
+    let firstError = ''
+    for (const outcome of outcomes) {
+      if (outcome instanceof Error) {
+        failures += 1
+        firstError ||= outcome.message
+        continue
+      }
+      for (const article of outcome) {
+        if (seen.has(article.url)) continue
+        seen.add(article.url)
+        articles.push(article)
+      }
     }
-  }
 
-  console.log(`Careerlink: ${articles.length} jobs`)
-  return articles
+    if (failures === outcomes.length) throw new Error(`every query failed (${firstError})`)
+    if (failures > 0) note(`${failures} of ${outcomes.length} queries failed (${firstError})`)
+    return articles
+  })
 }

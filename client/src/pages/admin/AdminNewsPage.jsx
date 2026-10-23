@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 
 import { AdminCard, AdminPage, AdminTabs, AdminThumb, EmptyRow, FormField } from '../../components/admin'
+import FetchStatusPanel from '../../components/admin/FetchStatusPanel'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 import Toast from '../../components/Toast'
@@ -256,6 +257,26 @@ const AdminNewsPage = () => {
   const statsQuery = useApiQuery('/news/admin/stats', { staleTime: 0 })
   const cronQuery = useApiQuery('/news/cron-time', { staleTime: 0 })
   const autoApproveQuery = useApiQuery('/settings/news_auto_approve', { staleTime: 0 })
+  const fetchStatus = useApiQuery('/news/fetch-status', { staleTime: 0 })
+
+  // While a run is in progress, whoever started it, keep the panel current. This
+  // only refetches (an external store write), it sets no component state.
+  const runInProgress = Boolean(fetchStatus.data?.running)
+  const refetchStatus = fetchStatus.refetch
+  useEffect(() => {
+    if (!runInProgress) return undefined
+    const timer = setInterval(refetchStatus, 4000)
+    return () => clearInterval(timer)
+  }, [runInProgress, refetchStatus])
+
+  // Lets a poll that outlives this page stop instead of updating an unmounted one.
+  const mounted = useRef(true)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
 
   const news = useMemo(() => list.data?.data ?? [], [list.data])
   const totalPages = list.data?.totalPages || 1
@@ -314,27 +335,47 @@ const AdminNewsPage = () => {
     }
   }
 
+  // A full fetch takes minutes, so the server starts it and answers at once; this
+  // follows the run until it finishes. (Waiting on one request used to time out at
+  // 60 s and report an error while the fetch carried on.)
   const handleManualFetch = async () => {
     setIsFetching(true)
     try {
-      const res = await api.post('/news/fetch', {}, { timeout: 60000 })
-      const perCategory = res.data?.perCategory
-      const summary = perCategory
-        ? NEWS_CATEGORIES.map((c) => `${c.shortLabel}: ${perCategory[c.id]?.saved ?? 0} saved`).join('\n')
-        : ''
-      showToast(summary ? `Fetch completed.\n${summary}` : 'News aggregation successful!', 'success')
+      const { data: started } = await api.post('/news/fetch')
+      fetchStatus.refetch()
+
+      const deadline = Date.now() + 10 * 60_000
+      let finished = null
+      while (mounted.current && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 3000))
+        const { data } = await api.get('/news/fetch-status')
+        if (!data.running && data.last && String(data.last._id) === started.runId) {
+          finished = data.last
+          break
+        }
+        if (!data.running) break // finished, but another run is now the latest
+      }
+
+      if (!mounted.current) return
+      fetchStatus.refetch()
       refreshQueue()
-    } catch (err) {
-      if (err.code === 'ECONNABORTED' || err.message.includes('timeout')) {
-        showToast(
-          'Aggregation is taking longer than expected and is still running in the background. Please check back in a minute.',
-          'info',
-        )
+
+      if (finished) {
+        const summary = NEWS_CATEGORIES.map((c) => `${c.shortLabel}: ${finished.perCategory?.[c.id]?.saved ?? 0} saved`).join('\n')
+        const failed = finished.status === 'failed'
+        showToast(`Fetch ${failed ? 'failed' : 'completed'}.\n${summary}`, failed ? 'error' : 'success')
       } else {
-        showToast('Error during news aggregation.', 'error')
+        showToast('The fetch is still running. Its result will appear in the panel below.', 'info')
+      }
+    } catch (err) {
+      if (err.response?.status === 409) {
+        showToast('A fetch is already running. Its progress is shown below.', 'info')
+        fetchStatus.refetch()
+      } else {
+        showToast('Could not start the news fetch.', 'error')
       }
     } finally {
-      setIsFetching(false)
+      if (mounted.current) setIsFetching(false)
     }
   }
 
@@ -407,8 +448,8 @@ const AdminNewsPage = () => {
       title="AI News"
       description="Review articles gathered by the AI aggregator, then approve, edit or reject them before they appear on the site."
       actions={
-        <button type="button" onClick={handleManualFetch} disabled={isFetching} className="btn-primary">
-          {isFetching ? 'Aggregating AI...' : 'Fetch Sources Now'}
+        <button type="button" onClick={handleManualFetch} disabled={isFetching || runInProgress} className="btn-primary">
+          {isFetching || runInProgress ? 'Fetching…' : 'Fetch Sources Now'}
         </button>
       }
     >
@@ -423,7 +464,7 @@ const AdminNewsPage = () => {
               disabled={isSavingAutoApprove}
               className="h-4 w-4 accent-[theme(colors.accent.600)]"
             />
-            Publish articles scoring {AUTO_APPROVE_THRESHOLD} or higher automatically
+            Publish automatically when the score is {AUTO_APPROVE_THRESHOLD}+ and the AI rates the article relevant (7+)
           </label>
         </div>
         <div className="md:pl-6">
@@ -462,6 +503,8 @@ const AdminNewsPage = () => {
           </div>
         </div>
       </AdminCard>
+
+      <FetchStatusPanel status={fetchStatus.data} />
 
       <div className="space-y-5">
         <AdminTabs tabs={STATUS_TABS} active={activeTab} onChange={changeTab} label="Article status" />

@@ -10,7 +10,7 @@ import { rateLimit } from 'express-rate-limit'
 import helmet from 'helmet'
 
 import connectDB from './config/db.js'
-import { startNewsCronJob, stopNewsCronJob } from './jobs/cron.js'
+import { catchUpIfMissed, startNewsCronJob, stopNewsCronJob } from './jobs/cron.js'
 import { errorHandler, notFound } from './middleware/errorHandler.js'
 import imageVariants from './middleware/imageVariants.js'
 import MongoRateLimitStore from './middleware/mongoRateLimitStore.js'
@@ -264,6 +264,7 @@ databaseReady
     }
   })
   .then(() => startNewsCronJob())
+  .then(() => catchUpIfMissed())
   .catch((error) => {
     // A failed scheduler must not take the API down with it: the site is
     // readable without the news agent ever running.

@@ -1,7 +1,8 @@
 import cron from 'node-cron'
 
 import Setting from '../models/Setting.js'
-import { runNewsFetch } from '../services/agent.service.js'
+import { CATCH_UP_AFTER_MS } from '../constants/news.js'
+import { lastSuccessfulRun, recoverStaleRuns, runNewsFetch } from '../services/agent.service.js'
 
 /*
  * Schedule for the daily news fetch.
@@ -100,6 +101,36 @@ export async function updateCronTime(hour, minute) {
     return true
   } catch (error) {
     console.error('Failed to store the news cron schedule:', error.message)
+    return false
+  }
+}
+
+/**
+ * Runs a fetch shortly after boot when the last good one is too old.
+ *
+ * node-cron only fires while the process is alive at the scheduled minute, so a
+ * restart across it (a deploy, a crash, a host reboot) silently skipped that day's
+ * fetch. The check is against the last successful run, not the clock time, so it
+ * also covers a server that was off for days. Off by default outside production,
+ * so restarting a dev server does not scrape the web and spend AI calls.
+ */
+export async function catchUpIfMissed() {
+  try {
+    await recoverStaleRuns()
+
+    if (process.env.NEWS_CATCH_UP !== 'true' && process.env.NODE_ENV !== 'production') return false
+    if (process.env.NEWS_CATCH_UP === 'false') return false
+
+    const last = await lastSuccessfulRun()
+    const age = last ? Date.now() - new Date(last.startedAt).getTime() : Infinity
+    if (age < CATCH_UP_AFTER_MS) return false
+
+    console.log(`The last successful news fetch is ${last ? `${Math.round(age / 3_600_000)} h` : 'missing'} old — catching up.`)
+    // A short delay so the server finishes starting before it starts scraping.
+    setTimeout(() => runNewsFetch('catch-up'), 60_000).unref?.()
+    return true
+  } catch (error) {
+    console.error('News catch-up check failed:', error.message)
     return false
   }
 }

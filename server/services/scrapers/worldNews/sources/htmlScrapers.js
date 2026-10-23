@@ -1,95 +1,99 @@
-import axios from 'axios'
 import * as cheerio from 'cheerio'
 
+import { trackSource } from '../../../runReport.js'
+import { BROWSER_UA } from '../../feeds.js'
+import { get, mapLimit } from '../../http.js'
+
+// DIGITIMES (https://www.digitimes.com/topic/semiconductors/) was listed here but
+// answers every automated request with an "Access denied" page, so it never
+// produced an article. Re-add it if it ever allows scrapers.
 const HTML_SOURCES = [
   {
     name: "Tom's Hardware (Semiconductors)",
-    url: 'https://www.tomshardware.com/tech-industry/manufacturing/semiconductors'
+    url: 'https://www.tomshardware.com/tech-industry/manufacturing/semiconductors',
   },
-  {
-    name: 'DIGITIMES (Semiconductors)',
-    url: 'https://www.digitimes.com/topic/semiconductors/'
-  }
 ]
 
-const REQUEST_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-}
+const HEADERS = { 'User-Agent': BROWSER_UA }
+const MAX_PER_SOURCE = 4
 
-// Fetches the article page itself to pull a real description instead of a fake placeholder
-// string, so the AI ranker has actual content to summarize/judge relevance from.
-async function fetchArticleDescription(url) {
+/**
+ * Reads the page's own description so the AI ranker has real content to judge,
+ * instead of a placeholder string. Failures yield an empty description.
+ */
+async function fetchArticleDescription(url, signal) {
   try {
-    const response = await axios.get(url, { headers: REQUEST_HEADERS, timeout: 10000 })
+    const response = await get(url, { headers: HEADERS, timeout: 10_000 }, { signal, retries: 0 })
     const $ = cheerio.load(response.data)
-    const description =
-      $('meta[property="og:description"]').attr('content') ||
-      $('meta[name="description"]').attr('content') ||
-      ''
+    const description = $('meta[property="og:description"]').attr('content') || $('meta[name="description"]').attr('content') || ''
     return description.trim()
-  } catch (err) {
+  } catch {
     return ''
   }
 }
 
-export const fetchWorldNewsHtml = async () => {
+/**
+ * Bot-protection pages come back with status 200, so a status check alone treats
+ * "Access denied" as a normal empty page. Recognise the common ones by title.
+ */
+export function isBlockedPage(html) {
+  const title = String(html).match(/<title>([^<]*)/i)?.[1] ?? ''
+  return /access denied|attention required|just a moment|are you a robot|forbidden/i.test(title)
+}
+
+/** Candidate article links on a listing page: anchors whose text reads like a headline. */
+export function extractCandidates(html, source) {
+  const $ = cheerio.load(html)
+  const seenLinks = new Set()
   const candidates = []
 
-  for (const source of HTML_SOURCES) {
-    try {
-      const response = await axios.get(source.url, { headers: REQUEST_HEADERS, timeout: 15000 })
+  $('a').each((_, el) => {
+    if (candidates.length >= MAX_PER_SOURCE) return
 
-      const $ = cheerio.load(response.data)
-      const seenLinks = new Set()
-      let count = 0
+    let title = $(el).find('h2, h3, .title, .article-name').first().text().trim() || $(el).text().trim()
+    title = title.replace(/\s+/g, ' ')
 
-      // Generic heuristic: look for links with substantial text content (likely article titles)
-      $('a').each((i, el) => {
-        if (count >= 4) return // LIMIT: Only take top 4 articles per HTML source to prevent crowding out RSS
+    let link = $(el).attr('href')
+    if (!title || title.length <= 30 || !link || seenLinks.has(link)) return
+    seenLinks.add(link)
 
-        let title = $(el).find('h2, h3, .title, .article-name').first().text().trim()
-        if (!title) {
-          title = $(el).text().trim()
-        }
+    if (link.startsWith('/')) link = `${new URL(source.url).origin}${link}`
 
-        // Clean up title
-        title = title.replace(/\s+/g, ' ')
-
-        let link = $(el).attr('href')
-
-        if (title && title.length > 30 && link && !seenLinks.has(link)) {
-          seenLinks.add(link)
-          count++
-
-          if (link.startsWith('/')) {
-            const baseUrl = new URL(source.url)
-            link = `${baseUrl.origin}${link}`
-          }
-
-          candidates.push({
-            title,
-            url: link,
-            source: source.name,
-            category: 'World News',
-            // Subtract 12 hours so it doesn't always automatically win the "newest" sort against actual RSS feeds today
-            publishedAt: new Date(Date.now() - 12 * 60 * 60 * 1000),
-            strictMatch: true // These are specific semiconductor pages, so they are strict matches
-          })
-        }
-      })
-
-    } catch (err) {
-      console.error(`Error fetching HTML source ${source.name}:`, err.message)
-    }
-  }
-
-  const descriptions = await Promise.allSettled(candidates.map((c) => fetchArticleDescription(c.url)))
-
-  return candidates.map((c, i) => {
-    const fetched = descriptions[i].status === 'fulfilled' ? descriptions[i].value : ''
-    return {
-      ...c,
-      summary: fetched || `News article from ${c.source}.`,
-    }
+    candidates.push({
+      title,
+      url: link,
+      source: source.name,
+      category: 'World News',
+      // The listing page carries no dates. Twelve hours back keeps these from
+      // always winning the "newest" comparison against real RSS items.
+      publishedAt: new Date(Date.now() - 12 * 60 * 60 * 1000),
+      // These are dedicated semiconductor pages, so every link is on topic.
+      strictMatch: true,
+    })
   })
+
+  return candidates
+}
+
+/**
+ * @param {{report: import('../../../runReport.js').RunReport, signal?: AbortSignal}} ctx
+ */
+export const fetchWorldNewsHtml = async (ctx) => {
+  const perSource = await mapLimit(HTML_SOURCES, 2, (source) =>
+    trackSource(ctx, source.name, async (note) => {
+      const response = await get(source.url, { headers: HEADERS, timeout: 15_000 }, { signal: ctx.signal, retries: 1 })
+      if (isBlockedPage(response.data)) throw new Error('blocked by the site (access denied page)')
+
+      const candidates = extractCandidates(response.data, source)
+      if (candidates.length === 0) note('no article links found; the page layout may have changed')
+
+      const descriptions = await mapLimit(candidates, 4, (candidate) => fetchArticleDescription(candidate.url, ctx.signal))
+      return candidates.map((candidate, i) => ({
+        ...candidate,
+        summary: (typeof descriptions[i] === 'string' && descriptions[i]) || `News article from ${candidate.source}.`,
+      }))
+    }),
+  )
+
+  return perSource.flat()
 }

@@ -218,6 +218,45 @@ on `useSyncExternalStore`:
 - A `Content-Security-Policy` is set in `client/nginx/csp.conf`. If you embed a
   new third-party frame, script or image host, add it there.
 
+### The news and jobs agent
+
+`services/agent.service.js` runs daily (and from the admin "Fetch Sources Now"
+button): it reads every source, picks the most relevant items per category, has
+Groq summarise and judge a wider shortlist, and saves the best as pending review.
+
+- **Sources** are listed in `services/sources.js`; each group runs in parallel with
+  its own time budget, and inside a group requests run with bounded concurrency
+  (`services/scrapers/http.js`: retry with backoff, `Retry-After`, abort signal).
+  A full run takes about 20 s (it was 45 s for the jobs sources alone).
+- **Every run is recorded** (`FetchRun`): per-source status, item count, time and
+  error, per-category results, and whether the AI worked. The admin News page shows
+  it, so a dead source or a failing AI step is visible instead of only meaning
+  fewer articles.
+- **Selection.** Items are scored by keyword, source and recency; items older than
+  14 days (jobs: 60) are ignored; duplicates are removed by canonical URL, by
+  near-identical title, and for jobs by company. The top 10 per category go to the
+  AI, which rates relevance 0-10; off-topic items (< 3) are dropped, the rest are
+  ranked by relevance with at most 3 per source (2 for jobs).
+- **Auto-approve** (opt-in) now needs the keyword score to reach 7 **and** the AI to
+  rate the article 7+. A keyword score alone could be reached by recency and source
+  bonuses for an off-topic story.
+- **Handled URLs are remembered** (`SeenUrl`, 60 days) independently of the 200-item
+  news retention, so a rejected or off-topic article is not offered again and the AI
+  is not paid to judge it twice.
+- **The manual fetch runs in the background**: `POST /api/news/fetch` answers 202
+  at once and the console polls `GET /api/news/fetch-status`. Waiting on one request
+  used to time out after 60 s and report an error while the fetch carried on.
+- **Catch-up.** If the last successful run is over 26 h old at boot (the server was
+  down at the scheduled minute, a deploy restarted it), one runs a minute later.
+  Production only unless `NEWS_CATCH_UP=true`.
+- **Model.** Set with `GROQ_MODEL` (default `openai/gpt-oss-20b`). The previous
+  hard-coded `llama-3.3-70b-versatile` was retired and returned 404, so summaries
+  and ranking had silently not worked at all.
+
+Tests: `npm test --prefix server` (Node's built-in runner). They cover URL
+canonicalisation, de-duplication, AI reply validation, selection, retries and a
+full run against MongoDB with fake sources and a fake ranker; no network or key.
+
 ### Database indexes in production
 
 `config/db.js` disables `autoIndex` when `NODE_ENV=production` so boots stay

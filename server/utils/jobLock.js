@@ -10,19 +10,17 @@ const OWNER = `${os.hostname()}:${process.pid}`
 const DUPLICATE_KEY = 11000
 
 /**
- * Runs `task` only if this process can claim `name`.
+ * Claims `name` for `ttlMs`, or returns null when someone else holds it.
  *
  * The claim is a single atomic upsert: either this process writes the lease
  * document or it collides with the existing one. There is no read-then-write
  * window for two instances to both pass.
  *
- * @param {string} name        job identifier
- * @param {number} ttlMs       how long the lease is held before it can be taken over
- * @param {() => Promise<T>} task
- * @returns {Promise<{ran: boolean, result?: T}>}
- * @template T
+ * @param {string} name   job identifier
+ * @param {number} ttlMs  how long the lease is held before it can be taken over
+ * @returns {Promise<null | (() => Promise<void>)>} a function that releases the lease
  */
-export async function withJobLock(name, ttlMs, task) {
+export async function acquireJobLock(name, ttlMs) {
   const now = new Date()
   const expiresAt = new Date(now.getTime() + ttlMs)
 
@@ -37,23 +35,31 @@ export async function withJobLock(name, ttlMs, task) {
   } catch (error) {
     if (error?.code === DUPLICATE_KEY) {
       console.log(`[${name}] Another process holds the lock; skipping this run.`)
-      return { ran: false }
+      return null
     }
     throw error
   }
 
-  try {
-    const result = await task()
-    return { ran: true, result }
-  } finally {
-    // Release on the way out, success or failure, but only if the lease is
-    // still ours — a long overrun may already have been taken over, and
-    // releasing then would cut the new holder's run short.
+  // Release only if the lease is still ours — a long overrun may already have
+  // been taken over, and releasing then would cut the new holder's run short.
+  return async () => {
     try {
       await JobLock.deleteOne({ _id: name, owner: OWNER })
     } catch (error) {
       console.error(`[${name}] Failed to release the lock:`, error.message)
     }
+  }
+}
+
+export async function withJobLock(name, ttlMs, task) {
+  const release = await acquireJobLock(name, ttlMs)
+  if (!release) return { ran: false }
+
+  try {
+    const result = await task()
+    return { ran: true, result }
+  } finally {
+    await release()
   }
 }
 

@@ -1,83 +1,178 @@
-import { scoreArticle } from '../utils/scorer.js'
-import { rankAndSummarize } from './aiRanker.js'
-import News from '../models/News.js'
-import Setting from '../models/Setting.js'
-import AuditLog from '../models/AuditLog.js'
 import {
+  AI_CANDIDATES_PER_CATEGORY,
   ARTICLES_PER_CATEGORY,
-  AUTO_APPROVE_SETTING_KEY,
+  AUTO_APPROVE_MIN_RELEVANCE,
   AUTO_APPROVE_SCORE_THRESHOLD,
+  AUTO_APPROVE_SETTING_KEY,
+  MAX_AGE_DAYS,
+  MAX_PER_SOURCE,
+  MIN_AI_RELEVANCE_TO_SAVE,
+  NEWS_JOB_TTL_MS,
   NEWS_RETENTION_LIMIT,
 } from '../constants/news.js'
-import { fetchWorldNews } from './scrapers/worldNews/index.js'
-import { fetchVietnamNews } from './scrapers/vietnamNews/index.js'
-import { fetchJobs } from './scrapers/jobs.js'
-import { withJobLock } from '../utils/jobLock.js'
+import { invalidateCache } from '../middleware/cache.js'
+import AuditLog from '../models/AuditLog.js'
+import FetchRun from '../models/FetchRun.js'
+import News from '../models/News.js'
+import SeenUrl from '../models/SeenUrl.js'
+import Setting from '../models/Setting.js'
+import { canonicalUrl, dedupeArticles, selectDiverse } from '../utils/articleIdentity.js'
+import { acquireJobLock, isJobRunning } from '../utils/jobLock.js'
+import { matchesTopic, scoreArticle } from '../utils/scorer.js'
+import { rankAndSummarize } from './aiRanker.js'
+import { RunReport } from './runReport.js'
+import { collectArticles } from './sources.js'
 
 const CATEGORIES = ['World News', 'Vietnam News', 'Jobs']
 
-/** Lock name and lease length for the news fetch. */
+/** Lock name for the news fetch. */
 const NEWS_JOB = 'news-fetch'
 
-/*
- * A full run scrapes every source and makes one AI call per category. Fifteen
- * minutes is comfortably longer than that, and short enough that a crashed run
- * does not block the next day's fetch.
+const maxPerSource = (category) => MAX_PER_SOURCE[category] ?? MAX_PER_SOURCE.default
+
+/* -------------------------------------------------------------------------- */
+/* Pure steps — exported so they can be tested without a database or network   */
+/* -------------------------------------------------------------------------- */
+
+/** True when the item has a real date older than the category allows. Undated items pass. */
+function isTooOld(item) {
+  const published = new Date(item.publishedAt).getTime()
+  if (Number.isNaN(published)) return false
+  const limitDays = MAX_AGE_DAYS[item.category] ?? MAX_AGE_DAYS.default
+  return Date.now() - published > limitDays * 24 * 3600 * 1000
+}
+
+/**
+ * Cleans raw scraper output: drops items without a URL or title or that are too
+ * old, rewrites URLs to canonical form, scores everything, and removes duplicates (same canonical URL,
+ * or a near-identical title; for jobs, from the same company).
+ *
+ * Duplicates are removed *after* sorting by score, so the best-scored copy of a
+ * story is the one that survives.
+ *
+ * @param {object[]} raw
+ * @returns {object[]} unique articles, best score first
  */
-const NEWS_JOB_TTL_MS = 15 * 60 * 1000
+export function prepareArticles(raw) {
+  const articles = []
 
-async function saveRankedArticles(topArticles, rankedResults, category, autoApproveEnabled) {
-  const resultsToSave =
-    rankedResults.length > 0
-      ? rankedResults
-      : topArticles.map((article, index) => ({
-          index,
-          reason: (article.summary || article.title || '').slice(0, 500),
-        }))
-
-  // Quantity is prioritized over pre-filtering: nothing is dropped here, admin review is the
-  // actual relevance gate. AI-judged relevance (when available) only decides display order,
-  // so the most on-topic articles surface first for the admin.
-  resultsToSave.sort((a, b) => (b.relevance ?? 0) - (a.relevance ?? 0))
-
-  const candidates = resultsToSave
-    .map((result) => ({ result, article: topArticles[result.index] }))
-    .filter(({ article }) => Boolean(article))
-
-  if (candidates.length === 0) return { savedCount: 0, autoApprovedCount: 0 }
-
-  // One indexed query for the whole batch instead of a findOne per article.
-  const existing = await News.find(
-    { url: { $in: candidates.map(({ article }) => article.url) } },
-    'url',
-  ).lean()
-  const existingUrls = new Set(existing.map((n) => n.url))
-
-  const docs = []
-  let autoApprovedCount = 0
-
-  for (const { result, article } of candidates) {
-    if (existingUrls.has(article.url)) continue
-    // Guard against the same url appearing twice within one batch.
-    existingUrls.add(article.url)
-
-    const shouldAutoApprove = autoApproveEnabled && article.score >= AUTO_APPROVE_SCORE_THRESHOLD
-    if (shouldAutoApprove) autoApprovedCount++
-
-    docs.push({
-      title: article.title,
-      summary: result.reason,
-      url: article.url,
-      source: article.source,
-      category: article.category,
-      thumbnail: article.thumbnail || '',
-      publishedAt: article.publishedAt,
-      score: article.score,
-      status: shouldAutoApprove ? 'approved' : 'pending',
-    })
+  for (const item of raw) {
+    if (!item?.url || !item?.title) continue
+    if (isTooOld(item)) continue
+    const url = canonicalUrl(item.url)
+    const article = { ...item, title: String(item.title).trim(), rawUrl: item.url, url }
+    article.score = scoreArticle(article)
+    articles.push(article)
   }
 
-  if (docs.length === 0) return { savedCount: 0, autoApprovedCount: 0 }
+  // Newer first on equal score, so ties favour fresh items.
+  articles.sort((a, b) => b.score - a.score || new Date(b.publishedAt) - new Date(a.publishedAt))
+
+  // Grouped by hand: Object.groupBy needs Node 21 and the images run Node 20.
+  const byCategory = new Map()
+  for (const article of articles) {
+    if (!byCategory.has(article.category)) byCategory.set(article.category, [])
+    byCategory.get(article.category).push(article)
+  }
+
+  return [...byCategory.entries()]
+    .flatMap(([category, list]) => dedupeArticles(list, { sameCompany: category === 'Jobs' }))
+    .sort((a, b) => b.score - a.score || new Date(b.publishedAt) - new Date(a.publishedAt))
+}
+
+/**
+ * Chooses what to keep from the AI's judgement of a shortlist.
+ *
+ * With AI: drop what it rates off-topic, order by its relevance (keyword score
+ * breaks ties), cap per source. Without AI (no key, an error): fall back to the
+ * keyword order, since there is nothing better to rank by.
+ *
+ * @param {object[]} candidates shortlist in score order
+ * @param {{index: number, reason: string, relevance: number|null}[]} ranking one per candidate
+ * @param {boolean} usedAi
+ * @param {string} category
+ * @returns {{chosen: object[], offTopic: object[]}}
+ */
+export function chooseArticles(candidates, ranking, usedAi, category) {
+  const judged = candidates.map((article, index) => ({
+    ...article,
+    summaryText: ranking[index]?.reason ?? '',
+    relevance: ranking[index]?.relevance ?? null,
+  }))
+
+  if (!usedAi) {
+    return { chosen: selectDiverse(judged, ARTICLES_PER_CATEGORY, maxPerSource(category)), offTopic: [] }
+  }
+
+  const offTopic = judged.filter((a) => a.relevance !== null && a.relevance < MIN_AI_RELEVANCE_TO_SAVE)
+  const eligible = judged
+    .filter((a) => a.relevance === null || a.relevance >= MIN_AI_RELEVANCE_TO_SAVE)
+    .sort((a, b) => (b.relevance ?? 0) - (a.relevance ?? 0) || b.score - a.score)
+
+  return { chosen: selectDiverse(eligible, ARTICLES_PER_CATEGORY, maxPerSource(category)), offTopic }
+}
+
+/**
+ * Whether an article may skip review. A high keyword score alone is not enough:
+ * recency and source bonuses can reach the threshold for an off-topic story, so
+ * the AI must also rate it relevant (or, with no AI, the title must name the topic).
+ */
+export function isAutoApprovable(article, autoApproveEnabled) {
+  if (!autoApproveEnabled || article.score < AUTO_APPROVE_SCORE_THRESHOLD) return false
+  if (article.relevance === null || article.relevance === undefined) return matchesTopic(article.title)
+  return article.relevance >= AUTO_APPROVE_MIN_RELEVANCE
+}
+
+/* -------------------------------------------------------------------------- */
+/* Persistence                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/** Articles whose URL (raw or canonical) we already have, or have handled before. */
+async function dropKnown(articles) {
+  if (articles.length === 0) return articles
+
+  const urls = [...new Set(articles.flatMap((a) => [a.url, a.rawUrl]))]
+  const canonical = articles.map((a) => a.url)
+
+  const [inNews, seen] = await Promise.all([
+    News.find({ url: { $in: urls } }, 'url').lean(),
+    SeenUrl.find({ _id: { $in: canonical } }, '_id').lean(),
+  ])
+
+  const known = new Set([...inNews.map((n) => n.url), ...seen.map((s) => s._id)])
+  return articles.filter((a) => !known.has(a.url) && !known.has(a.rawUrl))
+}
+
+async function markSeen(urls) {
+  if (urls.length === 0) return
+  try {
+    await SeenUrl.insertMany(
+      urls.map((url) => ({ _id: url })),
+      { ordered: false },
+    )
+  } catch (error) {
+    // Duplicates are expected (already remembered); anything else is only a missed
+    // optimisation, never a reason to fail the run.
+    if (error?.code !== 11000 && !error?.writeErrors) console.error('Could not record seen URLs:', error.message)
+  }
+}
+
+async function saveArticles(chosen, autoApproveEnabled, category) {
+  if (chosen.length === 0) return { savedCount: 0, autoApprovedCount: 0 }
+
+  const docs = chosen.map((article) => ({
+    title: article.title,
+    summary: article.summaryText || (article.summary || article.title).slice(0, 500),
+    url: article.url,
+    source: article.source,
+    category: article.category,
+    thumbnail: article.thumbnail || '',
+    publishedAt: article.publishedAt,
+    score: article.score,
+    relevance: article.relevance,
+    status: isAutoApprovable(article, autoApproveEnabled) ? 'approved' : 'pending',
+  }))
+  const autoApprovedCount = docs.filter((doc) => doc.status === 'approved').length
 
   try {
     // `ordered: false` keeps going past a duplicate-url collision with a
@@ -91,136 +186,197 @@ async function saveRankedArticles(topArticles, rankedResults, category, autoAppr
   }
 }
 
-export const fetchAndProcessNews = async () => {
-  console.log('Starting IC Design News Agent...')
-  const perCategoryStats = {}
+/* -------------------------------------------------------------------------- */
+/* One run                                                                     */
+/* -------------------------------------------------------------------------- */
 
-  try {
-    const autoApproveSetting = await Setting.findOne({ key: AUTO_APPROVE_SETTING_KEY })
-    const autoApproveEnabled = autoApproveSetting?.value === true
+/**
+ * Collects, selects and saves news for every category.
+ *
+ * @param {{collect?: Function, rank?: Function, report?: RunReport}} [deps]
+ *   injectable for tests; production uses the real sources and the Groq ranker
+ */
+export const fetchAndProcessNews = async ({ collect = collectArticles, rank = rankAndSummarize, report = new RunReport() } = {}) => {
+  const autoApproveSetting = await Setting.findOne({ key: AUTO_APPROVE_SETTING_KEY }).lean()
+  const autoApproveEnabled = autoApproveSetting?.value === true
 
-    console.log('Fetching all sources...')
-    const [worldNews, vietnamNews, jobs] = await Promise.all([
-      fetchWorldNews(),
-      fetchVietnamNews(),
-      fetchJobs(),
-    ])
+  const raw = await collect({ report })
+  console.log(`Collected ${raw.length} raw articles from ${report.sources.length} sources.`)
 
-    const rawArticles = [...worldNews, ...vietnamNews, ...jobs]
-    console.log(`Fetched ${rawArticles.length} raw articles. Normalizing...`)
+  const unique = prepareArticles(raw)
+  const articles = await dropKnown(unique)
+  console.log(`${articles.length} new articles after de-duplication (${raw.length - articles.length} dropped).`)
 
-    const uniqueArticles = new Map()
-    for (const article of rawArticles) {
-      if (article.url && article.title && !uniqueArticles.has(article.url)) {
-        uniqueArticles.set(article.url, article)
-      }
+  const perCategory = {}
+  const ai = { used: 0, failed: 0, errors: [] }
+  let totalSaved = 0
+  let totalAutoApproved = 0
+
+  for (const category of CATEGORIES) {
+    const pool = articles.filter((a) => a.category === category)
+    const candidates = selectDiverse(pool, AI_CANDIDATES_PER_CATEGORY, Math.ceil(AI_CANDIDATES_PER_CATEGORY / 2))
+
+    if (candidates.length === 0) {
+      console.warn(`[${category}] No new articles found.`)
+      perCategory[category] = { pool: 0, candidates: 0, saved: 0, autoApproved: 0, offTopic: 0, ai: false }
+      continue
     }
 
-    let articles = Array.from(uniqueArticles.values())
-
-    const urls = articles.map((a) => a.url)
-    const existingNews = await News.find({ url: { $in: urls } }, 'url').lean()
-    const existingUrls = new Set(existingNews.map((n) => n.url))
-    articles = articles.filter((a) => !existingUrls.has(a.url))
-
-    console.log(`${articles.length} new articles after duplicate filter.`)
-
-    articles.forEach((article) => {
-      article.score = scoreArticle(article)
-    })
-
-    let totalSaved = 0
-    let totalAutoApproved = 0
-
-    for (const cat of CATEGORIES) {
-      const catArticles = articles.filter((a) => a.category === cat)
-      catArticles.sort((a, b) => b.score - a.score)
-      const topPerCat = catArticles.slice(0, ARTICLES_PER_CATEGORY)
-
-      if (topPerCat.length === 0) {
-        console.warn(`[${cat}] No new articles found (target: ${ARTICLES_PER_CATEGORY})`)
-        perCategoryStats[cat] = { scraped: 0, processed: 0, saved: 0 }
-        continue
-      }
-
-      if (topPerCat.length < ARTICLES_PER_CATEGORY) {
-        console.warn(
-          `[${cat}] Only ${topPerCat.length}/${ARTICLES_PER_CATEGORY} new articles available`
-        )
-      }
-
-      console.log(`[${cat}] Ranking and summarizing ${topPerCat.length} articles with AI...`)
-      const rankedResults = await rankAndSummarize(topPerCat, cat)
-      const { savedCount, autoApprovedCount } = await saveRankedArticles(
-        topPerCat,
-        rankedResults,
-        cat,
-        autoApproveEnabled
-      )
-
-      perCategoryStats[cat] = {
-        scraped: catArticles.length,
-        processed: topPerCat.length,
-        saved: savedCount,
-      }
-      totalSaved += savedCount
-      totalAutoApproved += autoApprovedCount
-      console.log(`[${cat}] Saved ${savedCount} pending articles (${autoApprovedCount} auto-approved)`)
+    const { results, usedAi, error } = await rank(candidates, category)
+    if (usedAi) ai.used += 1
+    else {
+      ai.failed += 1
+      if (error) ai.errors.push(`${category}: ${error}`.slice(0, 200))
     }
 
-    if (totalSaved === 0 && articles.length === 0) {
-      console.log('No new articles found across all categories.')
-    } else {
-      console.log(`Agent finished. Saved ${totalSaved} new pending articles.`, perCategoryStats)
-    }
+    const { chosen, offTopic } = chooseArticles(candidates, results, usedAi, category)
+    const { savedCount, autoApprovedCount } = await saveArticles(chosen, autoApproveEnabled, category)
 
-    if (totalAutoApproved > 0) {
-      await AuditLog.create({
-        adminEmail: 'system (auto-approve)',
-        action: 'AUTO_APPROVE_NEWS',
-        details: `Auto-approved ${totalAutoApproved} article(s) with score >= ${AUTO_APPROVE_SCORE_THRESHOLD} on fetch.`,
-      })
-    }
+    // Remember what was handled. Off-topic ones too: the AI already judged them, so
+    // tomorrow's run should not pay to judge the same article again. Articles that
+    // merely lost out on a slot are left alone; they may win one later.
+    await markSeen([...chosen, ...offTopic].map((a) => a.url))
 
-    // One prune per fetch run. This used to also happen inside a post('save')
-    // hook, meaning a full countDocuments() for every article written; the hook
-    // is gone and this is now the single place the 200-article cap is enforced.
-    try {
-      const deleted = await News.pruneToLimit(NEWS_RETENTION_LIMIT)
-      if (deleted > 0) {
-        console.log(`[News Cleanup] Deleted ${deleted} oldest articles to maintain the ${NEWS_RETENTION_LIMIT} limit.`)
-      }
-    } catch (cleanupErr) {
-      console.error('[News Cleanup] Failed to run database cleanup:', cleanupErr)
+    perCategory[category] = {
+      pool: pool.length,
+      candidates: candidates.length,
+      saved: savedCount,
+      autoApproved: autoApprovedCount,
+      offTopic: offTopic.length,
+      ai: usedAi,
     }
-
-    return { totalSaved, perCategoryStats }
-  } catch (error) {
-    console.error('Agent error:', error)
-    throw error
+    totalSaved += savedCount
+    totalAutoApproved += autoApprovedCount
+    console.log(`[${category}] ${savedCount} saved (${autoApprovedCount} auto-approved), ${offTopic.length} judged off-topic, AI ${usedAi ? 'on' : 'off'}.`)
   }
+
+  if (totalAutoApproved > 0) {
+    await AuditLog.create({
+      adminEmail: 'system (auto-approve)',
+      action: 'AUTO_APPROVE_NEWS',
+      details: `Auto-approved ${totalAutoApproved} article(s) with score >= ${AUTO_APPROVE_SCORE_THRESHOLD} and AI relevance >= ${AUTO_APPROVE_MIN_RELEVANCE} on fetch.`,
+    })
+  }
+
+  // One prune per run: the single place the retention cap is enforced.
+  try {
+    const deleted = await News.pruneToLimit(NEWS_RETENTION_LIMIT)
+    if (deleted > 0) console.log(`[News Cleanup] Deleted ${deleted} oldest articles to maintain the ${NEWS_RETENTION_LIMIT} limit.`)
+  } catch (cleanupErr) {
+    console.error('[News Cleanup] Failed to run database cleanup:', cleanupErr)
+  }
+
+  return { totalSaved, perCategory, ai, report }
+}
+
+/** How a finished run is classified, from its source reports. */
+export function runStatus(report, error) {
+  if (error) return 'failed'
+  if (report.sources.length > 0 && report.failed.length === report.sources.length) return 'failed'
+  return report.failed.length > 0 ? 'partial' : 'ok'
 }
 
 /**
- * Runs the news fetch, but only in one process at a time.
+ * Starts the news fetch if no other process is running it, and returns at once.
  *
- * Both the daily cron and the admin console's "fetch now" button go through
- * here. Without the lock, several API instances firing the same schedule — or an
- * admin clicking while the cron is mid-run — would each scrape everything and
- * each pay for its own AI summarisation.
+ * Both the daily cron and the admin console's button go through here. The lock
+ * means several API instances with the same schedule, or an admin clicking while
+ * the cron is mid-run, scrape and pay for the AI once.
  *
- * @param {string} [trigger] where the run came from, for the log line
- * @returns {Promise<{ran: boolean, result?: object}>}
+ * The work continues in the background: `done` resolves when it has finished and
+ * never rejects. A full run takes minutes, far longer than an HTTP request or the
+ * proxy in front of it will wait, so the admin console polls the run's status
+ * rather than holding a request open.
+ *
+ * @param {string} [trigger] where the run came from: 'cron', 'admin', 'catch-up'
+ * @param {object} [deps] sources and ranker, injectable for tests
+ * @returns {Promise<{started: false} | {started: true, runId: string, done: Promise<object|null>}>}
  */
-export const runNewsFetch = async (trigger = 'manual') => {
-  const outcome = await withJobLock(NEWS_JOB, NEWS_JOB_TTL_MS, () => {
-    console.log(`Starting the news fetch (trigger: ${trigger}).`)
-    return fetchAndProcessNews()
-  })
-
-  if (!outcome.ran) {
+export const startNewsFetch = async (trigger = 'manual', deps = {}) => {
+  const release = await acquireJobLock(NEWS_JOB, NEWS_JOB_TTL_MS)
+  if (!release) {
     console.log(`News fetch skipped (trigger: ${trigger}) — already running elsewhere.`)
+    return { started: false }
   }
 
-  return outcome
+  const run = await FetchRun.create({ trigger })
+  console.log(`Starting the news fetch (trigger: ${trigger}, run ${run._id}).`)
+
+  const done = (async () => {
+    const report = new RunReport()
+    let result = null
+    let error = null
+
+    try {
+      result = await fetchAndProcessNews({ ...deps, report })
+    } catch (err) {
+      error = err
+      console.error('News fetch failed:', err)
+    }
+
+    try {
+      await FetchRun.updateOne(
+        { _id: run._id },
+        {
+          status: runStatus(report, error),
+          finishedAt: new Date(),
+          sources: report.sources,
+          perCategory: result?.perCategory ?? {},
+          totalSaved: result?.totalSaved ?? 0,
+          ai: result?.ai ?? {},
+          ...(error ? { error: String(error.message || error).slice(0, 300) } : {}),
+        },
+      )
+    } catch (err) {
+      console.error('Could not store the fetch run:', err.message)
+    }
+
+    invalidateCache('news')
+    await release()
+    return result
+  })()
+
+  return { started: true, runId: String(run._id), done }
+}
+
+/**
+ * Runs the news fetch and waits for it. Used by the scheduler.
+ *
+ * @returns {Promise<{ran: boolean, result?: object|null}>}
+ */
+export const runNewsFetch = async (trigger = 'manual') => {
+  const started = await startNewsFetch(trigger)
+  if (!started.started) return { ran: false }
+  return { ran: true, result: await started.done }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Status for the admin console                                                */
+/* -------------------------------------------------------------------------- */
+
+/** Marks runs that never finished (the process died mid-run) as failed. */
+export async function recoverStaleRuns() {
+  const cutoff = new Date(Date.now() - NEWS_JOB_TTL_MS)
+  await FetchRun.updateMany(
+    { status: 'running', startedAt: { $lt: cutoff } },
+    { status: 'failed', finishedAt: new Date(), error: 'interrupted before it finished' },
+  )
+}
+
+/**
+ * @returns {Promise<{running: boolean, current: object|null, last: object|null}>}
+ *   `last` is the most recent finished run, `current` the one in progress
+ */
+export async function getFetchStatus() {
+  const [running, current, last] = await Promise.all([
+    isJobRunning(NEWS_JOB),
+    FetchRun.findOne({ status: 'running' }).sort({ startedAt: -1 }).lean(),
+    FetchRun.findOne({ status: { $ne: 'running' } }).sort({ startedAt: -1 }).lean(),
+  ])
+  return { running, current, last }
+}
+
+/** The most recent run that produced a usable result, or null. */
+export async function lastSuccessfulRun() {
+  return FetchRun.findOne({ status: { $in: ['ok', 'partial'] } }).sort({ startedAt: -1 }).lean()
 }
