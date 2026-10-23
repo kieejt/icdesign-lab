@@ -42,7 +42,7 @@ const BIBTEX_PLACEHOLDER = '@article{key,\n  title={...},\n  author={Last, First
 
 function CitationLine({ title, authors, journal, date, link }) {
   return (
-    <p className="text-[15px] leading-relaxed text-ink-800">
+    <p className="text-[16.5px] leading-relaxed text-ink-800">
       {authors && <span>{authors}, </span>}
       {link ? (
         <a href={link} target="_blank" rel="noopener noreferrer" className="link">
@@ -132,7 +132,7 @@ function ProjectRow({ item, onEdit, onDelete }) {
           <p className="truncate font-semibold text-ink-950">{item.title}</p>
           <div className="mt-1.5 flex flex-wrap items-center gap-2">
             <Badge tone="accent">{item.category}</Badge>
-            {item.date && <span className="font-mono text-[11px] text-ink-400">{formatDate(item.date)}</span>}
+            {item.date && <span className="font-mono text-[12.5px] text-ink-400">{formatDate(item.date)}</span>}
           </div>
           {item.link && (
             <a
@@ -162,7 +162,7 @@ function PublicationRow({ item, expanded, onToggleBibtex, onEdit, onDelete }) {
               type="button"
               onClick={onToggleBibtex}
               aria-expanded={expanded}
-              className="font-mono text-[11px] font-medium uppercase tracking-label text-ink-400 hover:text-accent-600"
+              className="font-mono text-[12.5px] font-medium uppercase tracking-label text-ink-400 hover:text-accent-600"
             >
               {expanded ? 'Hide BibTeX' : 'View BibTeX'}
             </button>

@@ -103,7 +103,7 @@ export default function AdminLayout() {
         <div className="border-t border-paper-border p-4">
           {currentUser && (
             <p
-              className="mb-3 truncate font-mono text-[11px] text-ink-400"
+              className="mb-3 truncate font-mono text-[12.5px] text-ink-400"
               title={currentUser.email}
             >
               {currentUser.email}

@@ -34,7 +34,7 @@ function Publication({ pub, locale, expanded, onToggle }) {
         className="absolute left-0 top-[1.85rem] h-px w-4 bg-ink-200 transition-all duration-300 group-hover:w-5 group-hover:bg-accent-500"
       />
 
-      <p className="text-[15px] leading-relaxed text-ink-700">
+      <p className="text-[16.5px] leading-relaxed text-ink-700">
         {authors && <span className="text-ink-500">{authors}, </span>}
         {/* The title opens this publication's own page, which carries the
             abstract, the citation and the BibTeX. The publisher's copy is one
@@ -44,7 +44,7 @@ function Publication({ pub, locale, expanded, onToggle }) {
           “{title},”
         </Link>{' '}
         {journal && <span className="italic text-ink-600">{journal}, </span>}
-        <span className="font-mono text-[13px] text-ink-400">
+        <span className="font-mono text-[14.5px] text-ink-400">
           {formatDate(date, 'monthYear', locale)}
         </span>
         .
@@ -68,7 +68,7 @@ function Publication({ pub, locale, expanded, onToggle }) {
             type="button"
             onClick={onToggle}
             aria-expanded={expanded}
-            className="mt-2 font-mono text-[11px] font-medium uppercase tracking-label text-ink-400 transition-colors hover:text-accent-600"
+            className="mt-2 font-mono text-[12.5px] font-medium uppercase tracking-label text-ink-400 transition-colors hover:text-accent-600"
           >
             {expanded ? `− ${t('ui.abstract')}` : `+ ${t('ui.abstract')}`}
           </button>

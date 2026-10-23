@@ -49,7 +49,7 @@ function MemberCard({ member, size, basePath }) {
         {/* Plain text, not a mailto: — the whole card is already a link to the
             profile, and a nested anchor would be invalid markup. The address is
             clickable on the profile page itself. */}
-        <p className="flex items-center gap-2.5 text-[13px] text-ink-500">
+        <p className="flex items-center gap-2.5 text-[14.5px] text-ink-500">
           <Icon name="mail" className="h-3.5 w-3.5 shrink-0 text-ink-300" />
           <span className="truncate" title={member.email}>
             {member.email}
@@ -57,7 +57,7 @@ function MemberCard({ member, size, basePath }) {
         </p>
 
         {member.research && (
-          <p className="flex items-start gap-2.5 text-[13px] text-ink-500">
+          <p className="flex items-start gap-2.5 text-[14.5px] text-ink-500">
             <Icon name="document" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-300" />
             <span className={`font-light leading-relaxed ${large ? '' : 'line-clamp-2'}`}>
               {member.research}

@@ -39,7 +39,7 @@ function pageRange(current, total, siblings = 1) {
 }
 
 const ARROW_CLASS =
-  'flex h-9 items-center gap-1.5 border border-ink-200 px-3 font-mono text-[11px] font-medium uppercase tracking-label text-ink-600 transition-colors hover:border-ink-900 hover:text-ink-950'
+  'flex h-9 items-center gap-1.5 border border-ink-200 px-3 font-mono text-[12.5px] font-medium uppercase tracking-label text-ink-600 transition-colors hover:border-ink-900 hover:text-ink-950'
 
 const PAGE_CLASS =
   'flex h-9 w-9 items-center justify-center border border-ink-200 font-mono text-xs font-medium text-ink-600 transition-colors hover:border-ink-900 hover:text-ink-950'

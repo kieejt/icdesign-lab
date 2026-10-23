@@ -59,13 +59,13 @@ function LectureCard({ lecture, t, locale }) {
             {lecture.title}
           </h3>
           {lecture.description && (
-            <p className="mt-2 line-clamp-3 text-[13px] leading-relaxed text-ink-500">
+            <p className="mt-2 line-clamp-3 text-[14.5px] leading-relaxed text-ink-500">
               {lecture.description}
             </p>
           )}
         </div>
 
-        <div className="flex items-center justify-between border-t border-paper-border pt-3.5 font-mono text-[11px] uppercase tracking-label text-ink-400">
+        <div className="flex items-center justify-between border-t border-paper-border pt-3.5 font-mono text-[12.5px] uppercase tracking-label text-ink-400">
           <span className="flex items-center gap-3">
             <span>
               {lecture.views || 0} {t('education.views')}

@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { publicNavItems } from '../constants/navigation'
 import { useAuth } from '../contexts/AuthContext'
 import { Icon, cx } from './ui'
-import logo from '../assets/lab-logo-128.webp'
+import logo from '../assets/lab-logo-192.webp'
 
 /**
  * Whether the device has a real hover state.
@@ -100,7 +100,7 @@ function NavItem({ item, onNavigate }) {
         onClick={onNavigate}
         className={({ isActive }) =>
           cx(
-            'relative flex items-center px-3 py-4 text-[15px] transition-colors',
+            'relative flex items-center px-3 py-4 text-[16.5px] transition-colors',
             // The active marker is a hairline under the label rather than a
             // colour change alone, so it still reads at a glance.
             'after:absolute after:inset-x-3 after:bottom-2.5 after:h-px after:origin-left after:scale-x-0 after:bg-accent-600 after:transition-transform after:duration-300',
@@ -144,7 +144,7 @@ function NavItem({ item, onNavigate }) {
           to={landingPath}
           onClick={followLink}
           className={cx(
-            'relative flex items-center py-4 pl-3 pr-1.5 text-[15px] transition-colors',
+            'relative flex items-center py-4 pl-3 pr-1.5 text-[16.5px] transition-colors',
             // The active marker is a hairline under the label rather than a
             // colour change alone, so it still reads at a glance. It tracks the
             // whole section, not just the landing page.
@@ -406,18 +406,18 @@ export default function SiteHeader() {
               <img
                 src={logo}
                 alt=""
-                width="56"
-                height="56"
+                width="80"
+                height="80"
                 className={cx(
                   'w-auto object-contain transition-all duration-300 ease-out',
-                  condensed ? 'h-9' : 'h-14',
+                  condensed ? 'h-12' : 'h-16 sm:h-20',
                 )}
               />
               <span className="flex flex-col leading-none">
                 <span
                   className={cx(
                     'font-display font-semibold tracking-tight text-ink-950 transition-all duration-300',
-                    condensed ? 'text-base' : 'text-lg sm:text-xl',
+                    condensed ? 'text-lg' : 'text-xl sm:text-2xl',
                   )}
                 >
                   IC design Lab

@@ -92,7 +92,7 @@ export default function LoginPage() {
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
-                className="btn-ghost btn-sm absolute right-1 top-1/2 -translate-y-1/2 font-mono text-[10px] uppercase tracking-label"
+                className="btn-ghost btn-sm absolute right-1 top-1/2 -translate-y-1/2 font-mono text-[12px] uppercase tracking-label"
               >
                 {showPassword ? 'Hide' : 'Show'}
               </button>
@@ -112,7 +112,7 @@ export default function LoginPage() {
           </Link>
         </p>
 
-        <p className="mt-8 flex items-start justify-center gap-2 text-center text-[11px] leading-relaxed text-ink-400">
+        <p className="mt-8 flex items-start justify-center gap-2 text-center text-[12.5px] leading-relaxed text-ink-400">
           <Icon name="mail" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>
             No account? Contact the lab at{' '}

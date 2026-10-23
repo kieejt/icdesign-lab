@@ -126,7 +126,7 @@ export default function PublicationDetailPage() {
           {pub.authors && (
             <section className="mb-10">
               <h2 className="eyebrow">{t('ui.authors')}</h2>
-              <p className="mt-2.5 text-[15px] leading-relaxed text-ink-700">{pub.authors}</p>
+              <p className="mt-2.5 text-[16.5px] leading-relaxed text-ink-700">{pub.authors}</p>
             </section>
           )}
 
@@ -148,7 +148,7 @@ export default function PublicationDetailPage() {
               <h2 className="eyebrow">{t('ui.citeThis')}</h2>
               <CopyButton value={citation} label={t('ui.copyCitation')} />
             </div>
-            <p className="mt-3 border-l-2 border-accent-200 pl-4 text-[15px] leading-relaxed text-ink-700">
+            <p className="mt-3 border-l-2 border-accent-200 pl-4 text-[16.5px] leading-relaxed text-ink-700">
               {citation}
             </p>
           </section>
@@ -162,7 +162,7 @@ export default function PublicationDetailPage() {
               </div>
               {/* Horizontally scrollable rather than wrapped: a broken BibTeX
                   line is worse than a scrollbar, since it gets pasted verbatim. */}
-              <pre className="mt-3 overflow-x-auto border border-paper-border bg-paper-sunken p-5 font-mono text-[12px] leading-relaxed text-ink-700">
+              <pre className="mt-3 overflow-x-auto border border-paper-border bg-paper-sunken p-5 font-mono text-[13.5px] leading-relaxed text-ink-700">
                 {pub.bibtex}
               </pre>
             </section>

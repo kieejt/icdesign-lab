@@ -334,7 +334,7 @@ export function DetailHeader({ backTo, backLabel, eyebrow, title, meta, actions 
               {title}
             </h1>
             {meta && (
-              <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-[11px] uppercase tracking-label text-ink-400">
+              <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-[12.5px] uppercase tracking-label text-ink-400">
                 {meta}
               </div>
             )}

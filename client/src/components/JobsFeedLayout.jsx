@@ -61,7 +61,7 @@ function JobCard({ job, t, locale }) {
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2.5">
           <Badge>{job.source || t('jobs.company')}</Badge>
-          <span className="font-mono text-[11px] text-ink-400">
+          <span className="font-mono text-[12.5px] text-ink-400">
             {postedLabel(job.publishedAt, t, locale)}
           </span>
         </div>
@@ -144,7 +144,7 @@ export default function JobsFeedLayout({ title, subtitle, category, eyebrow }) {
       <section className="mb-12">
         <h2 className="border-b border-ink-900 pb-3 font-display text-xl font-semibold text-ink-950">
           {heading}
-          <span className="ml-3 font-mono text-[11px] font-normal tracking-label text-ink-400">
+          <span className="ml-3 font-mono text-[12.5px] font-normal tracking-label text-ink-400">
             {items.length}
           </span>
         </h2>
@@ -179,7 +179,7 @@ export default function JobsFeedLayout({ title, subtitle, category, eyebrow }) {
                     value={startDate}
                     max={endDate || undefined}
                     onChange={(e) => update({ from: e.target.value })}
-                    className="field w-auto py-1.5 text-[13px]"
+                    className="field w-auto py-1.5 text-[14.5px]"
                   />
                 </div>
                 <div>
@@ -192,7 +192,7 @@ export default function JobsFeedLayout({ title, subtitle, category, eyebrow }) {
                     value={endDate}
                     min={startDate || undefined}
                     onChange={(e) => update({ to: e.target.value })}
-                    className="field w-auto py-1.5 text-[13px]"
+                    className="field w-auto py-1.5 text-[14.5px]"
                   />
                 </div>
                 {(startDate || endDate) && (

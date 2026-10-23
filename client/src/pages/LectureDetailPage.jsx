@@ -193,7 +193,7 @@ export default function LectureDetailPage() {
               <h1 className="font-display text-2xl font-semibold leading-tight text-ink-950 sm:text-3xl">
                 {lecture.title}
               </h1>
-              <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] uppercase tracking-label text-ink-400">
+              <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[12.5px] uppercase tracking-label text-ink-400">
                 <span>
                   {t('education.published')} {formatDate(lecture.createdAt, 'short', locale)}
                 </span>
@@ -255,7 +255,7 @@ export default function LectureDetailPage() {
                 <h3 className="font-display text-base font-semibold text-ink-950">
                   {t('education.lecHandouts')}
                 </h3>
-                <p className="mt-1.5 text-[13px] leading-relaxed text-ink-500">
+                <p className="mt-1.5 text-[14.5px] leading-relaxed text-ink-500">
                   {t('education.lecHandoutsDesc')}
                 </p>
                 <a
@@ -276,7 +276,7 @@ export default function LectureDetailPage() {
             <h2 className="font-display text-xl font-semibold text-ink-950">
               {t('education.classDiscussion')}
             </h2>
-            <p className="mt-1.5 text-[13px] text-ink-500">{t('education.classDiscussionDesc')}</p>
+            <p className="mt-1.5 text-[14.5px] text-ink-500">{t('education.classDiscussionDesc')}</p>
 
             {/* Only students ask questions; the professor answers below. */}
             {currentUser.role === 'student' && (
@@ -320,11 +320,11 @@ export default function LectureDetailPage() {
                     <div className="flex items-start gap-4">
                       <Avatar email={comment.email} />
                       <div className="min-w-0 flex-1">
-                        <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-ink-900">
+                        <p className="whitespace-pre-wrap text-[16.5px] leading-relaxed text-ink-900">
                           {comment.text}
                         </p>
                         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-                          <p className="font-mono text-[11px] text-ink-400">
+                          <p className="font-mono text-[12.5px] text-ink-400">
                             {comment.email}
                             <span aria-hidden="true" className="mx-2">
                               ·
@@ -336,7 +336,7 @@ export default function LectureDetailPage() {
                               type="button"
                               onClick={() => deleteComment(comment._id)}
                               disabled={busy}
-                              className="font-mono text-[11px] uppercase tracking-label text-ink-400 transition-colors hover:text-signal-danger disabled:opacity-40"
+                              className="font-mono text-[12.5px] uppercase tracking-label text-ink-400 transition-colors hover:text-signal-danger disabled:opacity-40"
                             >
                               {t('education.delete')}
                             </button>
@@ -353,13 +353,13 @@ export default function LectureDetailPage() {
                       >
                         <Avatar email={reply.email} tone="strong" />
                         <div className="min-w-0 flex-1">
-                          <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-ink-800">
+                          <p className="whitespace-pre-wrap text-[16.5px] leading-relaxed text-ink-800">
                             {reply.text}
                           </p>
                           <div className="mt-2 flex flex-wrap items-center gap-2.5">
-                            <span className="font-mono text-[11px] text-ink-400">{reply.email}</span>
+                            <span className="font-mono text-[12.5px] text-ink-400">{reply.email}</span>
                             <Badge tone="accent">{t('education.professorRole')}</Badge>
-                            <span className="font-mono text-[11px] text-ink-300">
+                            <span className="font-mono text-[12.5px] text-ink-300">
                               {formatDate(reply.createdAt, 'short', locale)}
                             </span>
                           </div>

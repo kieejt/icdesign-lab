@@ -50,7 +50,7 @@ function AlbumTile({ album }) {
         <h2 className="mt-2 font-display text-xl font-medium leading-tight text-paper">
           {album.title}
         </h2>
-        <p className="mt-2 font-mono text-[11px] text-paper/60">
+        <p className="mt-2 font-mono text-[12.5px] text-paper/60">
           {album.images?.length || 0} photos
         </p>
       </div>

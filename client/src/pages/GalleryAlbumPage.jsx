@@ -115,7 +115,7 @@ function Lightbox({ images, index, title, onClose, onNavigate, onDownload, album
       </div>
 
       <div
-        className="mt-6 flex items-center gap-5 font-mono text-[11px] uppercase tracking-label text-paper/60"
+        className="mt-6 flex items-center gap-5 font-mono text-[12.5px] uppercase tracking-label text-paper/60"
         onClick={(e) => e.stopPropagation()}
       >
         <span className="tabular-nums">

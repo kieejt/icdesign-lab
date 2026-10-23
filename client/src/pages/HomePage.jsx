@@ -55,27 +55,27 @@ function NewsItem({ item, locale }) {
   return (
     <article className="group flex gap-5 py-4">
       <time
-        className="hidden w-24 shrink-0 pt-0.5 font-mono text-[11px] uppercase tracking-label text-ink-400 sm:block"
+        className="hidden w-24 shrink-0 pt-0.5 font-mono text-[12.5px] uppercase tracking-label text-ink-400 sm:block"
         dateTime={item.publishedAt}
       >
         {formatDate(item.publishedAt, 'short', locale)}
       </time>
 
       <div className="min-w-0 flex-1">
-        <h3 className="text-[15px] font-medium leading-snug text-ink-800 transition-colors group-hover:text-accent-600">
+        <h3 className="text-[16.5px] font-medium leading-snug text-ink-800 transition-colors group-hover:text-accent-600">
           <a href={item.url} target="_blank" rel="noopener noreferrer">
             {item.title}
           </a>
         </h3>
-        <p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed text-ink-500">
+        <p className="mt-1.5 line-clamp-2 text-[14.5px] leading-relaxed text-ink-500">
           {item.summary}
         </p>
         <div className="mt-2 flex items-center gap-2.5">
-          <span className="font-mono text-[10px] uppercase tracking-label text-ink-400">
+          <span className="font-mono text-[12px] uppercase tracking-label text-ink-400">
             {item.source}
           </span>
           <time
-            className="font-mono text-[10px] text-ink-300 sm:hidden"
+            className="font-mono text-[12px] text-ink-300 sm:hidden"
             dateTime={item.publishedAt}
           >
             {formatDate(item.publishedAt, 'short', locale)}
@@ -195,7 +195,7 @@ export default function HomePage() {
         {/* Full-width, one-screen-tall photograph (viewport minus the header), washed out under a light veil so the two lines of
             text read on top of it. The photo is square, so the band shows a wide
             slice of it (object-position favours the people and the benches). */}
-        <div className="relative h-[calc(100svh-5.5rem)] min-h-[420px] w-full overflow-hidden bg-paper lg:h-[calc(100svh-9.1rem)]">
+        <div className="relative h-[calc(100svh-6rem)] min-h-[420px] w-full overflow-hidden bg-paper lg:h-[calc(100svh-10.6rem)]">
           {/* AVIF is about half the size of the WebP (800 px: 55 kB vs 80 kB), which
               matters here: the photo is the LCP element. Browsers without AVIF take
               the WebP. */}
@@ -244,7 +244,7 @@ export default function HomePage() {
           <div className="grid gap-12 lg:grid-cols-12 lg:gap-16">
             <div className="lg:col-span-7">
               <p className="eyebrow">{t('home.aboutEyebrow')}</p>
-              <p className="prose-body mt-5 text-[17px] leading-[1.7] text-ink-700">
+              <p className="prose-body mt-5 text-[18px] leading-[1.7] text-ink-700">
                 {t('home.aboutBody1')}
               </p>
               <p className="prose-body mt-4">{t('home.aboutBody2')}</p>
@@ -357,7 +357,7 @@ export default function HomePage() {
                       <h3 className="mt-2 font-display text-lg font-semibold leading-snug text-ink-950 transition-colors group-hover:text-accent-700">
                         {item.title}
                       </h3>
-                      <p className="mt-2 line-clamp-3 text-[13px] leading-relaxed text-ink-500">
+                      <p className="mt-2 line-clamp-3 text-[14.5px] leading-relaxed text-ink-500">
                         {item.description}
                       </p>
                     </Link>
@@ -410,7 +410,7 @@ export default function HomePage() {
                       <h3 className="font-display text-base font-semibold text-ink-950">
                         {member.name}
                       </h3>
-                      <p className="mt-0.5 text-[13px] text-ink-500">{member.role}</p>
+                      <p className="mt-0.5 text-[14.5px] text-ink-500">{member.role}</p>
                     </Link>
                   ))}
             </div>
@@ -446,7 +446,7 @@ export default function HomePage() {
                                 ? t('home.openPosition', 'Open Position')
                                 : t('home.closedPosition', 'Closed')}
                             </Badge>
-                            <span className="font-mono text-[11px] text-ink-400">
+                            <span className="font-mono text-[12.5px] text-ink-400">
                               {t('home.deadline')}
                               <span className="text-ink-700">
                                 {formatDate(item.deadline, 'short', locale)}
@@ -498,11 +498,11 @@ export default function HomePage() {
                           </a>
                         </h3>
                         <div className="mt-2 flex items-center gap-2.5">
-                          <span className="font-mono text-[10px] uppercase tracking-label text-ink-400">
+                          <span className="font-mono text-[12px] uppercase tracking-label text-ink-400">
                             {item.source}
                           </span>
                           <time
-                            className="font-mono text-[10px] text-ink-300"
+                            className="font-mono text-[12px] text-ink-300"
                             dateTime={item.publishedAt}
                           >
                             {formatDate(item.publishedAt, 'short', locale)}
@@ -529,7 +529,7 @@ export default function HomePage() {
               <h2 className="mt-3 font-display text-2xl font-semibold text-ink-950 sm:text-3xl">
                 {t('contact.title')}
               </h2>
-              <p className="mt-3 max-w-md text-[15px] leading-relaxed text-ink-600">
+              <p className="mt-3 max-w-md text-[16.5px] leading-relaxed text-ink-600">
                 {t('contact.subtitle')}
               </p>
               <QuietLink to="/contact" className="mt-5 inline-flex">

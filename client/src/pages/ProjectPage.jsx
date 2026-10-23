@@ -88,7 +88,7 @@ export default function ProjectPage() {
                   <h2 className="mt-3 font-display text-2xl font-medium leading-tight text-ink-950 transition-colors group-hover:text-accent-700 md:text-3xl">
                     {project.title}
                   </h2>
-                  <p className="mt-4 line-clamp-4 max-w-3xl whitespace-pre-wrap text-[15px] font-light leading-relaxed text-ink-500">
+                  <p className="mt-4 line-clamp-4 max-w-3xl whitespace-pre-wrap text-[16.5px] font-light leading-relaxed text-ink-500">
                     {project.description}
                   </p>
                   <span className="link-quiet mt-5">

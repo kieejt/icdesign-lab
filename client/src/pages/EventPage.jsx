@@ -93,7 +93,7 @@ export default function EventPage() {
                         {event.date}
                       </p>
 
-                      <p className="flex items-start gap-2 text-[13px] font-light text-ink-400">
+                      <p className="flex items-start gap-2 text-[14.5px] font-light text-ink-400">
                         <Icon name="pin" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                         {event.location}
                       </p>
@@ -103,7 +103,7 @@ export default function EventPage() {
                       <h2 className="font-display text-2xl font-medium leading-tight text-ink-950 transition-colors group-hover:text-accent-700 md:text-3xl">
                         {event.title}
                       </h2>
-                      <p className="mt-4 line-clamp-3 max-w-4xl whitespace-pre-wrap text-[15px] font-light leading-relaxed text-ink-500">
+                      <p className="mt-4 line-clamp-3 max-w-4xl whitespace-pre-wrap text-[16.5px] font-light leading-relaxed text-ink-500">
                         {event.description}
                       </p>
                       <span className="link-quiet mt-4">

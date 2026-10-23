@@ -118,18 +118,18 @@
 
   /* The small mono label used above headings and on metadata chips. */
   .eyebrow {
-    @apply font-mono text-[11px] font-medium uppercase tracking-label text-ink-400;
+    @apply font-mono text-[12.5px] font-medium uppercase tracking-label text-ink-400;
   }
 
   /* Standfirst under a page title. Kept at reading size, not display size —
      academic pages open with a sentence of context, not a marketing line. */
   .lede {
-    @apply max-w-measure text-base leading-relaxed text-ink-500 sm:text-[17px];
+    @apply max-w-measure text-base leading-relaxed text-ink-500 sm:text-[18px];
   }
 
   /* Body copy inside an article or description block. */
   .prose-body {
-    @apply max-w-prose text-[15px] leading-[1.75] text-ink-600;
+    @apply max-w-prose text-[16.5px] leading-[1.75] text-ink-600;
   }
 
   /* --- Buttons ------------------------------------------------------------ */
@@ -169,7 +169,7 @@
 
   /* The "View all →" affordance used at the head of every section. */
   .link-quiet {
-    @apply inline-flex items-center gap-1.5 font-mono text-[11px] font-medium uppercase
+    @apply inline-flex items-center gap-1.5 font-mono text-[12.5px] font-medium uppercase
            tracking-label text-ink-400 transition-colors hover:text-accent-600;
   }
 
@@ -187,7 +187,7 @@
   /* --- Badges ------------------------------------------------------------- */
 
   .badge {
-    @apply inline-flex items-center gap-1.5 border px-2 py-0.5 font-mono text-[10px]
+    @apply inline-flex items-center gap-1.5 border px-2 py-0.5 font-mono text-[12px]
            font-medium uppercase tracking-label;
   }
 
@@ -221,7 +221,7 @@
   }
 
   .field-label {
-    @apply mb-1.5 block font-mono text-[11px] font-medium uppercase tracking-label text-ink-500;
+    @apply mb-1.5 block font-mono text-[12.5px] font-medium uppercase tracking-label text-ink-500;
   }
 
   /* --- Section heading rule ----------------------------------------------- */

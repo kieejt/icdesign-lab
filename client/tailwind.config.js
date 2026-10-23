@@ -39,9 +39,9 @@ export default {
           50: '#F7F8F8',
           100: '#EDEEEF',
           200: '#D9DBDE',
-          300: '#B3B7BC',
-          400: '#82878E',
-          500: '#5F656C',
+          300: '#9AA0A6',
+          400: '#697078',
+          500: '#515860',
           600: '#474D54',
           700: '#343A40',
           800: '#22262B',
@@ -86,6 +86,14 @@ export default {
       },
 
       fontSize: {
+        // The default scale, raised about 8% so secondary text (grey captions,
+        // metadata, table cells) stays comfortable to read. Larger steps and the
+        // display sizes below are unchanged.
+        xs: ['0.8125rem', { lineHeight: '1.15rem' }],
+        sm: ['0.9375rem', { lineHeight: '1.4rem' }],
+        base: ['1.0625rem', { lineHeight: '1.65rem' }],
+        lg: ['1.1875rem', { lineHeight: '1.75rem' }],
+        xl: ['1.3125rem', { lineHeight: '1.85rem' }],
         // Deliberately modest. An academic h1 introduces a page; it is not a
         // billboard, and oversized display type pushes the actual content below
         // the fold on every single page.

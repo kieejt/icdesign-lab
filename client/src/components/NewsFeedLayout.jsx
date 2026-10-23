@@ -37,7 +37,7 @@ function FeatureCard({ item, locale }) {
 
       <div className="flex flex-wrap items-center gap-2.5">
         <Badge>{item.source}</Badge>
-        <time className="font-mono text-[11px] text-ink-300" dateTime={item.publishedAt}>
+        <time className="font-mono text-[12.5px] text-ink-300" dateTime={item.publishedAt}>
           {formatDate(item.publishedAt, 'long', locale)}
         </time>
       </div>
@@ -74,7 +74,7 @@ function ArchiveRow({ item, locale }) {
         </a>
       </div>
       <time
-        className="shrink-0 font-mono text-[11px] text-ink-300 sm:pl-4"
+        className="shrink-0 font-mono text-[12.5px] text-ink-300 sm:pl-4"
         dateTime={item.publishedAt}
       >
         {formatDate(item.publishedAt, 'short', locale)}
@@ -97,7 +97,7 @@ function DateFilter({ startDate, endDate, onChange, onClear }) {
           value={startDate}
           max={endDate || undefined}
           onChange={(e) => onChange('start', e.target.value)}
-          className="field w-auto py-1.5 text-[13px]"
+          className="field w-auto py-1.5 text-[14.5px]"
         />
       </div>
       <div>
@@ -110,7 +110,7 @@ function DateFilter({ startDate, endDate, onChange, onClear }) {
           value={endDate}
           min={startDate || undefined}
           onChange={(e) => onChange('end', e.target.value)}
-          className="field w-auto py-1.5 text-[13px]"
+          className="field w-auto py-1.5 text-[14.5px]"
         />
       </div>
       {(startDate || endDate) && (

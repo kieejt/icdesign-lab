@@ -21,7 +21,7 @@ function ContactRow({ icon, label, children }) {
       <Icon name={icon} className="mt-1 h-4 w-4 shrink-0 text-ink-300" />
       <div className="min-w-0">
         <p className="eyebrow">{label}</p>
-        <div className="mt-1.5 text-[15px] leading-relaxed text-ink-800">{children}</div>
+        <div className="mt-1.5 text-[16.5px] leading-relaxed text-ink-800">{children}</div>
       </div>
     </div>
   )
@@ -158,7 +158,7 @@ export default function ContactPage() {
                   >
                     <div className="flex shrink-0 flex-col gap-2 lg:w-56">
                       <Badge tone="ok">{t('home.openPosition', 'Open Position')}</Badge>
-                      <span className="font-mono text-[11px] text-ink-400">
+                      <span className="font-mono text-[12.5px] text-ink-400">
                         {t('home.deadline')}
                         <span className="text-ink-700">
                           {formatDate(job.deadline, 'short', locale)}

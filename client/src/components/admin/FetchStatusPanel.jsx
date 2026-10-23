@@ -33,7 +33,7 @@ function SourceList({ sources }) {
             </Badge>
             <span className="truncate text-ink-800">{source.name}</span>
           </span>
-          <span className="font-mono text-[11px] text-ink-400">
+          <span className="font-mono text-[12.5px] text-ink-400">
             {source.ok ? `${source.count} items` : 'no items'} · {(source.ms / 1000).toFixed(1)} s
           </span>
           {source.error && <span className="basis-full text-xs text-signal-warn">{source.error}</span>}
@@ -78,7 +78,7 @@ export default function FetchStatusPanel({ status }) {
           {running && <Spinner className="h-4 w-4" />}
         </div>
         {run && (
-          <p className="font-mono text-[11px] text-ink-400">
+          <p className="font-mono text-[12.5px] text-ink-400">
             {new Date(run.startedAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}
             {duration(run) && ` · ${duration(run)}`}
             {run.trigger && ` · ${run.trigger}`}

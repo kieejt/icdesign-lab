@@ -129,18 +129,18 @@ export default function MemberDetailPage() {
               <dl className="divide-hairline border-t border-paper-border">
                 <div className="flex flex-col gap-1 py-4 sm:flex-row sm:gap-8">
                   <dt className="eyebrow sm:w-40 sm:shrink-0 sm:pt-0.5">{t('ui.position')}</dt>
-                  <dd className="text-[15px] text-ink-800">{member.role}</dd>
+                  <dd className="text-[16.5px] text-ink-800">{member.role}</dd>
                 </div>
 
                 <div className="flex flex-col gap-1 py-4 sm:flex-row sm:gap-8">
                   <dt className="eyebrow sm:w-40 sm:shrink-0 sm:pt-0.5">{t('ui.group')}</dt>
-                  <dd className="text-[15px] text-ink-800">{member.category}</dd>
+                  <dd className="text-[16.5px] text-ink-800">{member.category}</dd>
                 </div>
 
                 {member.email && (
                   <div className="flex flex-col gap-1 py-4 sm:flex-row sm:gap-8">
                     <dt className="eyebrow sm:w-40 sm:shrink-0 sm:pt-0.5">{t('ui.email')}</dt>
-                    <dd className="text-[15px]">
+                    <dd className="text-[16.5px]">
                       <a href={`mailto:${member.email}`} className="link break-all">
                         {member.email}
                       </a>

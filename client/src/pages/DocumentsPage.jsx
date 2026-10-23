@@ -40,7 +40,7 @@ function SegmentedControl({ label, options, value, onChange }) {
             onClick={() => onChange(option.key)}
             aria-pressed={value === option.key}
             className={cx(
-              'px-3.5 py-1.5 font-mono text-[11px] font-medium uppercase tracking-label transition-colors',
+              'px-3.5 py-1.5 font-mono text-[12.5px] font-medium uppercase tracking-label transition-colors',
               value === option.key
                 ? 'bg-ink-950 text-paper'
                 : 'text-ink-500 hover:bg-paper-sunken hover:text-ink-900',
@@ -175,7 +175,7 @@ export default function DocumentsPage() {
 
           {/* Result count doubles as the "refreshing" indicator, so filtering
               never blanks the table the visitor is reading. */}
-          <p className="mt-4 font-mono text-[11px] uppercase tracking-label text-ink-400">
+          <p className="mt-4 font-mono text-[12.5px] uppercase tracking-label text-ink-400">
             {loading ? t('ui.loading') : t('ui.entry', { count: total })}
             {isValidating && !loading && (
               <span className="ml-2 text-ink-300">{t('ui.updating')}</span>
@@ -234,7 +234,7 @@ export default function DocumentsPage() {
                         className="group block px-4 py-5 transition-colors hover:bg-paper-sunken sm:table-row sm:p-0"
                       >
                         <td className="block sm:table-cell sm:px-4 sm:py-5 sm:align-top">
-                          <h3 className="font-display text-[17px] font-semibold leading-snug text-ink-950">
+                          <h3 className="font-display text-[18px] font-semibold leading-snug text-ink-950">
                             {book.title}
                           </h3>
                           <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -251,7 +251,7 @@ export default function DocumentsPage() {
 
                         <td
                           data-label={t('education.subject')}
-                          className="mt-3 block text-sm text-ink-500 before:mr-2 before:font-mono before:text-[11px] before:uppercase before:tracking-label before:text-ink-400 before:content-[attr(data-label)] sm:table-cell sm:whitespace-nowrap sm:px-4 sm:py-5 sm:align-top sm:before:hidden">
+                          className="mt-3 block text-sm text-ink-500 before:mr-2 before:font-mono before:text-[12.5px] before:uppercase before:tracking-label before:text-ink-400 before:content-[attr(data-label)] sm:table-cell sm:whitespace-nowrap sm:px-4 sm:py-5 sm:align-top sm:before:hidden">
                           {book.subject || t('education.general')}
                         </td>
 
@@ -261,7 +261,7 @@ export default function DocumentsPage() {
                               href={book.link}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="link inline-flex items-center gap-1.5 text-[13px]"
+                              className="link inline-flex items-center gap-1.5 text-[14.5px]"
                             >
                               {t('education.details').replace('→', '').trim()}
                               <Icon name="external" className="h-3.5 w-3.5" />

@@ -96,7 +96,7 @@ function CommentRow({ comment, text, busy, onTextChange, onReply, onDelete }) {
         <p className="min-w-0 truncate text-sm font-medium text-ink-950" title={comment.email}>
           {comment.email}
         </p>
-        <p className="font-mono text-[11px] text-ink-400">{formatDate(comment.createdAt)}</p>
+        <p className="font-mono text-[12.5px] text-ink-400">{formatDate(comment.createdAt)}</p>
       </div>
 
       <div className="border border-paper-border bg-paper-sunken px-4 py-3">
@@ -222,7 +222,7 @@ function AuditRow({ log }) {
       </td>
       <td className="whitespace-nowrap px-5 py-3.5 text-right">
         <p className="font-mono text-xs text-ink-600">{log.ip || 'no-ip'}</p>
-        <p className="ml-auto mt-0.5 max-w-[12rem] truncate text-[11px] text-ink-400" title={log.userAgent}>
+        <p className="ml-auto mt-0.5 max-w-[12rem] truncate text-[12.5px] text-ink-400" title={log.userAgent}>
           {log.userAgent}
         </p>
       </td>

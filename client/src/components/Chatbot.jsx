@@ -103,7 +103,7 @@ export default function Chatbot() {
                 <p className="font-display text-sm font-semibold leading-tight">
                   IC Design Assistant
                 </p>
-                <p className="font-mono text-[10px] uppercase tracking-label text-ink-400">
+                <p className="font-mono text-[12px] uppercase tracking-label text-ink-400">
                   {lang === 'vi' ? 'Sẵn sàng giải đáp' : 'Ready to help'}
                 </p>
               </div>
@@ -132,7 +132,7 @@ export default function Chatbot() {
               >
                 <div
                   className={cx(
-                    'max-w-[85%] whitespace-pre-wrap px-3.5 py-2.5 text-[13px] leading-relaxed',
+                    'max-w-[85%] whitespace-pre-wrap px-3.5 py-2.5 text-[14.5px] leading-relaxed',
                     message.role === 'user'
                       ? 'bg-ink-950 text-paper'
                       : 'border border-paper-border bg-paper-raised text-ink-700',
@@ -173,7 +173,7 @@ export default function Chatbot() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder={lang === 'vi' ? 'Nhập câu hỏi của bạn…' : 'Ask a question…'}
-                className="field flex-1 py-2 text-[13px]"
+                className="field flex-1 py-2 text-[14.5px]"
                 disabled={isLoading}
               />
               <button

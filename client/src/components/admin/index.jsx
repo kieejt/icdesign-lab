@@ -99,7 +99,7 @@ export function AdminTabs({ tabs, active, onChange, label = 'Sections', classNam
           >
             {tab.label}
             {tab.count !== undefined && (
-              <span className="ml-2 font-mono text-[11px] text-ink-400">{tab.count}</span>
+              <span className="ml-2 font-mono text-[12.5px] text-ink-400">{tab.count}</span>
             )}
           </button>
         )

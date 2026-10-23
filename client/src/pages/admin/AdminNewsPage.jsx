@@ -527,7 +527,7 @@ const AdminNewsPage = () => {
                     )}
                   >
                     {cat.shortLabel}
-                    <span className="font-mono text-[11px] text-ink-400">
+                    <span className="font-mono text-[12.5px] text-ink-400">
                       {statsQuery.data ? countByCategory[cat.id] || 0 : '–'}
                     </span>
                   </button>

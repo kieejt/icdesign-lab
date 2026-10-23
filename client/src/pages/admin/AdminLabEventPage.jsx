@@ -259,7 +259,7 @@ function AlbumImageTile({ url, selected, isCover, onToggle, onSetCover }) {
         </span>
       )}
       {isCover && !selected && (
-        <span className="pointer-events-none absolute left-0 top-0 bg-ink-950 px-1.5 py-0.5 font-mono text-[9px] font-medium uppercase tracking-label text-paper">
+        <span className="pointer-events-none absolute left-0 top-0 bg-ink-950 px-1.5 py-0.5 font-mono text-[11px] font-medium uppercase tracking-label text-paper">
           Cover
         </span>
       )}
@@ -267,7 +267,7 @@ function AlbumImageTile({ url, selected, isCover, onToggle, onSetCover }) {
         <button
           type="button"
           onClick={onSetCover}
-          className="absolute inset-x-0 bottom-0 bg-ink-950/75 py-0.5 text-center font-mono text-[9px] font-medium uppercase tracking-label text-paper opacity-0 transition-opacity focus:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+          className="absolute inset-x-0 bottom-0 bg-ink-950/75 py-0.5 text-center font-mono text-[11px] font-medium uppercase tracking-label text-paper opacity-0 transition-opacity focus:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
         >
           Set Cover
         </button>
