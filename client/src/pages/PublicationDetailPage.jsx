@@ -2,6 +2,7 @@ import React from 'react'
 import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
+import usePageMeta from '../hooks/usePageMeta'
 import useApiQuery from '../hooks/useApiQuery'
 import {
   CopyButton,
@@ -43,6 +44,21 @@ export default function PublicationDetailPage() {
 
   const { data: pub, loading, error, refetch } = useApiQuery(`/research/${id}`, {
     staleTime: 5 * 60_000,
+  })
+
+  usePageMeta({
+    title: pub?.title,
+    description: pub ? [pub.authors, pub.journal, pub.description].filter(Boolean).join(' · ') : undefined,
+    jsonLd: pub && {
+      '@context': 'https://schema.org',
+      '@type': 'ScholarlyArticle',
+      headline: pub.title,
+      author: pub.authors ? pub.authors.split(/,| and /).map((name) => ({ '@type': 'Person', name: name.trim() })).filter((a) => a.name) : undefined,
+      datePublished: pub.date || pub.createdAt,
+      isPartOf: pub.journal ? { '@type': 'Periodical', name: pub.journal } : undefined,
+      url: pub.link || undefined,
+      description: pub.description || undefined,
+    },
   })
 
   if (loading) return <DetailSkeleton withMedia={false} />
@@ -105,7 +121,7 @@ export default function PublicationDetailPage() {
       />
 
       <Section>
-        <Shell className="max-w-4xl">
+        <Shell narrow="max-w-4xl">
           {/* --- Authors ------------------------------------------------- */}
           {pub.authors && (
             <section className="mb-10">

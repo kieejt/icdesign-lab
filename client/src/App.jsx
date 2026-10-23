@@ -6,7 +6,9 @@ import ScrollToTop from './components/ScrollToTop'
 import SiteHeader from './components/SiteHeader'
 import { Shell, SkeletonGrid } from './components/ui'
 import { trackPageView } from './lib/analytics'
+import usePageMeta from './hooks/usePageMeta'
 import LegacyPageRedirect from './routes/LegacyPageRedirect'
+import { installLinkPrefetch } from './routes/routePrefetch'
 import ProtectedAdminRoute from './routes/ProtectedAdminRoute'
 
 /*
@@ -86,16 +88,43 @@ function AnalyticsTracker() {
   const { pathname } = useLocation()
 
   useEffect(() => {
-    if (pathname.startsWith('/admin')) return
+    if (pathname.startsWith('/admin') || pathname === '/login') return
     trackPageView(pathname)
   }, [pathname])
 
   return null
 }
 
+/** Titles for pages whose title doesn't depend on loaded data. */
+const STATIC_TITLES = {
+  '/': 'IC Design Lab',
+  '/people/professor': 'Professors',
+  '/people/students': 'Students',
+  '/people/alumni': 'Alumni',
+  '/research/project': 'Research projects',
+  '/research/publications': 'Publications',
+  '/lab-event/event': 'Events',
+  '/lab-event/gallery': 'Gallery',
+  '/documents': 'Documents',
+  '/lectures': 'Lectures',
+  '/news/world-news': 'World news',
+  '/news/vietnam-news': 'Vietnam news',
+  '/news/jobs': 'Jobs and internships',
+  '/contact': 'Contact',
+}
+
+/** Gives list pages their own <title>; detail pages set theirs from loaded data. */
+function StaticPageMeta() {
+  const { pathname } = useLocation()
+  usePageMeta({ title: STATIC_TITLES[pathname.replace(/(.)\/$/, '$1')] })
+  return null
+}
+
 export default function App() {
   const { pathname } = useLocation()
   const isAdminArea = pathname.startsWith('/admin')
+
+  useEffect(() => installLinkPrefetch(), [])
 
   /*
    * The error boundary is re-keyed per page so a crash on one route doesn't
@@ -111,6 +140,7 @@ export default function App() {
     <div className="flex min-h-screen flex-col bg-paper text-ink-800">
       <ScrollToTop />
       <AnalyticsTracker />
+      <StaticPageMeta />
 
       {/* The admin console has its own chrome, so the public shell is skipped there. */}
       {!isAdminArea && <SiteHeader />}

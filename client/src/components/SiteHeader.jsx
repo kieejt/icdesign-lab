@@ -315,12 +315,21 @@ export default function SiteHeader() {
   // Shrink the masthead once the page scrolls, so the nav takes less of the
   // viewport while reading. rAF-throttled: scroll fires far more often than the
   // browser can paint, and re-rendering on every event is wasted work.
+  //
+  // The two thresholds are deliberately far apart. The header is in the document
+  // flow, so shrinking it moves the content up by its own height difference
+  // (~40px) and the browser pulls scrollY back by the same amount. With a single
+  // threshold near the top, that pull-back crossed it again, which expanded the
+  // header, which pushed scrollY over it again — a visible up/down flicker for
+  // as long as the user stayed in that zone. The gap must exceed the height the
+  // header gives up.
   useEffect(() => {
     let frame = null
     const onScroll = () => {
       if (frame !== null) return
       frame = requestAnimationFrame(() => {
-        setCondensed(window.scrollY > 24)
+        const y = window.scrollY
+        setCondensed((was) => (y > 120 ? true : y < 16 ? false : was))
         frame = null
       })
     }
@@ -394,7 +403,7 @@ export default function SiteHeader() {
               className="group flex shrink-0 items-center gap-3.5 transition-opacity hover:opacity-80"
             >
               <img
-                src="/lab-logo.png"
+                src="/lab-logo-128.webp"
                 alt=""
                 width="56"
                 height="56"

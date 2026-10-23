@@ -163,7 +163,7 @@ export default function JobsFeedLayout({ title, subtitle, category, eyebrow }) {
 
       <Section>
         <Shell>
-          <div className="mx-auto max-w-5xl">
+          <div className="max-w-5xl">
             {/* Filter bar */}
             <div className="mb-10 flex flex-wrap items-end justify-between gap-4 border border-paper-border bg-paper-raised px-5 py-4">
               <p className="eyebrow">Filter by date</p>

@@ -72,7 +72,7 @@ function LectureCard({ lecture, t, locale }) {
             </span>
             <span aria-hidden="true">·</span>
             <span>
-              {lecture.comments?.length || 0} {t('education.qa')}
+              {lecture.commentCount ?? lecture.comments?.length ?? 0} {t('education.qa')}
             </span>
           </span>
           <span className="text-ink-800 transition-transform duration-300 group-hover:translate-x-1">

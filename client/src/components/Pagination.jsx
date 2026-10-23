@@ -41,6 +41,9 @@ function pageRange(current, total, siblings = 1) {
 const ARROW_CLASS =
   'flex h-9 items-center gap-1.5 border border-ink-200 px-3 font-mono text-[11px] font-medium uppercase tracking-label text-ink-600 transition-colors hover:border-ink-900 hover:text-ink-950'
 
+const PAGE_CLASS =
+  'flex h-9 w-9 items-center justify-center border border-ink-200 font-mono text-xs font-medium text-ink-600 transition-colors hover:border-ink-900 hover:text-ink-950'
+
 const DISABLED_CLASS = 'pointer-events-none opacity-35'
 
 /**
@@ -50,12 +53,22 @@ const DISABLED_CLASS = 'pointer-events-none opacity-35'
  * during render is a new type on every render, so React unmounts and remounts it
  * each time instead of updating it.
  */
-function PageStep({ href, disabled, onNavigate, children }) {
+function PageStep({ href, onSelect, disabled, onNavigate, children }) {
   if (disabled) {
     return (
       <span aria-disabled="true" className={cx(ARROW_CLASS, DISABLED_CLASS)}>
         {children}
       </span>
+    )
+  }
+
+  // State-driven lists (the admin tables) have no URL per page, so they get a
+  // button; everything public is a real link.
+  if (onSelect) {
+    return (
+      <button type="button" onClick={onSelect} className={ARROW_CLASS}>
+        {children}
+      </button>
     )
   }
 
@@ -76,7 +89,11 @@ function PageStep({ href, disabled, onNavigate, children }) {
  * @param {object} props
  * @param {number} props.currentPage
  * @param {number} props.totalPages
- * @param {(page: number) => string} props.hrefFor  URL for a given page
+ * @param {(page: number) => string} [props.hrefFor]  URL for a given page (link mode)
+ * @param {(page: number) => void} [props.onPageChange]
+ *   Button mode, for lists whose page lives in component state rather than the
+ *   URL (the admin tables). Exactly one of `hrefFor` / `onPageChange` is used;
+ *   `hrefFor` wins when both are given.
  * @param {boolean} [props.loading]
  * @param {string} [props.scrollTargetId]
  *   Element to bring into view after a page change. Without it the window
@@ -88,6 +105,7 @@ export default function Pagination({
   currentPage,
   totalPages,
   hrefFor,
+  onPageChange,
   loading = false,
   scrollTargetId,
   className,
@@ -110,6 +128,13 @@ export default function Pagination({
 
   const pages = pageRange(safePage, totalPages)
 
+  // Link mode when a URL builder is supplied, button mode otherwise.
+  const linkMode = typeof hrefFor === 'function'
+  const stepProps = (target) =>
+    linkMode
+      ? { href: hrefFor(target), onNavigate: scrollAfterNavigation }
+      : { onSelect: () => onPageChange?.(target) }
+
   const scrollAfterNavigation = () => {
     const target = scrollTargetId && document.getElementById(scrollTargetId)
     if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -122,9 +147,8 @@ export default function Pagination({
       className={cx('flex items-center justify-between gap-4', className)}
     >
       <PageStep
-        href={hrefFor(outOfRange ? totalPages : safePage - 1)}
+        {...stepProps(outOfRange ? totalPages : safePage - 1)}
         disabled={(safePage === 1 && !outOfRange) || loading}
-        onNavigate={scrollAfterNavigation}
       >
         <Icon name="arrowRight" className="h-3.5 w-3.5 rotate-180" strokeWidth={2} />
         <span className="hidden sm:inline">{t('ui.prev')}</span>
@@ -148,28 +172,31 @@ export default function Pagination({
             >
               {page}
             </span>
-          ) : (
+          ) : linkMode ? (
             <Link
               key={page}
               to={hrefFor(page)}
               onClick={scrollAfterNavigation}
               aria-label={t('ui.pageNumber', { page })}
-              className={cx(
-                'flex h-9 w-9 items-center justify-center border border-ink-200 font-mono text-xs font-medium text-ink-600 transition-colors hover:border-ink-900 hover:text-ink-950',
-                loading && DISABLED_CLASS,
-              )}
+              className={cx(PAGE_CLASS, loading && DISABLED_CLASS)}
             >
               {page}
             </Link>
+          ) : (
+            <button
+              key={page}
+              type="button"
+              onClick={() => onPageChange?.(page)}
+              aria-label={t('ui.pageNumber', { page })}
+              className={cx(PAGE_CLASS, loading && DISABLED_CLASS)}
+            >
+              {page}
+            </button>
           ),
         )}
       </div>
 
-      <PageStep
-        href={hrefFor(safePage + 1)}
-        disabled={safePage === totalPages || loading}
-        onNavigate={scrollAfterNavigation}
-      >
+      <PageStep {...stepProps(safePage + 1)} disabled={safePage === totalPages || loading}>
         <span className="hidden sm:inline">{t('ui.next')}</span>
         <Icon name="arrowRight" className="h-3.5 w-3.5" strokeWidth={2} />
       </PageStep>

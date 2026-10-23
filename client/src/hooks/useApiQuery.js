@@ -77,7 +77,15 @@ function subscribeTo(key, listener) {
 }
 
 /**
- * Drop cached entries so the next read hits the network.
+ * Mark cached entries stale so they are re-read from the network.
+ *
+ * Matching entries keep their data: anything currently on screen stays visible
+ * and refreshes in the background (mounted queries notice and refetch by
+ * themselves), so a save never turns a list into a skeleton. Entries nobody has
+ * mounted are refetched the next time they are used.
+ *
+ * With no argument everything is dropped outright instead. That is for sign-in
+ * and sign-out, where the previous account's data must not be shown at all.
  *
  * @param {string|RegExp} [match] key prefix or pattern; omit to clear everything
  */
@@ -92,10 +100,10 @@ export function invalidateQueries(match) {
 
   const matches = match instanceof RegExp ? (k) => match.test(k) : (k) => k.startsWith(match)
   for (const key of keys) {
-    if (matches(key)) {
-      cache.delete(key)
-      notify(key)
-    }
+    if (!matches(key)) continue
+    // A fresh object, not a mutation: subscribers compare snapshots by identity.
+    cache.set(key, { ...cache.get(key), updatedAt: 0 })
+    notify(key)
   }
 }
 
@@ -148,8 +156,12 @@ export function useApiQuery(url, options = {}) {
 
     writeCache(key, { ...(cache.get(key) ?? EMPTY), validating: true })
 
+    // A request that refetch() has since replaced must not overwrite the newer one.
+    const isCurrent = () => pending.get(key) === request
+
     const request = getShared(url, { params: paramsRef.current })
       .then((response) => {
+        if (!isCurrent()) return
         writeCache(key, {
           data: response.data,
           error: null,
@@ -158,6 +170,7 @@ export function useApiQuery(url, options = {}) {
         })
       })
       .catch((err) => {
+        if (!isCurrent()) return
         // Keep any previously good data on screen and surface the error beside
         // it, rather than blanking the page on a transient failure.
         writeCache(key, {
@@ -168,7 +181,7 @@ export function useApiQuery(url, options = {}) {
         })
       })
       .finally(() => {
-        pending.delete(key)
+        if (isCurrent()) pending.delete(key)
       })
 
     pending.set(key, request)
@@ -183,18 +196,22 @@ export function useApiQuery(url, options = {}) {
    * unmounted subscriber simply stops listening. Aborting would throw away a
    * response that has already been paid for.
    */
+  // `isStale` re-runs this when invalidateQueries() marks the entry stale while
+  // it is mounted, which is what makes an edit refresh the list on screen.
+  const isStale = entry.updatedAt === 0
   useEffect(() => {
     if (!key) return
     const cached = cache.get(key)
     const isFresh = cached && cached.updatedAt > 0 && Date.now() - cached.updatedAt <= staleTime
     if (!isFresh) fetchNow()
-  }, [key, staleTime, fetchNow])
+  }, [key, staleTime, fetchNow, isStale])
 
+  // Keeps the current data on screen while the new response is on its way.
+  // Dropping the cache entry first (as this used to) turned every refetch after
+  // an edit into a skeleton flash. Only the in-flight request is discarded, so a
+  // response that started before the edit can't be mistaken for the fresh one.
   const refetch = useCallback(() => {
-    if (key) {
-      cache.delete(key)
-      pending.delete(key)
-    }
+    if (key) pending.delete(key)
     return fetchNow()
   }, [key, fetchNow])
 

@@ -206,9 +206,11 @@ export default function DocumentsPage() {
               />
             ) : (
               <div className="overflow-x-auto border-t border-ink-900">
-                <table className="min-w-full text-left">
+                {/* Below `sm` the table collapses into stacked cards: four columns cannot share
+                    a 390px screen, and the title column was squeezed to a few characters. */}
+                <table className="block min-w-full text-left sm:table">
                   <caption className="sr-only">{t('education.docsTitle')}</caption>
-                  <thead>
+                  <thead className="hidden sm:table-header-group">
                     <tr className="bg-paper-sunken">
                       <th scope="col" className="eyebrow w-1/2 px-4 py-3.5 text-left">
                         {t('education.bookTitleInfo')}
@@ -225,10 +227,13 @@ export default function DocumentsPage() {
                     </tr>
                   </thead>
 
-                  <tbody className="divide-y divide-paper-border">
+                  <tbody className="block divide-y divide-paper-border sm:table-row-group">
                     {books.map((book) => (
-                      <tr key={book._id} className="group transition-colors hover:bg-paper-sunken">
-                        <td className="px-4 py-5 align-top">
+                      <tr
+                        key={book._id}
+                        className="group block px-4 py-5 transition-colors hover:bg-paper-sunken sm:table-row sm:p-0"
+                      >
+                        <td className="block sm:table-cell sm:px-4 sm:py-5 sm:align-top">
                           <h3 className="font-display text-[17px] font-semibold leading-snug text-ink-950">
                             {book.title}
                           </h3>
@@ -244,11 +249,13 @@ export default function DocumentsPage() {
                           </div>
                         </td>
 
-                        <td className="whitespace-nowrap px-4 py-5 align-top text-sm text-ink-500">
+                        <td
+                          data-label={t('education.subject')}
+                          className="mt-3 block text-sm text-ink-500 before:mr-2 before:font-mono before:text-[11px] before:uppercase before:tracking-label before:text-ink-400 before:content-[attr(data-label)] sm:table-cell sm:whitespace-nowrap sm:px-4 sm:py-5 sm:align-top sm:before:hidden">
                           {book.subject || t('education.general')}
                         </td>
 
-                        <td className="whitespace-nowrap px-4 py-5 align-top">
+                        <td className="mt-2 block sm:table-cell sm:whitespace-nowrap sm:px-4 sm:py-5 sm:align-top">
                           {book.link ? (
                             <a
                               href={book.link}
@@ -260,11 +267,11 @@ export default function DocumentsPage() {
                               <Icon name="external" className="h-3.5 w-3.5" />
                             </a>
                           ) : (
-                            <span className="text-ink-300">—</span>
+                            <span className="hidden text-ink-300 sm:inline">—</span>
                           )}
                         </td>
 
-                        <td className="whitespace-nowrap px-4 py-5 text-right align-top">
+                        <td className="mt-4 block sm:table-cell sm:whitespace-nowrap sm:px-4 sm:py-5 sm:text-right sm:align-top">
                           {book.isLabOwned && book.downloadUrl ? (
                             <button
                               type="button"
@@ -275,7 +282,7 @@ export default function DocumentsPage() {
                               {t('education.downloadGDrive')}
                             </button>
                           ) : (
-                            <span className="text-ink-300">—</span>
+                            <span className="hidden text-ink-300 sm:inline">—</span>
                           )}
                         </td>
                       </tr>

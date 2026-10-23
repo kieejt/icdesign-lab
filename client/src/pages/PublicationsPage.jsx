@@ -132,7 +132,7 @@ export default function PublicationsPage() {
 
       <Section>
         <Shell>
-          <div className="mx-auto max-w-4xl">
+          <div className="max-w-4xl">
             {loading ? (
               <div className="space-y-10">
                 {Array.from({ length: 3 }, (_, i) => (

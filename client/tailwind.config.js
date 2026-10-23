@@ -78,9 +78,9 @@ export default {
 
       fontFamily: {
         // Headings: a text serif designed for long-form academic reading.
-        display: ['"Source Serif 4"', 'Georgia', 'Cambria', 'serif'],
+        display: ['"Source Serif 4 Variable"', '"Source Serif 4"', 'Georgia', 'Cambria', 'serif'],
         // Body and UI.
-        sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+        sans: ['"Inter Variable"', 'Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
         // Metadata, labels, identifiers, tabular figures.
         mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },

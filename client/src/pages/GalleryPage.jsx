@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import Pagination from '../components/Pagination'
 import useApiQuery from '../hooks/useApiQuery'
+import { responsiveImage } from '../lib/image'
 import useListParams from '../hooks/useListParams'
 import {
   EmptyState,
@@ -30,7 +31,8 @@ function AlbumTile({ album }) {
     >
       {album.coverImage ? (
         <img
-          src={album.coverImage}
+          {...responsiveImage(album.coverImage)}
+          sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
           alt=""
           loading="lazy"
           decoding="async"
@@ -78,7 +80,6 @@ export default function GalleryPage() {
         eyebrow={t('ui.eyebrowArchive')}
         title={t('media.galleryTitle')}
         subtitle={t('media.gallerySubtitle')}
-        align="center"
       />
 
       <Section>

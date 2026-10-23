@@ -1,9 +1,20 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { compression } from 'vite-plugin-compression2'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    /*
+     * Pre-compress every text asset at build time.
+     *
+     * nginx otherwise gzips each response on the fly at level 6. Compressing once
+     * at the maximum level costs nothing at runtime, produces smaller files, and
+     * Brotli typically saves a further 15-20% over gzip on JS and CSS.
+     */
+    compression({ algorithms: ['gzip', 'brotliCompress'], threshold: 1024, exclude: [/\.(?:woff2?|png|jpe?g|webp|gif|avif)$/i] }),
+  ],
 
   server: {
     // Proxying in dev makes the API same-origin, matching how nginx serves it in

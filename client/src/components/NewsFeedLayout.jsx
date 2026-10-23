@@ -60,7 +60,7 @@ function FeatureCard({ item, locale }) {
 /** Archive row — dense one-line listing. */
 function ArchiveRow({ item, locale }) {
   return (
-    <div className="group -mx-3 flex flex-col justify-between gap-2 px-3 py-3.5 transition-colors hover:bg-paper-sunken sm:flex-row sm:items-center sm:gap-4">
+    <div className="group flex flex-col justify-between gap-2 py-3.5 transition-colors sm:flex-row sm:items-center sm:gap-4">
       <div className="flex min-w-0 items-center gap-3">
         <Badge className="shrink-0">{item.source}</Badge>
         <a

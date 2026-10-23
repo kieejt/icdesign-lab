@@ -126,57 +126,26 @@ export default function HomePage() {
   const locale = i18n.language === 'vi' ? 'vi-VN' : 'en-US'
 
   /*
-   * Each section owns its own query.
+   * One request for the whole page.
    *
-   * The page used to fire all eight requests inside one `Promise.all` and set
-   * six pieces of state together, so a single slow or failing endpoint held the
-   * entire homepage blank. Now every section renders the moment its own data
-   * lands, and one failure degrades one section. All results are cached, so
-   * returning to the homepage is instant.
+   * This used to be nine parallel calls (research x2, members x3, recruitment,
+   * news x3). The server now assembles the same data in a single cached response,
+   * so a visit costs one round trip instead of nine, and a returning visitor is
+   * served from the shared SWR cache. Each section below still reads only its own
+   * slice, so a section with no content simply doesn't render.
    */
-  const listOf = (payload) => payload?.data ?? payload ?? []
-  const LONG = 5 * 60_000
+  const home = useApiQuery('/home', { staleTime: 5 * 60_000 })
+  const slice = (key) => ({ data: home.data?.[key], loading: home.loading })
 
-  const research = useApiQuery('/research', {
-    params: { category: 'Project', limit: 4 },
-    staleTime: LONG,
-  })
-  const publications = useApiQuery('/research', {
-    params: { category: 'Publications', limit: 1 },
-    staleTime: LONG,
-  })
-
-  const professors = useApiQuery('/members', {
-    params: { category: 'Professors', limit: 4 },
-    staleTime: LONG,
-  })
-  const students = useApiQuery('/members', {
-    params: { category: 'Students', limit: 4 },
-    staleTime: LONG,
-  })
-  const alumni = useApiQuery('/members', {
-    params: { category: 'Alumni', limit: 4 },
-    staleTime: LONG,
-  })
-
-  const recruitment = useApiQuery('/recruitment', {
-    params: { limit: 3 },
-    select: (payload) => (Array.isArray(payload) ? payload.slice(0, 3) : []),
-    staleTime: LONG,
-  })
-
-  const worldNews = useApiQuery('/news/published', {
-    params: { category: 'World News', limit: 4 },
-    select: listOf,
-  })
-  const vietnamNews = useApiQuery('/news/published', {
-    params: { category: 'Vietnam News', limit: 4 },
-    select: listOf,
-  })
-  const jobsNews = useApiQuery('/news/published', {
-    params: { category: 'Jobs', limit: 3 },
-    select: listOf,
-  })
+  const research = slice('projects')
+  const publications = slice('publications')
+  const professors = slice('professors')
+  const students = slice('students')
+  const alumni = slice('alumni')
+  const recruitment = slice('recruitment')
+  const worldNews = slice('worldNews')
+  const vietnamNews = slice('vietnamNews')
+  const jobsNews = slice('jobsNews')
 
   const projects = research.data?.data ?? []
 
@@ -210,6 +179,8 @@ export default function HomePage() {
         <div className="relative h-[300px] w-full overflow-hidden bg-ink-950 sm:h-[380px]">
           <img
             src="/lab-hero.webp"
+            srcSet="/lab-hero-640.webp 640w, /lab-hero.webp 1024w"
+            sizes="100vw"
             alt=""
             // The LCP element: fetched eagerly and decoded synchronously so it
             // is not queued behind lazy images further down the page.

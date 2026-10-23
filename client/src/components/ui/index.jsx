@@ -2,6 +2,8 @@ import React from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
+import { CARD_SIZES, responsiveImage } from '../../lib/image'
+
 /*
  * Shared UI primitives.
  *
@@ -18,8 +20,15 @@ export const cx = (...parts) => parts.filter(Boolean).join(' ')
 /* -------------------------------------------------------------------------- */
 
 /** The site's outer content rail. */
-export function Shell({ as: Tag = 'div', className, children }) {
-  return <Tag className={cx('shell', className)}>{children}</Tag>
+export function Shell({ as: Tag = 'div', className, narrow, children }) {
+  // `narrow` caps the reading width while keeping the left edge on the same rail
+  // as the page header. Putting max-w-* on the shell itself re-centres it, which
+  // pushes the content right of the heading it belongs to.
+  return (
+    <Tag className={cx('shell', className)}>
+      {narrow ? <div className={narrow}>{children}</div> : children}
+    </Tag>
+  )
 }
 
 /** Vertical rhythm wrapper for a page section. */
@@ -215,12 +224,21 @@ export function Spinner({ className }) {
  * Fixed-ratio image frame with a hatched placeholder when there is no source.
  * `ratio` is any Tailwind aspect utility.
  */
-export function Media({ src, alt = '', ratio = 'aspect-[4/3]', className, priority = false, fallback }) {
+export function Media({
+  src,
+  alt = '',
+  ratio = 'aspect-[4/3]',
+  className,
+  priority = false,
+  fallback,
+  sizes = CARD_SIZES,
+}) {
   return (
     <div className={cx('media-frame', ratio, className)}>
       {src ? (
         <img
-          src={src}
+          {...responsiveImage(src)}
+          sizes={sizes}
           alt={alt}
           // Below-the-fold images stay out of the critical path; the hero opts in
           // with priority so it is fetched eagerly as the LCP element.

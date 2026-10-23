@@ -2,6 +2,7 @@ import React from 'react'
 import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
+import usePageMeta from '../hooks/usePageMeta'
 import useApiQuery from '../hooks/useApiQuery'
 import {
   DetailHeader,
@@ -38,6 +39,21 @@ export default function MemberDetailPage() {
     // Skip the request entirely for a category that does not exist.
     enabled: Boolean(section),
     staleTime: 5 * 60_000,
+  })
+
+  usePageMeta({
+    title: member?.name,
+    description: member ? [member.role, member.research].filter(Boolean).join(' · ') : undefined,
+    image: member?.image,
+    jsonLd: member && {
+      '@context': 'https://schema.org',
+      '@type': 'Person',
+      name: member.name,
+      jobTitle: member.role,
+      image: member.image || undefined,
+      description: member.research || undefined,
+      worksFor: { '@type': 'ResearchOrganization', name: 'IC Design Lab' },
+    },
   })
 
   const backTo = section ? `/people/${category}` : '/people/professor'

@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
 import useApiQuery from '../hooks/useApiQuery'
+import { responsiveImage } from '../lib/image'
 import {
   EmptyState,
   ErrorState,
@@ -79,7 +80,8 @@ function Lightbox({ images, index, title, onClose, onNavigate, onDownload, album
 
       <div className="relative flex w-full max-w-6xl flex-1 items-center justify-center">
         <img
-          src={images[index]}
+          {...responsiveImage(images[index])}
+          sizes="100vw"
           alt={`${title} — ${index + 1}`}
           className="max-h-[78vh] max-w-full object-contain"
           onClick={(e) => e.stopPropagation()}
@@ -370,7 +372,8 @@ export default function GalleryAlbumPage() {
                         className="h-full w-full cursor-zoom-in"
                       >
                         <img
-                          src={src}
+                          {...responsiveImage(src)}
+                          sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
                           alt={`${album.title} — ${index + 1}`}
                           loading="lazy"
                           decoding="async"

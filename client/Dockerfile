@@ -20,17 +20,27 @@ ENV VITE_API_URL=${VITE_API_URL}
 # Build the application
 RUN npm run build
 
-# Stage 2: Serve Static Assets via Nginx
-FROM nginx:1.25-alpine
+# Stage 2: Serve static assets via nginx.
+#
+# Built on plain Alpine rather than the nginx image: the official image ships no
+# Brotli module, and a module has to match the exact nginx build it loads into.
+# Alpine's own `nginx` and `nginx-mod-http-brotli` packages are built together,
+# so they always agree.
+FROM alpine:3.20
 
-# Copy custom Nginx configuration for React SPA routing
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+RUN apk add --no-cache nginx nginx-mod-http-brotli && \
+    mkdir -p /var/cache/nginx/api /var/cache/nginx/uploads /etc/nginx/snippets /run/nginx && \
+    chown -R nginx:nginx /var/cache/nginx && \
+    ln -sf /dev/stdout /var/log/nginx/access.log && \
+    ln -sf /dev/stderr /var/log/nginx/error.log
+
+# Site config (Alpine includes /etc/nginx/http.d/*.conf at http level).
+COPY nginx.conf /etc/nginx/http.d/default.conf
+COPY nginx/security-headers.conf nginx/csp.conf /etc/nginx/snippets/
 
 # Copy build artifacts from Stage 1
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Expose web port
 EXPOSE 80
 
-# Run Nginx
 CMD ["nginx", "-g", "daemon off;"]

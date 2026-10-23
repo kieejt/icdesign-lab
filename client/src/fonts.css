@@ -1,0 +1,14 @@
+/*
+ * Self-hosted fonts.
+ *
+ * These used to come from fonts.googleapis.com: two extra origins to connect to
+ * and a render-blocking stylesheet in front of the first paint. Fontsource ships
+ * the same families split by script with `unicode-range`, so a page that only
+ * contains Latin and Vietnamese text downloads just those files.
+ */
+@import '@fontsource-variable/inter/wght.css';
+@import '@fontsource-variable/source-serif-4/wght.css';
+@import '@fontsource/ibm-plex-mono/latin-400.css';
+@import '@fontsource/ibm-plex-mono/latin-500.css';
+@import '@fontsource/ibm-plex-mono/vietnamese-400.css';
+@import '@fontsource/ibm-plex-mono/vietnamese-500.css';

@@ -2,6 +2,7 @@ import React from 'react'
 import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
+import usePageMeta from '../hooks/usePageMeta'
 import useApiQuery from '../hooks/useApiQuery'
 import {
   DetailHeader,
@@ -24,6 +25,19 @@ export default function ProjectDetailPage() {
 
   const { data: project, loading, error, refetch } = useApiQuery(`/research/${id}`, {
     staleTime: 5 * 60_000,
+  })
+
+  usePageMeta({
+    title: project?.title,
+    description: project?.description,
+    image: project?.image,
+    jsonLd: project && {
+      '@context': 'https://schema.org',
+      '@type': 'ResearchProject',
+      name: project.title,
+      description: project.description || undefined,
+      image: project.image || undefined,
+    },
   })
 
   if (loading) return <DetailSkeleton />

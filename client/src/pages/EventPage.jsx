@@ -74,8 +74,8 @@ export default function EventPage() {
                   <Link
                     key={event._id}
                     to={`/lab-event/event/${event._id}`}
-                    className={`group -mx-5 flex flex-col gap-6 px-5 py-10 transition-colors md:flex-row md:gap-12 ${
-                      isUpcoming ? 'hover:bg-paper-sunken' : 'opacity-65 hover:opacity-100'
+                    className={`group flex flex-col gap-6 py-10 transition-colors md:flex-row md:gap-12 ${
+                      isUpcoming ? '' : 'opacity-65 hover:opacity-100'
                     }`}
                   >
                     {/* Metadata rail */}

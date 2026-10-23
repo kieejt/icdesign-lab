@@ -149,7 +149,7 @@ export default function LectureDetailPage() {
   if (loading) {
     return (
       <Section>
-        <Shell className="max-w-4xl">
+        <Shell narrow="max-w-4xl">
           <Skeleton className="mb-4 h-3 w-32" />
           <Skeleton className="mb-8 h-10 w-3/4" />
           <Skeleton className="mb-8 aspect-video w-full" />
@@ -217,7 +217,7 @@ export default function LectureDetailPage() {
       </header>
 
       <Section>
-        <Shell className="max-w-5xl">
+        <Shell narrow="max-w-5xl">
           {error && <ErrorText message={error} />}
 
           {/* --- Video ---------------------------------------------------- */}

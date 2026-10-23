@@ -20,15 +20,30 @@ export function AuthProvider({ children }) {
   // Resolve the session once at start-up. A 401 here is the normal signed-out
   // case, not an error worth logging.
   useEffect(() => {
+    // `cancelled` rather than relying on the abort alone: an aborted request
+    // still settles through .catch/.finally, and in StrictMode the first mount's
+    // request is aborted instantly. Without this guard it reported "signed out"
+    // and "done loading" before the real answer arrived, so a hard reload of any
+    // /admin page bounced through /login and landed on the dashboard.
+    let cancelled = false
     const controller = new AbortController()
 
     api
       .get('/auth/me', { signal: controller.signal })
-      .then(({ data }) => setCurrentUser(data.user))
-      .catch(() => setCurrentUser(null))
-      .finally(() => setLoading(false))
+      .then(({ data }) => {
+        if (!cancelled) setCurrentUser(data.user)
+      })
+      .catch(() => {
+        if (!cancelled) setCurrentUser(null)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
 
-    return () => controller.abort()
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
   }, [])
 
   const login = useCallback(async (email, password) => {
