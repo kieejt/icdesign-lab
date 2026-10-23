@@ -149,7 +149,7 @@ async function describePath(path) {
   }
   if (section === 'lab-event' && kind === 'event') {
     const event = await LabEvent.findById(id).lean()
-    return event && { title: event.title, description: event.description, type: 'article' }
+    return event && { title: event.title, description: [event.date, event.location].filter(Boolean).join(' · '), type: 'article' }
   }
   if (section === 'lab-event' && kind === 'gallery') {
     const album = await Gallery.findById(id).lean()

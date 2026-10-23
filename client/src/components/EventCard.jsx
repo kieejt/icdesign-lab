@@ -1,5 +1,4 @@
 import React from 'react'
-import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
 import { formatEventDate } from '../lib/eventDate'
@@ -32,7 +31,8 @@ function DateBlock({ event, locale }) {
 }
 
 /**
- * One event as a compact card: used by the Events page and the homepage.
+ * One event as a compact card: used by the Events page and the homepage. An
+ * event is its title, date and place, so there is nothing to open.
  *
  * Upcoming is the normal state and carries no label; only a past event is
  * marked (and dimmed), because that is the exception worth noticing.
@@ -42,10 +42,7 @@ export default function EventCard({ event, locale }) {
   const past = event.status === 'Past'
 
   return (
-    <Link
-      to={`/lab-event/event/${event._id}`}
-      className={`surface-interactive group flex h-full flex-col gap-4 p-6 ${past ? 'opacity-70 hover:opacity-100' : ''}`}
-    >
+    <article className={`surface flex h-full flex-col gap-4 p-6 ${past ? 'opacity-70' : ''}`}>
       <div className="flex items-start justify-between gap-3">
         <DateBlock event={event} locale={locale} />
         {past && <Badge tone="neutral">{t('media.past')}</Badge>}
@@ -53,23 +50,12 @@ export default function EventCard({ event, locale }) {
 
       <div>
         <p className="eyebrow">{formatEventDate(event, locale)}</p>
-        <h3 className="mt-2 font-display text-xl font-semibold leading-snug text-ink-950 transition-colors group-hover:text-accent-700">
-          {event.title}
-        </h3>
-        <p className="mt-2 flex items-start gap-2 text-sm text-ink-500">
+        <h3 className="mt-2 font-display text-xl font-semibold leading-snug text-ink-950">{event.title}</h3>
+        <p className="mt-3 flex items-start gap-2 text-sm text-ink-500">
           <Icon name="pin" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           {event.location}
         </p>
       </div>
-
-      <p className="line-clamp-3 whitespace-pre-line text-[15px] leading-relaxed text-ink-500">{event.description}</p>
-
-      <span className="link-quiet mt-auto pt-1">
-        {t('ui.details')}
-        <span aria-hidden="true" className="transition-transform duration-200 group-hover:translate-x-0.5">
-          →
-        </span>
-      </span>
-    </Link>
+    </article>
   )
 }

@@ -17,7 +17,8 @@ const labEventSchema = new mongoose.Schema(
     location: { type: String, required: true, trim: true, maxlength: 200 },
     /** Stored for older readers; for dated events the routes compute it from the date. */
     status: { type: String, required: true, enum: ['Upcoming', 'Past'], default: 'Upcoming' },
-    description: { type: String, required: true, trim: true, maxlength: 5000 },
+    /** No longer entered (an event is its title, date and place); kept for events saved before. */
+    description: { type: String, trim: true, maxlength: 5000 },
   },
   { timestamps: true }
 )

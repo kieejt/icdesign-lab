@@ -307,7 +307,7 @@ export default function HomePage() {
                       <Skeleton className="h-14 w-14" />
                       <Skeleton className="h-3 w-28" />
                       <Skeleton className="h-6 w-4/5" />
-                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-2/3" />
                     </div>
                   ))
                 : events.data.map((event) => <EventCard key={event._id} event={event} locale={locale} />)}

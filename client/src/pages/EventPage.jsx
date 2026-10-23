@@ -49,8 +49,7 @@ export default function EventPage() {
                   <Skeleton className="h-14 w-14" />
                   <Skeleton className="h-3 w-28" />
                   <Skeleton className="h-6 w-4/5" />
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-5/6" />
+                  <Skeleton className="h-4 w-2/3" />
                 </div>
               ))}
             </div>

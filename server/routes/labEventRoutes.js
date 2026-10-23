@@ -9,6 +9,7 @@ import { httpCache, invalidateOnWrite, microCache } from '../middleware/cache.js
 const router = express.Router()
 
 router.use(invalidateOnWrite('lab-events'))
+router.use(invalidateOnWrite('home')) // the homepage lists events too
 
 const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
@@ -89,12 +90,10 @@ function readEvent(body = {}) {
   const text = (value) => (typeof value === 'string' ? value.trim() : '')
   const title = text(body.title)
   const location = text(body.location)
-  const description = text(body.description)
 
-  if (!title || !location || !description) return { error: 'Title, location and description are required' }
+  if (!title || !location) return { error: 'Title and location are required' }
   if (title.length > 150) return { error: 'The title is limited to 150 characters' }
   if (location.length > 200) return { error: 'The location is limited to 200 characters' }
-  if (description.length > 5000) return { error: 'The description is limited to 5000 characters' }
 
   const eventDate = parseDay(body.eventDate)
   if (!eventDate) return { error: 'Choose the date of the event' }
@@ -107,7 +106,7 @@ function readEvent(body = {}) {
     if (endDate.getTime() === eventDate.getTime()) endDate = undefined // one day
   }
 
-  return { fields: { title, location, description, eventDate, endDate } }
+  return { fields: { title, location, eventDate, endDate } }
 }
 
 router.post('/', verifyToken, verifyAdmin, async (req, res) => {

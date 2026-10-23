@@ -11,7 +11,6 @@ import { formatEventDate, guessDay, statusForDays, toInputDay } from '../../lib/
 
 const TITLE_MAX = 150
 const LOCATION_MAX = 200
-const DESCRIPTION_MAX = 5000
 
 const FILTERS = [
   { id: '', label: 'All' },
@@ -19,7 +18,7 @@ const FILTERS = [
   { id: 'Past', label: 'Past' },
 ]
 
-const EMPTY_FORM = { title: '', eventDate: '', endDate: '', location: '', description: '' }
+const EMPTY_FORM = { title: '', eventDate: '', endDate: '', location: '' }
 
 /** Form values for an existing event (or a copy of one). */
 function formFrom(event, { copy = false } = {}) {
@@ -29,7 +28,6 @@ function formFrom(event, { copy = false } = {}) {
     eventDate: copy ? '' : toInputDay(event.eventDate) || guessDay(event.date),
     endDate: copy ? '' : toInputDay(event.endDate),
     location: event.location,
-    description: event.description,
   }
 }
 
@@ -178,23 +176,6 @@ function EventDialog({ event, initial, onClose, onSaved }) {
             required
           />
         </FormField>
-
-        <FormField
-          label="Description"
-          htmlFor="event-description"
-          required
-          hint={`${form.description.length}/${DESCRIPTION_MAX} — line breaks are kept on the public page.`}
-        >
-          <textarea
-            id="event-description"
-            value={form.description}
-            onChange={set('description')}
-            className="field min-h-40 resize-y"
-            placeholder="What happens, who it is for, how to take part."
-            maxLength={DESCRIPTION_MAX}
-            required
-          />
-        </FormField>
       </form>
     </Modal>
   )
@@ -235,7 +216,6 @@ function EventRow({ event, busy, onEdit, onDuplicate, onDelete }) {
         <p className="mt-1 text-sm text-ink-500">
           {formatEventDate(event)} &bull; {event.location}
         </p>
-        <p className="mt-1 line-clamp-2 text-sm text-ink-500">{event.description}</p>
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2">
         <button type="button" onClick={onEdit} disabled={busy} className="btn-secondary btn-sm">
