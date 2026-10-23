@@ -2,8 +2,11 @@ import React from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
+import heroAvif1024 from '../assets/hero/hero-1024.avif'
+import heroAvif480 from '../assets/hero/hero-480.avif'
+import heroAvif720 from '../assets/hero/hero-720.avif'
 import hero480 from '../assets/hero/hero-480.webp'
-import hero768 from '../assets/hero/hero-768.webp'
+import hero720 from '../assets/hero/hero-720.webp'
 import hero1024 from '../assets/hero/hero-1024.webp'
 import useApiQuery from '../hooks/useApiQuery'
 import {
@@ -180,20 +183,30 @@ export default function HomePage() {
         {/* A restrained band rather than a full-viewport hero: the lab is
             identified and the page moves on to content. */}
         <div className="relative h-[300px] w-full overflow-hidden bg-ink-950 sm:h-[380px]">
-          <img
-            src={hero1024}
-            srcSet={`${hero480} 480w, ${hero768} 768w, ${hero1024} 1024w`}
-            width="1024"
-            height="1024"
-            sizes="100vw"
-            alt=""
-            // The LCP element: fetched eagerly and decoded synchronously so it
-            // is not queued behind lazy images further down the page.
-            loading="eager"
-            fetchPriority="high"
-            decoding="sync"
-            className="h-full w-full object-cover opacity-45"
-          />
+          {/* AVIF is about half the size of the WebP (720 px: 30 kB vs 52 kB), which
+              matters here: on a slow connection the hero is the last thing the LCP
+              waits for. Browsers without AVIF take the WebP. */}
+          <picture>
+            <source
+              type="image/avif"
+              srcSet={`${heroAvif480} 480w, ${heroAvif720} 720w, ${heroAvif1024} 1024w`}
+              sizes="100vw"
+            />
+            <img
+              src={hero1024}
+              srcSet={`${hero480} 480w, ${hero720} 720w, ${hero1024} 1024w`}
+              width="1024"
+              height="1024"
+              sizes="100vw"
+              alt=""
+              // The LCP element: fetched eagerly and decoded synchronously so it
+              // is not queued behind lazy images further down the page.
+              loading="eager"
+              fetchPriority="high"
+              decoding="sync"
+              className="h-full w-full object-cover opacity-45"
+            />
+          </picture>
           <div className="absolute inset-0 bg-gradient-to-r from-ink-950 via-ink-950/85 to-ink-950/40" />
 
           <div className="absolute inset-0 flex items-center">

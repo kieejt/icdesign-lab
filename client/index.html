@@ -26,18 +26,16 @@
     <link
       rel="preload"
       as="image"
-      type="image/webp"
+      type="image/avif"
       fetchpriority="high"
-      imagesrcset="/src/assets/hero/hero-480.webp 480w, /src/assets/hero/hero-768.webp 768w, /src/assets/hero/hero-1024.webp 1024w"
+      imagesrcset="/src/assets/hero/hero-480.avif 480w, /src/assets/hero/hero-720.avif 720w, /src/assets/hero/hero-1024.avif 1024w"
       imagesizes="100vw"
     />
 
-    <!-- Text is drawn in the fallback font until the real one arrives; fetching the
-         two faces used on every page now, rather than after the stylesheet has been
-         parsed, shortens that window. Latin only: the Vietnamese subset is fetched on
-         demand by unicode-range. -->
-    <link rel="preload" as="font" type="font/woff2" crossorigin href="/node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2" />
-    <link rel="preload" as="font" type="font/woff2" crossorigin href="/node_modules/@fontsource-variable/source-serif-4/files/source-serif-4-latin-wght-normal.woff2" />
+    <!-- Fonts are deliberately not preloaded. Text is drawn in the fallback face first
+         (font-display: swap), so they are not needed for the first paint or the LCP,
+         and on a slow connection two ~50 kB preloads delay the hero image by sharing
+         its bandwidth (measured: hero finished at 1.5 s, LCP 3.3 s). -->
 
     <!-- Open Graph / social preview -->
     <meta property="og:type" content="website" />
