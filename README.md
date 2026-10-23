@@ -564,7 +564,7 @@ The server is in Sydney, so any request that has to reach it pays a long round t
 for the 3 kB HTML shell that was ~0.9 s of time-to-first-byte, most of the
 Lighthouse LCP. When the domain is proxied through Cloudflare, a Cache Rule lets it
 store whatever the origin explicitly marks `Cache-Control: public`
-(`edge_ttl: bypass_by_default`): the HTML shell (`s-maxage=600`), public API reads
+(`edge_ttl: bypass_by_default`): the HTML shell (`s-maxage=86400`), public API reads
 and the sitemap. It never caches for a request carrying the login cookie or an
 `Authorization` header, nor for link-preview bots, which are served a different page
 on the same URL. The deploy job purges the zone's cache afterwards with a token that
