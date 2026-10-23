@@ -14,6 +14,7 @@ import {
   RowActions,
 } from '../../components/admin'
 import Pagination from '../../components/Pagination'
+import EventsManager from './EventsManager'
 import { Badge, Icon, Skeleton, cx } from '../../components/ui'
 
 const TABS = [
@@ -21,7 +22,6 @@ const TABS = [
   { id: 'gallery', label: 'Gallery' },
 ]
 
-const EMPTY_EVENT = { title: '', date: '', location: '', status: 'Upcoming', description: '' }
 const EMPTY_ALBUM = { title: '', category: '', coverImage: '', images: [] }
 
 export default function AdminLabEventPage() {
@@ -49,191 +49,6 @@ function LoadError({ message, onRetry }) {
         Retry
       </button>
     </InlineNotice>
-  )
-}
-
-function EventRow({ event, onEdit, onDelete }) {
-  return (
-    <div className="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-start sm:justify-between">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          <p className="font-semibold text-ink-950">{event.title}</p>
-          <Badge tone={event.status === 'Upcoming' ? 'warn' : 'neutral'}>{event.status}</Badge>
-        </div>
-        <p className="mt-1 text-sm text-ink-500">
-          {event.date} &bull; {event.location}
-        </p>
-        <p className="mt-1 line-clamp-2 text-sm text-ink-500">{event.description}</p>
-      </div>
-      <RowActions onEdit={onEdit} onDelete={onDelete} />
-    </div>
-  )
-}
-
-function EventsManager() {
-  const [form, setForm] = useState(EMPTY_EVENT)
-  const [editingId, setEditingId] = useState('')
-  const [error, setError] = useState('')
-  const [page, setPage] = useState(1)
-
-  const { data, loading, error: loadError, refetch } = useApiQuery('/lab-events', {
-    params: { page, limit: 10 },
-    staleTime: 0,
-  })
-  const refresh = () => invalidateQueries('/lab-events')
-
-  const events = data?.data ?? []
-  const totalPages = data?.totalPages ?? 1
-
-  const setField = (field) => (e) => setForm((prev) => ({ ...prev, [field]: e.target.value }))
-
-  const resetForm = () => {
-    setEditingId('')
-    setForm(EMPTY_EVENT)
-  }
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    setError('')
-    try {
-      if (editingId) {
-        await api.put(`/lab-events/${editingId}`, form)
-      } else {
-        await api.post('/lab-events', form)
-      }
-      resetForm()
-      refresh()
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to save event')
-    }
-  }
-
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this event?')) return
-    try {
-      await api.delete(`/lab-events/${id}`)
-      refresh()
-    } catch {
-      setError('Failed to delete event')
-    }
-  }
-
-  const handleEdit = (event) => {
-    setEditingId(event._id)
-    setForm({
-      title: event.title,
-      date: event.date,
-      location: event.location,
-      status: event.status,
-      description: event.description,
-    })
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-
-  return (
-    <div className="space-y-8">
-      <AdminSection title={editingId ? 'Edit Event' : 'Create New Event'}>
-        <AdminCard>
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {error && <InlineNotice>{error}</InlineNotice>}
-
-            <FormField label="Event Title" htmlFor="event-title" required>
-              <input
-                id="event-title"
-                value={form.title}
-                onChange={setField('title')}
-                className="field"
-                placeholder="Event Title"
-                required
-              />
-            </FormField>
-
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-              <FormField label="Date" htmlFor="event-date" required>
-                <input
-                  id="event-date"
-                  value={form.date}
-                  onChange={setField('date')}
-                  className="field"
-                  placeholder="Date (e.g. August 15, 2026)"
-                  required
-                />
-              </FormField>
-              <FormField label="Location" htmlFor="event-location" required>
-                <input
-                  id="event-location"
-                  value={form.location}
-                  onChange={setField('location')}
-                  className="field"
-                  placeholder="Location"
-                  required
-                />
-              </FormField>
-              <FormField label="Status" htmlFor="event-status" required>
-                <select id="event-status" value={form.status} onChange={setField('status')} className="field" required>
-                  <option value="Upcoming">Upcoming</option>
-                  <option value="Past">Past</option>
-                </select>
-              </FormField>
-            </div>
-
-            <FormField label="Description" htmlFor="event-description" required>
-              <textarea
-                id="event-description"
-                value={form.description}
-                onChange={setField('description')}
-                className="field min-h-24"
-                placeholder="Description"
-                required
-              />
-            </FormField>
-
-            <div className="flex gap-3">
-              <button type="submit" className="btn-primary">
-                {editingId ? 'Update Event' : 'Create Event'}
-              </button>
-              {editingId && (
-                <button type="button" onClick={resetForm} className="btn-secondary">
-                  Cancel
-                </button>
-              )}
-            </div>
-          </form>
-        </AdminCard>
-      </AdminSection>
-
-      <AdminSection title="Events">
-        {loadError && !data ? (
-          <LoadError message="Failed to load events" onRetry={refetch} />
-        ) : loading ? (
-          <AdminCard padded={false} className="divide-hairline" aria-hidden="true">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="space-y-2 px-5 py-4">
-                <Skeleton className="h-4 w-1/2" />
-                <Skeleton className="h-3 w-1/3" />
-                <Skeleton className="h-3 w-3/4" />
-              </div>
-            ))}
-          </AdminCard>
-        ) : events.length === 0 ? (
-          <EmptyRow>No events yet.</EmptyRow>
-        ) : (
-          <AdminCard padded={false} className="divide-hairline">
-            {events.map((event) => (
-              <EventRow
-                key={event._id}
-                event={event}
-                onEdit={() => handleEdit(event)}
-                onDelete={() => handleDelete(event._id)}
-              />
-            ))}
-          </AdminCard>
-        )}
-        <div className="pt-4">
-          <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} loading={loading} />
-        </div>
-      </AdminSection>
-    </div>
   )
 }
 

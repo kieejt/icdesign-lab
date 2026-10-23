@@ -77,6 +77,7 @@
   "media": {
     "eventsTitle": "Sự kiện Lab",
     "eventsSubtitle": "Hội thảo, bảo vệ đồ án và sự kiện — sắp diễn ra và đã qua.",
+    "past": "Đã diễn ra",
     "noEvents": "Không tìm thấy sự kiện nào.",
     "galleryTitle": "Thư viện Ảnh",
     "gallerySubtitle": "Ảnh từ các sự kiện của lab, sắp theo album.",
@@ -194,6 +195,7 @@
     "heroDesc": "Nghiên cứu và đào tạo sau đại học về thiết kế vi mạch, hệ thống nhúng và kỹ thuật máy tính.",
     "exploreResearch": "Khám phá Nghiên cứu",
     "contactUs": "Liên hệ",
+    "events": "Sự kiện",
     "worldNews": "Tin thế giới",
     "viewAll": "Xem tất cả →",
     "noWorldNews": "Hiện chưa có tin thế giới.",

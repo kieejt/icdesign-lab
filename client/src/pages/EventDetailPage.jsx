@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import usePageMeta from '../hooks/usePageMeta'
 import useApiQuery from '../hooks/useApiQuery'
+import { formatEventDate } from '../lib/eventDate'
 import {
   Badge,
   DetailHeader,
@@ -19,7 +20,8 @@ import {
 /** A single lab event, at `/lab-event/event/:id`. */
 export default function EventDetailPage() {
   const { id } = useParams()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = i18n.language === 'vi' ? 'vi-VN' : 'en-US'
 
   const { data: event, loading, error, refetch } = useApiQuery(`/lab-events/${id}`, {
     staleTime: 5 * 60_000,
@@ -64,9 +66,7 @@ export default function EventDetailPage() {
         title={event.title}
         meta={
           <>
-            {/* The date is free text entered by an admin, so it is shown
-                verbatim rather than parsed as a timestamp. */}
-            <span>{event.date}</span>
+            <span>{formatEventDate(event, locale)}</span>
             <MetaDot />
             <span className="inline-flex items-center gap-1.5 normal-case tracking-normal">
               <Icon name="pin" className="h-3.5 w-3.5" />
@@ -74,14 +74,7 @@ export default function EventDetailPage() {
             </span>
           </>
         }
-        actions={
-          <Badge tone={isUpcoming ? 'ok' : 'neutral'}>
-            {isUpcoming && (
-              <span className="h-1.5 w-1.5 rounded-full bg-signal-ok" aria-hidden="true" />
-            )}
-            {event.status}
-          </Badge>
-        }
+        actions={isUpcoming ? undefined : <Badge tone="neutral">{t('media.past')}</Badge>}
       />
 
       <Section>

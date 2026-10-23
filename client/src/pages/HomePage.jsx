@@ -9,6 +9,7 @@ import hero480 from '../assets/hero/hero-480.webp'
 import hero800 from '../assets/hero/hero-800.webp'
 import hero1024 from '../assets/hero/hero-1024.webp'
 import { CONTACT_FALLBACK } from '../constants/contact'
+import EventCard from '../components/EventCard'
 import useApiQuery from '../hooks/useApiQuery'
 import {
   Badge,
@@ -164,6 +165,7 @@ export default function HomePage() {
   const worldNews = slice('worldNews')
   const vietnamNews = slice('vietnamNews')
   const jobsNews = slice('jobsNews')
+  const events = slice('events')
 
   const projects = research.data?.data ?? []
 
@@ -283,6 +285,36 @@ export default function HomePage() {
           </div>
         </Shell>
       </Section>
+
+      {/* ================================================================= */}
+      {/* Events                                                            */}
+      {/* ================================================================= */}
+      {((events.data || []).length > 0 || events.loading) && (
+        <Section className="border-b border-paper-border">
+          <Shell>
+            <SectionHeading
+              title={t('home.events')}
+              action={
+                <QuietLink to="/lab-event/event">
+                  {t('home.viewAll').replace('→', '').trim()}
+                </QuietLink>
+              }
+            />
+            <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {events.loading
+                ? Array.from({ length: 3 }, (_, i) => (
+                    <div key={i} className="surface space-y-4 p-6" aria-hidden="true">
+                      <Skeleton className="h-14 w-14" />
+                      <Skeleton className="h-3 w-28" />
+                      <Skeleton className="h-6 w-4/5" />
+                      <Skeleton className="h-4 w-full" />
+                    </div>
+                  ))
+                : events.data.map((event) => <EventCard key={event._id} event={event} locale={locale} />)}
+            </div>
+          </Shell>
+        </Section>
+      )}
 
       {/* ================================================================= */}
       {/* News                                                              */}

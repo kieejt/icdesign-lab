@@ -1,16 +1,31 @@
 import express from 'express'
 
 import { httpCache, microCache } from '../middleware/cache.js'
+import LabEvent from '../models/LabEvent.js'
 import Member from '../models/Member.js'
 import News from '../models/News.js'
 import Recruitment from '../models/Recruitment.js'
 import Research from '../models/Research.js'
+import { statusFilter, todayInVietnam, withStatus } from '../utils/eventDates.js'
 import { syncExpiredRecruitments } from './recruitmentRoutes.js'
 
 const router = express.Router()
 
 const newest = (Model, filter, limit, select) =>
   Model.find(filter).sort({ createdAt: -1 }).limit(limit).select(select).lean()
+
+/**
+ * Up to three events for the homepage: the nearest upcoming ones first, then
+ * the most recent past ones if there are fewer than three coming up.
+ */
+async function homeEvents(limit = 3) {
+  const today = todayInVietnam()
+  const [upcoming, past] = await Promise.all([
+    LabEvent.find(statusFilter('Upcoming', today)).sort({ eventDate: 1, createdAt: -1 }).limit(limit).lean(),
+    LabEvent.find(statusFilter('Past', today)).sort({ eventDate: -1, createdAt: -1 }).limit(limit).lean(),
+  ])
+  return [...upcoming, ...past].slice(0, limit).map((event) => withStatus(event, today))
+}
 
 const newsFeed = (category, limit) =>
   newest(News, { status: 'approved', category }, limit, '-score -tags -__v')
@@ -41,6 +56,7 @@ router.get('/', httpCache(60, 300), microCache('home', 30_000), async (req, res)
       worldNews,
       vietnamNews,
       jobsNews,
+      events,
     ] = await Promise.all([
       newest(Research, { category: 'Project' }, 4, ''),
       Research.countDocuments({ category: 'Project' }),
@@ -55,6 +71,7 @@ router.get('/', httpCache(60, 300), microCache('home', 30_000), async (req, res)
       newsFeed('World News', 4),
       newsFeed('Vietnam News', 4),
       newsFeed('Jobs', 3),
+      homeEvents(3),
     ])
 
     return res.json({
@@ -67,6 +84,7 @@ router.get('/', httpCache(60, 300), microCache('home', 30_000), async (req, res)
       worldNews,
       vietnamNews,
       jobsNews,
+      events,
     })
   } catch (error) {
     return res.status(500).json({ message: 'Failed to load the homepage' })
