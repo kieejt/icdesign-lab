@@ -260,7 +260,11 @@ jobs:
           HEADERS=$(curl -sI http://localhost:8080/)
           echo "$HEADERS" | grep -qi '^content-security-policy' || fail "CSP header missing"
           echo "$HEADERS" | grep -qi '^x-frame-options' || fail "security headers missing"
-          echo "$HEADERS" | grep -qi '^cache-control: no-cache' || fail "index.html must not be cached"
+          # Browsers must revalidate the shell (max-age=0); the shared cache in front
+          # may keep it for a few minutes (s-maxage), and the deploy purges it.
+          echo "$HEADERS" | grep -i '^cache-control' | grep -qi 'max-age=0'             || fail "index.html must be revalidated by browsers"
+          echo "$HEADERS" | grep -i '^cache-control' | grep -qi 's-maxage'             || fail "index.html is not cacheable by the edge"
+          [ "$(echo "$HEADERS" | grep -ci '^cache-control')" = "1" ]             || fail "index.html carries more than one Cache-Control header"
 
           JS=$(curl -s http://localhost:8080/ | grep -o '/assets/index-[^"]*\.js' | head -1)
           [ -n "$JS" ] || fail "index.html does not reference a bundle"
