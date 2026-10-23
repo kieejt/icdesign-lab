@@ -7,14 +7,14 @@ import { PageHeader, Section, Shell, Spinner } from '../components/ui'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../lib/api'
 
-const MIN_LENGTH = 10
+const MIN_LENGTH = 6
 
 /** Rough guide for the new-password field: length first, then variety. */
 function strengthOf(password) {
   if (!password) return 0
   let score = 0
   if (password.length >= MIN_LENGTH) score += 1
-  if (password.length >= 14) score += 1
+  if (password.length >= 10) score += 1
   if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score += 1
   if (/\d/.test(password) && /[^A-Za-z0-9]/.test(password)) score += 1
   return score

@@ -116,7 +116,7 @@ function CredentialsPanel({ title, rows, onDismiss }) {
 /* -------------------------------------------------------------------------- */
 
 function CreateStudentForm({ onCreated, onError }) {
-  const [form, setForm] = useState({ name: '', email: '', studentId: '', password: '' })
+  const [form, setForm] = useState({ name: '', email: '', studentId: '' })
   const [submitting, setSubmitting] = useState(false)
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
 
@@ -129,11 +129,9 @@ function CreateStudentForm({ onCreated, onError }) {
         email: form.email,
         name: form.name,
         studentId: form.studentId,
-        password: form.password || undefined,
       })
-      setForm({ name: '', email: '', studentId: '', password: '' })
-      // A password the admin typed is already known to them; a generated one is shown now.
-      onCreated(data.temporaryPassword ? [{ ...data.student, temporaryPassword: data.temporaryPassword }] : [], data.student)
+      setForm({ name: '', email: '', studentId: '' })
+      onCreated([{ ...data.student, temporaryPassword: data.temporaryPassword }], data.student)
     } catch (err) {
       onError(errorText(err, 'Failed to create the student account'))
     } finally {
@@ -153,20 +151,11 @@ function CreateStudentForm({ onCreated, onError }) {
         <FormField label="Email" htmlFor="new-email" required>
           <input id="new-email" type="email" value={form.email} onChange={set('email')} className="field" placeholder="student@hust.edu.vn" required />
         </FormField>
-        <FormField label="Password" htmlFor="new-password" hint="Leave empty to generate a strong temporary password (recommended).">
-          <input
-            id="new-password"
-            type="text"
-            value={form.password}
-            onChange={set('password')}
-            className="field"
-            placeholder="Generated automatically"
-            minLength={10}
-            autoComplete="off"
-          />
-        </FormField>
       </div>
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-ink-500">
+          A temporary password is generated and shown once. The student chooses their own when they first sign in.
+        </p>
         <button type="submit" disabled={submitting} className="btn-primary">
           {submitting ? 'Creating…' : 'Create account'}
         </button>

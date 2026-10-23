@@ -166,10 +166,11 @@ const adminOnly = [verifyToken, verifyAdmin]
 const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 /**
- * Creates one student with a temporary password. Returns the account and, when
- * the password was generated here, that password (it exists nowhere else).
+ * Creates one student with a generated temporary password and returns the
+ * account together with that password (it exists nowhere else). Admins never
+ * choose a student's password: the student sets their own at the first sign-in.
  */
-async function createStudent({ email, name, studentId, password }) {
+async function createStudent({ email, name, studentId }) {
   const normalized = normalizeEmail(email)
   if (!normalized) return { error: 'Invalid e-mail address' }
 
@@ -180,23 +181,15 @@ async function createStudent({ email, name, studentId, password }) {
     return { error: `Student ID ${id} is already used` }
   }
 
-  let temporaryPassword = null
-  let chosen = password
-  if (chosen === undefined || chosen === null || chosen === '') {
-    temporaryPassword = generatePassword()
-    chosen = temporaryPassword
-  } else {
-    const problem = passwordProblem(chosen)
-    if (problem) return { error: problem }
-  }
+  const temporaryPassword = generatePassword()
 
   const user = await User.create({
     email: normalized,
-    password: chosen,
+    password: temporaryPassword,
     role: 'student',
     name: cleanText(name, 100),
     studentId: id || undefined,
-    mustChangePassword: true, // the student replaces what the admin handed out
+    mustChangePassword: true, // the student replaces it at the first sign-in
   })
 
   return { user, temporaryPassword }
@@ -262,7 +255,7 @@ router.post('/students/bulk', adminOnly, async (req, res) => {
       else if (seen.has(email)) skipped.push({ email, reason: 'Listed twice' })
       else {
         seen.add(email)
-        todo.push({ ...row, email, password: undefined }) // bulk never accepts a chosen password
+        todo.push({ ...row, email })
       }
     }
 

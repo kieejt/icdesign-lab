@@ -17,7 +17,7 @@ import User from '../models/User.js'
 
 dotenv.config()
 
-const MIN_PASSWORD_LENGTH = 10
+const MIN_PASSWORD_LENGTH = 6
 
 const run = async () => {
   const email = process.env.ADMIN_EMAIL?.trim()

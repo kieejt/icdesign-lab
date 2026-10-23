@@ -589,7 +589,7 @@ too.
 5. `docker compose up -d --build --wait`. The first build takes several minutes.
 6. Create the first admin by inserting it into the database (there is no sign-up API):
    `docker exec -e ADMIN_EMAIL=you@example.com -e ADMIN_PASSWORD='a long passphrase' icdesign-backend node scripts/create-admin.js`
-   (at least 10 characters; the script hashes the password and refuses to run once an admin exists).
+   (at least 6 characters; the script hashes the password and refuses to run once an admin exists).
 7. Set the repository secrets `HOST`, `USERNAME`, `SSH_KEY` (a key used only by CI);
    from then on every push to `main` deploys.
 

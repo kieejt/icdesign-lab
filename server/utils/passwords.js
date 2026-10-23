@@ -3,7 +3,7 @@ import { randomInt } from 'node:crypto'
 /** Letters and digits without the look-alikes (0/O, 1/l/I), so a password read out or printed survives. */
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'
 
-export const MIN_PASSWORD_LENGTH = 10
+export const MIN_PASSWORD_LENGTH = 6
 
 /** A random password for an account an admin is handing out. 14 characters is ~80 bits. */
 export function generatePassword(length = 14) {
