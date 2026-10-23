@@ -47,7 +47,7 @@ export default function usePageMeta({ title, description, image, jsonLd } = {}) 
     if (!title) return undefined
 
     const previousTitle = document.title
-    const fullTitle = title === SITE_NAME ? title : `${title} — ${SITE_NAME}`
+    const fullTitle = title.includes(SITE_NAME) ? title : `${title} — ${SITE_NAME}`
     document.title = fullTitle
     setMeta('property', 'og:title', fullTitle)
     setMeta('name', 'twitter:title', fullTitle)

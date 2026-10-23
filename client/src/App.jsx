@@ -97,7 +97,7 @@ function AnalyticsTracker() {
 
 /** Titles for pages whose title doesn't depend on loaded data. */
 const STATIC_TITLES = {
-  '/': 'IC Design Lab',
+  '/': 'IC Design Lab — Integrated Circuit Design Laboratory, HUST',
   '/people/professor': 'Professors',
   '/people/students': 'Students',
   '/people/alumni': 'Alumni',
@@ -113,10 +113,47 @@ const STATIC_TITLES = {
   '/contact': 'Contact',
 }
 
+/**
+ * What a search engine needs to recognise the lab as an organisation (knowledge
+ * panel, brand queries such as "IC Design Lab HUST"). Built once: the origin is
+ * the page's own, so it is right on any deployment.
+ */
+const HOME_JSON_LD = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'ResearchOrganization',
+      '@id': `${window.location.origin}/#lab`,
+      name: 'IC Design Lab',
+      alternateName: ['Integrated Circuit Design Laboratory', 'IC Design Lab HUST', 'Phòng thí nghiệm Thiết kế vi mạch'],
+      url: `${window.location.origin}/`,
+      logo: `${window.location.origin}/lab-logo.png`,
+      description:
+        'Integrated Circuit Design Laboratory at Hanoi University of Science and Technology (HUST). Research and training in advanced IC technology, embedded systems and computer engineering.',
+      parentOrganization: {
+        '@type': 'CollegeOrUniversity',
+        name: 'Hanoi University of Science and Technology',
+        alternateName: ['HUST', 'Đại học Bách khoa Hà Nội'],
+        url: 'https://hust.edu.vn/',
+      },
+    },
+    {
+      '@type': 'WebSite',
+      name: 'IC Design Lab',
+      url: `${window.location.origin}/`,
+      inLanguage: ['en', 'vi'],
+    },
+  ],
+}
+
 /** Gives list pages their own <title>; detail pages set theirs from loaded data. */
 function StaticPageMeta() {
   const { pathname } = useLocation()
-  usePageMeta({ title: STATIC_TITLES[pathname.replace(/(.)\/$/, '$1')] })
+  const path = pathname.replace(/(.)\/$/, '$1')
+  usePageMeta({
+    title: STATIC_TITLES[path],
+    jsonLd: path === '/' ? HOME_JSON_LD : undefined,
+  })
   return null
 }
 
