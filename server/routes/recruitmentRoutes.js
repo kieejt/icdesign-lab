@@ -9,7 +9,7 @@ const router = express.Router()
 
 router.use(invalidateOnWrite('recruitment'))
 
-const syncExpiredRecruitments = async () => {
+export const syncExpiredRecruitments = async () => {
   await Recruitment.updateMany(
     { deadline: { $lt: new Date() }, status: { $ne: 'closed' } },
     { $set: { status: 'closed' } },
@@ -21,7 +21,7 @@ router.get('/', httpCache(60, 300), microCache('recruitment', 30_000), async (re
     await syncExpiredRecruitments()
     let query = Recruitment.find().sort({ createdAt: -1 })
     if (req.query.limit) {
-      query = query.limit(Math.max(Number(req.query.limit) || 0, 1))
+      query = query.limit(Math.min(Math.max(Number(req.query.limit) || 0, 1), 100))
     }
     const items = await query.lean()
     return res.json(items)

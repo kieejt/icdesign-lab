@@ -3,6 +3,7 @@ import verifyToken from '../middleware/verifyToken.js'
 import verifyAdmin from '../middleware/verifyAdmin.js'
 import Member from '../models/Member.js'
 import { logAdminAction } from '../utils/auditLogger.js'
+import { searchFilter } from '../models/plugins/searchTokens.js'
 import { httpCache, invalidateOnWrite, microCache } from '../middleware/cache.js'
 
 const router = express.Router()
@@ -15,14 +16,11 @@ router.get('/', httpCache(60, 300), microCache('members', 30_000), async (req, r
   try {
     const { page = 1, limit = 12, search = '' } = req.query
     const pageNum = Math.max(Number(page) || 1, 1)
-    const limitNum = Math.max(Number(limit) || 12, 1)
+    const limitNum = Math.min(Math.max(Number(limit) || 12, 1), 100)
     const filter = req.query.category ? { category: req.query.category } : {}
 
-    if (search) {
-      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      const regex = new RegExp(escaped, 'i')
-      filter.$or = [{ name: regex }, { email: regex }]
-    }
+    const textFilter = searchFilter(search)
+    if (textFilter) Object.assign(filter, textFilter)
 
     const [total, members] = await Promise.all([
       Member.countDocuments(filter),

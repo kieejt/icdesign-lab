@@ -1,4 +1,5 @@
 import express from 'express'
+import jwt from 'jsonwebtoken'
 import User from '../models/User.js'
 import generateToken from '../utils/generateToken.js'
 import verifyToken from '../middleware/verifyToken.js'
@@ -89,8 +90,20 @@ router.post('/login', async (req, res) => {
   }
 })
 
-router.get('/me', verifyToken, (req, res) => {
-  return res.json({ user: req.user })
+// Answers 200 with `user: null` for a visitor who is not signed in. The client
+// asks on every page load, so a 401 here put a red error in every anonymous
+// visitor's console for what is simply the normal state.
+router.get('/me', (req, res) => {
+  const token =
+    req.cookies.token ||
+    (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.split(' ')[1] : null)
+  if (!token) return res.json({ user: null })
+
+  try {
+    return res.json({ user: jwt.verify(token, process.env.JWT_SECRET) })
+  } catch {
+    return res.json({ user: null })
+  }
 })
 
 router.post('/logout', (req, res) => {
@@ -104,7 +117,7 @@ router.get('/students', verifyToken, async (req, res) => {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ message: 'Forbidden: Admin access required' })
     }
-    const students = await User.find({ role: 'student' }).select('-password').sort({ createdAt: -1 })
+    const students = await User.find({ role: 'student' }).select('-password').sort({ createdAt: -1 }).limit(500).lean()
     return res.json(students)
   } catch (error) {
     return res.status(500).json({ message: 'Server error fetching student accounts' })

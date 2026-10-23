@@ -1,5 +1,7 @@
 import mongoose from 'mongoose'
 
+import searchTokensPlugin from './plugins/searchTokens.js'
+
 const documentSchema = new mongoose.Schema(
   {
     title: { type: String, required: true, trim: true },
@@ -20,6 +22,7 @@ documentSchema.index({ type: 1, isLabOwned: 1, createdAt: -1 })
 documentSchema.index({ subject: 1 })
 documentSchema.index({ downloads: -1 })
 
+documentSchema.plugin(searchTokensPlugin, { fields: ['title', 'subject'] })
 const Document = mongoose.model('Document', documentSchema)
 
 export default Document

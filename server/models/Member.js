@@ -1,5 +1,7 @@
 import mongoose from 'mongoose'
 
+import searchTokensPlugin from './plugins/searchTokens.js'
+
 const memberSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
@@ -16,6 +18,7 @@ const memberSchema = new mongoose.Schema(
 memberSchema.index({ category: 1, createdAt: -1 })
 memberSchema.index({ name: 1 })
 
+memberSchema.plugin(searchTokensPlugin, { fields: ['name', 'email'] })
 const Member = mongoose.model('Member', memberSchema)
 
 export default Member

@@ -13,6 +13,12 @@
 
 const store = new Map()
 
+/** Namespaces whose data is embedded in the aggregated `home` payload. */
+const HOME_DEPENDENCIES = new Set(['research', 'members', 'recruitment', 'news'])
+
+/** Namespaces whose data is embedded in sitemap and link-preview responses. */
+const SEO_DEPENDENCIES = new Set(['research', 'members', 'lab-events', 'gallery'])
+
 const now = () => Date.now()
 
 /** Drop expired entries. Cheap because the store only holds public GET payloads. */
@@ -43,7 +49,19 @@ function ensureSweeper() {
 export function httpCache(maxAge = 60, swr = 300) {
   return (req, res, next) => {
     if (req.method !== 'GET') return next()
-    res.set('Cache-Control', `public, max-age=${maxAge}, stale-while-revalidate=${swr}`)
+
+    // A signed-in user is almost always an admin who has just changed something.
+    // Letting their browser reuse a two-minute-old list made every save look like
+    // it had failed, so their requests are always revalidated. Anonymous visitors
+    // (no cookie, no Authorization header) keep the full public cache.
+    const signedIn = Boolean(req.cookies?.token || req.headers.authorization)
+    if (signedIn) {
+      res.set('Cache-Control', 'private, no-cache')
+    } else {
+      res.set('Cache-Control', `public, max-age=${maxAge}, stale-while-revalidate=${swr}`)
+    }
+    // Shared caches and browsers must not hand one audience the other's copy.
+    res.vary('Cookie')
     next()
   }
 }
@@ -94,8 +112,18 @@ export function invalidateCache(namespace) {
     store.clear()
     return
   }
+  // The homepage payload aggregates these resources, so a write to any of them
+  // must also drop it.
+  const dropHome = HOME_DEPENDENCIES.has(namespace)
+  const dropSeo = SEO_DEPENDENCIES.has(namespace)
   for (const [key, entry] of store) {
-    if (entry.namespace === namespace) store.delete(key)
+    if (
+      entry.namespace === namespace ||
+      (dropHome && entry.namespace === 'home') ||
+      (dropSeo && entry.namespace === 'seo')
+    ) {
+      store.delete(key)
+    }
   }
 }
 

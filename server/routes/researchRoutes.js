@@ -16,7 +16,7 @@ router.get('/', httpCache(120, 600), microCache('research', 60_000), async (req,
   try {
     const filter = req.query.category ? { category: req.query.category } : {}
     const page = Math.max(Number(req.query.page) || 1, 1)
-    const limit = Math.max(Number(req.query.limit) || 9, 1)
+    const limit = Math.min(Math.max(Number(req.query.limit) || 9, 1), 100)
 
     const [total, research] = await Promise.all([
       Research.countDocuments(filter),

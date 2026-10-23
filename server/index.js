@@ -12,19 +12,24 @@ import helmet from 'helmet'
 import connectDB from './config/db.js'
 import { startNewsCronJob, stopNewsCronJob } from './jobs/cron.js'
 import { errorHandler, notFound } from './middleware/errorHandler.js'
+import imageVariants from './middleware/imageVariants.js'
 import MongoRateLimitStore from './middleware/mongoRateLimitStore.js'
+import Document from './models/Document.js'
+import Member from './models/Member.js'
 
 import analyticsRoutes from './routes/analyticsRoutes.js'
 import authRoutes from './routes/authRoutes.js'
 import chatRoutes from './routes/chatRoutes.js'
 import documentRoutes from './routes/documentRoutes.js'
 import galleryRoutes from './routes/galleryRoutes.js'
+import homeRoutes from './routes/homeRoutes.js'
 import labEventRoutes from './routes/labEventRoutes.js'
 import lectureRoutes from './routes/lectureRoutes.js'
 import memberRoutes from './routes/memberRoutes.js'
 import newsRoutes from './routes/newsRoutes.js'
 import recruitmentRoutes from './routes/recruitmentRoutes.js'
 import researchRoutes from './routes/researchRoutes.js'
+import seoRoutes from './routes/seoRoutes.js'
 import settingRoutes from './routes/settingRoutes.js'
 import uploadRoutes from './routes/uploadRoutes.js'
 
@@ -192,6 +197,7 @@ app.get('/api/health', (req, res) => {
 
 // API routes.
 app.use('/api/auth', authRoutes)
+app.use('/api/home', homeRoutes)
 app.use('/api/documents', documentRoutes)
 app.use('/api/members', memberRoutes)
 app.use('/api/research', researchRoutes)
@@ -220,12 +226,15 @@ app.use('/api/lectures', lectureRoutes)
 app.use('/api/analytics', analyticsRoutes)
 app.use('/api/upload', uploadRoutes)
 app.use('/api/settings', settingRoutes)
+app.use('/api/seo', seoRoutes)
 
 // Uploaded images are content-addressed by a random filename and never rewritten
 // in place, so they can be cached hard and forever.
+const uploadDir = path.join(__dirname, 'uploads')
+app.use('/uploads', imageVariants(uploadDir))
 app.use(
   '/uploads',
-  express.static(path.join(__dirname, 'uploads'), {
+  express.static(uploadDir, {
     maxAge: '1y',
     immutable: true,
     etag: true,
@@ -243,6 +252,17 @@ app.use(errorHandler)
 const PORT = process.env.PORT || 5000
 
 databaseReady
+  .then(async () => {
+    // Documents written before search tokens existed would otherwise be
+    // invisible to search. Cheap no-op once everything is filled in.
+    for (const Model of [Member, Document]) {
+      const filled = await Model.backfillSearchTokens().catch((error) => {
+        console.error(`Search backfill failed for ${Model.modelName}:`, error.message)
+        return 0
+      })
+      if (filled) console.log(`Backfilled search tokens on ${filled} ${Model.modelName} documents.`)
+    }
+  })
   .then(() => startNewsCronJob())
   .catch((error) => {
     // A failed scheduler must not take the API down with it: the site is

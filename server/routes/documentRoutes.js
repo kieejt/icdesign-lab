@@ -3,6 +3,7 @@ import verifyToken from '../middleware/verifyToken.js'
 import verifyAdmin from '../middleware/verifyAdmin.js'
 import Document from '../models/Document.js'
 import { logAdminAction } from '../utils/auditLogger.js'
+import { searchFilter } from '../models/plugins/searchTokens.js'
 import { httpCache, invalidateOnWrite, microCache } from '../middleware/cache.js'
 
 const router = express.Router()
@@ -13,18 +14,15 @@ router.get('/', httpCache(60, 300), microCache('documents', 30_000), async (req,
   try {
     const { page = 1, limit = 10, search = '', owned } = req.query
     const pageNum = Math.max(Number(page) || 1, 1)
-    const limitNum = Math.max(Number(limit) || 10, 1)
+    const limitNum = Math.min(Math.max(Number(limit) || 10, 1), 100)
 
     const filter = {}
     if (req.query.type) filter.type = req.query.type
     if (req.query.subject) filter.subject = req.query.subject
     if (owned === 'Owned') filter.isLabOwned = true
     else if (owned === 'External') filter.isLabOwned = false
-    if (search) {
-      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      const regex = new RegExp(escaped, 'i')
-      filter.$or = [{ title: regex }, { subject: regex }]
-    }
+    const textFilter = searchFilter(search)
+    if (textFilter) Object.assign(filter, textFilter)
 
     const [total, documents] = await Promise.all([
       Document.countDocuments(filter),

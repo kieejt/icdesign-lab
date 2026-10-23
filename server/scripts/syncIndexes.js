@@ -25,6 +25,11 @@ const run = async () => {
     console.log(`  ${name}: ${result.length ? `dropped ${result.join(', ')}` : 'up to date'}`)
   }
 
+  for (const name of ['Member', 'Document']) {
+    const filled = await mongoose.models[name].backfillSearchTokens()
+    console.log(`  ${name}: backfilled search tokens on ${filled} documents`)
+  }
+
   await mongoose.disconnect()
   console.log('Index sync complete.')
 }

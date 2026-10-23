@@ -8,7 +8,14 @@ const router = express.Router()
 // 1. Fetch all lectures (any logged-in student or admin)
 router.get('/', verifyToken, async (req, res) => {
   try {
-    const lectures = await Lecture.find({}).sort({ createdAt: -1 })
+    // The list only needs a comment *count*; shipping every comment and reply
+    // thread for every lecture made this payload grow with discussion activity.
+    const lectures = await Lecture.aggregate([
+      { $sort: { createdAt: -1 } },
+      { $limit: 200 },
+      { $addFields: { commentCount: { $size: { $ifNull: ['$comments', []] } } } },
+      { $project: { comments: 0, __v: 0 } },
+    ])
     return res.json(lectures)
   } catch (error) {
     return res.status(500).json({ message: 'Failed to fetch lectures' })
