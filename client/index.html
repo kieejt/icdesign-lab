@@ -17,18 +17,27 @@
 
     <!-- The homepage hero is the LCP element, but in a client-rendered app the
          browser only discovers it after the JS bundle has run. Preloading it from
-         the HTML starts the download in parallel with the bundle. (A path check
-         would need an inline script, which the Content-Security-Policy forbids;
-         the homepage is the dominant entry point, so the unconditional hint is
-         the better trade.) -->
+         the HTML starts the download in parallel with the bundle. The files live in
+         src/assets so the build fingerprints them (one-year immutable caching) and
+         rewrites these URLs; HomePage imports the same files. (A path check would
+         need an inline script, which the Content-Security-Policy forbids; the
+         homepage is the dominant entry point, so the unconditional hint is the
+         better trade.) -->
     <link
       rel="preload"
       as="image"
       type="image/webp"
       fetchpriority="high"
-      imagesrcset="/lab-hero-640.webp 640w, /lab-hero.webp 1024w"
+      imagesrcset="/src/assets/hero/hero-480.webp 480w, /src/assets/hero/hero-768.webp 768w, /src/assets/hero/hero-1024.webp 1024w"
       imagesizes="100vw"
     />
+
+    <!-- Text is drawn in the fallback font until the real one arrives; fetching the
+         two faces used on every page now, rather than after the stylesheet has been
+         parsed, shortens that window. Latin only: the Vietnamese subset is fetched on
+         demand by unicode-range. -->
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="/node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2" />
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="/node_modules/@fontsource-variable/source-serif-4/files/source-serif-4-latin-wght-normal.woff2" />
 
     <!-- Open Graph / social preview -->
     <meta property="og:type" content="website" />

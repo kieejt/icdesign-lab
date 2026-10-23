@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { publicNavItems } from '../constants/navigation'
 import { useAuth } from '../contexts/AuthContext'
 import { Icon, cx } from './ui'
+import logo from '../assets/lab-logo-128.webp'
 
 /**
  * Whether the device has a real hover state.
@@ -403,7 +404,7 @@ export default function SiteHeader() {
               className="group flex shrink-0 items-center gap-3.5 transition-opacity hover:opacity-80"
             >
               <img
-                src="/lab-logo-128.webp"
+                src={logo}
                 alt=""
                 width="56"
                 height="56"

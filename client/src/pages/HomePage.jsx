@@ -2,6 +2,9 @@ import React from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
+import hero480 from '../assets/hero/hero-480.webp'
+import hero768 from '../assets/hero/hero-768.webp'
+import hero1024 from '../assets/hero/hero-1024.webp'
 import useApiQuery from '../hooks/useApiQuery'
 import {
   Badge,
@@ -178,8 +181,10 @@ export default function HomePage() {
             identified and the page moves on to content. */}
         <div className="relative h-[300px] w-full overflow-hidden bg-ink-950 sm:h-[380px]">
           <img
-            src="/lab-hero.webp"
-            srcSet="/lab-hero-640.webp 640w, /lab-hero.webp 1024w"
+            src={hero1024}
+            srcSet={`${hero480} 480w, ${hero768} 768w, ${hero1024} 1024w`}
+            width="1024"
+            height="1024"
             sizes="100vw"
             alt=""
             // The LCP element: fetched eagerly and decoded synchronously so it
