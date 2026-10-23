@@ -22,6 +22,13 @@ export function isJobRelevant(title = '', summary = '') {
   return JOB_RELEVANCE_KEYWORDS.some((kw) => text.includes(kw.toLowerCase()))
 }
 
+/** A usable Date, or null — an unparseable string must not reach Mongoose as Invalid Date. */
+function validDate(value) {
+  if (!value) return null
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
 export function buildJobArticle({ title, summary, url, source, publishedAt, thumbnail }) {
   if (!title || !url) return null
   return {
@@ -30,7 +37,7 @@ export function buildJobArticle({ title, summary, url, source, publishedAt, thum
     url: url.split('?')[0],
     source,
     category: 'Jobs',
-    publishedAt: publishedAt ? new Date(publishedAt) : new Date(),
+    publishedAt: validDate(publishedAt) ?? new Date(),
     thumbnail: thumbnail || '',
   }
 }

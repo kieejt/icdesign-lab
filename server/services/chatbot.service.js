@@ -1,5 +1,7 @@
 import { Groq } from 'groq-sdk'
 
+import { groqModel, reasoningParams } from '../constants/ai.js'
+
 export const handleChat = async (message, history = []) => {
   if (!process.env.GROQ_API_KEY) {
     return 'Xin lỗi, chatbot hiện đang tạm bảo trì do thiếu cấu hình API.'
@@ -17,12 +19,16 @@ Giọng điệu của bạn cần lịch sự, chuyên nghiệp, súc tích và 
     { role: 'user', content: message }
   ]
 
+  const model = groqModel()
+
   try {
     const completion = await groq.chat.completions.create({
       messages,
-      model: 'llama-3.3-70b-versatile',
+      model,
+      ...reasoningParams(model),
       temperature: 0.5,
-      max_tokens: 500,
+      // Reasoning models spend part of this budget thinking before they answer.
+      max_tokens: 900,
     })
 
     return completion.choices[0]?.message?.content || 'Xin lỗi, tôi không thể xử lý yêu cầu lúc này.'

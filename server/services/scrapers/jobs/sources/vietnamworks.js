@@ -1,57 +1,79 @@
-import axios from 'axios'
 import { JOB_SEARCH_QUERIES } from '../../../../constants/jobKeywords.js'
-import { buildJobArticle, getBrowserHeaders, stripHtml, delay, isJobRelevant } from '../utils.js'
+import { trackSource } from '../../../runReport.js'
+import { post, mapLimit, sleep } from '../../http.js'
+import { buildJobArticle, getBrowserHeaders, stripHtml, isJobRelevant } from '../utils.js'
 
 const API_URL = 'https://ms.vietnamworks.com/job-search/v1.0/search'
+const CONCURRENCY = 3
 
-export async function fetchVietnamWorks() {
-  const articles = []
-  const seen = new Set()
+/** Turns one API hit into a job article, or null when it is not relevant. */
+export function jobFromHit(job) {
+  if (!job?.jobUrl) return null
 
-  for (const query of JOB_SEARCH_QUERIES) {
-    try {
-      const { data } = await axios.post(
+  const summary =
+    stripHtml(job.jobDescription)?.slice(0, 500) || `${job.companyName || ''} — ${job.prettySalary || ''}`.trim()
+  if (!isJobRelevant(job.jobTitle, summary)) return null
+
+  return buildJobArticle({
+    title: job.jobTitle,
+    // Company first, so near-duplicate detection can tell employers apart.
+    summary: job.companyName ? `${job.companyName} — ${summary}` : summary,
+    url: job.jobUrl,
+    source: 'VietnamWorks',
+    publishedAt: job.approvedOn || job.createdOn,
+    thumbnail: job.companyLogo,
+  })
+}
+
+/**
+ * @param {{report: import('../../../runReport.js').RunReport, signal?: AbortSignal}} ctx
+ */
+export async function fetchVietnamWorks(ctx) {
+  return trackSource(ctx, 'VietnamWorks', async (note) => {
+    const articles = []
+    const seen = new Set()
+
+    const outcomes = await mapLimit(JOB_SEARCH_QUERIES, CONCURRENCY, async (query) => {
+      if (ctx.signal?.aborted) return null
+
+      // `page` is zero-based. It was sent as 1, which asks for the *second* page:
+      // every query with a single page of results came back empty and this source
+      // silently returned no jobs at all.
+      const { data } = await post(
         API_URL,
-        { query, page: 1, hitsPerPage: 40 },
+        { query, page: 0, hitsPerPage: 40 },
         {
           headers: getBrowserHeaders({
             'Content-Type': 'application/json',
             Origin: 'https://www.vietnamworks.com',
             Referer: 'https://www.vietnamworks.com/',
           }),
-          timeout: 20000,
-        }
+        },
+        { signal: ctx.signal },
       )
 
-      const jobs = data?.data || []
-      for (const job of jobs) {
-        const url = job.jobUrl
-        if (!url || seen.has(url)) continue
-        seen.add(url)
+      await sleep(200)
+      return data?.data || []
+    })
 
-        const summary =
-          stripHtml(job.jobDescription)?.slice(0, 500) ||
-          `${job.companyName || ''} — ${job.prettySalary || ''}`.trim()
-
-        if (!isJobRelevant(job.jobTitle, summary)) continue
-
-        const article = buildJobArticle({
-          title: job.jobTitle,
-          summary,
-          url,
-          source: 'VietnamWorks',
-          publishedAt: job.approvedOn || job.createdOn,
-          thumbnail: job.companyLogo,
-        })
-        if (article) articles.push(article)
+    let failures = 0
+    let firstError = ''
+    for (const outcome of outcomes) {
+      if (outcome instanceof Error) {
+        failures += 1
+        firstError ||= outcome.message
+        continue
       }
-
-      await delay(400)
-    } catch (err) {
-      console.error(`VietnamWorks search "${query}":`, err.message)
+      for (const hit of outcome || []) {
+        const article = jobFromHit(hit)
+        if (!article || seen.has(article.url)) continue
+        seen.add(article.url)
+        articles.push(article)
+      }
     }
-  }
 
-  console.log(`VietnamWorks: ${articles.length} jobs`)
-  return articles
+    if (failures === outcomes.length && outcomes.length > 0) throw new Error(`every query failed (${firstError})`)
+    if (failures > 0) note(`${failures} of ${outcomes.length} queries failed (${firstError})`)
+    return articles
+  })
 }

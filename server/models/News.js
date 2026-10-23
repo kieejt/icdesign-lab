@@ -9,6 +9,8 @@ const newsSchema = new mongoose.Schema(
     publishedAt: { type: Date, required: true },
     thumbnail: { type: String },
     score: { type: Number, default: 0 },
+    // 0-10 relevance judged by the AI ranker; null when it was unavailable.
+    relevance: { type: Number, default: null },
     tags: [{ type: String }],
     status: {
       type: String,

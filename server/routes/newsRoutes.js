@@ -2,7 +2,7 @@ import express from 'express'
 import News from '../models/News.js'
 import verifyToken from '../middleware/verifyToken.js'
 import verifyAdmin from '../middleware/verifyAdmin.js'
-import { runNewsFetch } from '../services/agent.service.js'
+import { getFetchStatus, startNewsFetch } from '../services/agent.service.js'
 import { getCronTime, updateCronTime } from '../jobs/cron.js'
 import { logAdminAction } from '../utils/auditLogger.js'
 import { httpCache, invalidateOnWrite, microCache } from '../middleware/cache.js'
@@ -217,26 +217,36 @@ router.patch('/:id', async (req, res) => {
 })
 
 // POST /api/news/fetch (Admin - Manual Trigger)
+//
+// Starts the run and answers at once. A full fetch takes minutes, longer than the
+// browser's request timeout and the proxy's read timeout, so holding the request
+// open made every slow run look like an error while it carried on regardless. The
+// console polls GET /fetch-status instead.
 router.post('/fetch', async (req, res) => {
   try {
-    const { ran, result } = await runNewsFetch('admin')
+    const started = await startNewsFetch('admin')
 
-    // A run already in progress is a normal outcome, not an error — say so
-    // rather than reporting "0 saved", which reads like the sources were empty.
-    if (!ran) {
+    // A run already in progress is a normal outcome, not an error.
+    if (!started.started) {
       return res.status(409).json({
         message: 'A news fetch is already running. Try again in a few minutes.',
       })
     }
 
-    res.json({
-      message: 'Fetch completed',
-      totalSaved: result?.totalSaved ?? 0,
-      perCategory: result?.perCategoryStats ?? {},
-    })
-    await logAdminAction(req, 'FETCH_NEWS', `Manually triggered AI news fetcher. Fetched ${result?.totalSaved ?? 0} news.`)
+    res.status(202).json({ message: 'Fetch started', runId: started.runId })
+    await logAdminAction(req, 'FETCH_NEWS', 'Manually triggered the AI news fetcher.')
   } catch (error) {
-    res.status(500).json({ message: 'Server error during fetch' })
+    res.status(500).json({ message: 'Server error starting the fetch' })
+  }
+})
+
+// GET /api/news/fetch-status (Admin) — progress of the current run and the last result.
+router.get('/fetch-status', async (req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store')
+    res.json(await getFetchStatus())
+  } catch (error) {
+    res.status(500).json({ message: 'Could not read the fetch status' })
   }
 })
 

@@ -121,6 +121,14 @@ jobs:
             | xargs -0 -n1 node --check
           echo "All server files parse."
 
+      - name: Unit and integration tests
+        working-directory: server
+        # Covers the news agent: URL canonicalisation and de-duplication, AI
+        # reply validation, selection, retry/deadline behaviour, and a full run
+        # against MongoDB with fake sources and a fake ranker (no network, no AI
+        # key). Each run uses a throw-away database.
+        run: npm test
+
       - name: Sync indexes
         working-directory: server
         # The deploy runs this against the live database. Running it here first
