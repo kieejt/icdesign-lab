@@ -64,17 +64,26 @@ const MAX_DIMENSION = 2000
 
 /**
  * Re-encodes an uploaded image as WebP, capped at MAX_DIMENSION, and removes the
- * original. Returns the final file name. GIFs are left alone (re-encoding would
- * drop the animation) and a file sharp cannot decode is kept as uploaded.
+ * original. Returns the final file name, or null when the file is not a decodable
+ * image (it is deleted).
+ *
+ * The type check in `fileFilter` only trusts the name and Content-Type the client
+ * sent. Decoding the bytes is the real check: a file that merely claims to be a
+ * JPEG is refused instead of being stored and served under an image name. GIFs
+ * are validated but left as uploaded (re-encoding would drop the animation).
  */
 async function optimizeUpload(file) {
-  if (file.mimetype === 'image/gif') return file.filename
-
   const parsed = path.parse(file.path)
-  const optimizedName = `${parsed.name}.webp`
-  const optimizedPath = path.join(parsed.dir, optimizedName)
 
   try {
+    if (file.mimetype === 'image/gif') {
+      const { format } = await sharp(file.path).metadata()
+      if (format !== 'gif') throw new Error('Not a GIF')
+      return file.filename
+    }
+
+    const optimizedName = `${parsed.name}.webp`
+    const optimizedPath = path.join(parsed.dir, optimizedName)
     await sharp(file.path)
       .rotate() // honour EXIF orientation before the metadata is stripped
       .resize({ width: MAX_DIMENSION, height: MAX_DIMENSION, fit: 'inside', withoutEnlargement: true })
@@ -83,8 +92,9 @@ async function optimizeUpload(file) {
     await fs.promises.unlink(file.path)
     return optimizedName
   } catch (error) {
-    console.error('Image optimisation failed, keeping original:', error.message)
-    return file.filename
+    console.error('Rejected an upload that is not a valid image:', error.message)
+    await fs.promises.unlink(file.path).catch(() => {})
+    return null
   }
 }
 
@@ -104,6 +114,9 @@ router.post('/', verifyToken, verifyAdmin, (req, res) => {
     }
 
     const filename = await optimizeUpload(req.file)
+    if (!filename) {
+      return res.status(400).json({ message: 'The file is not a valid image' })
+    }
 
     // Return the URL path
     res.json({
@@ -130,12 +143,18 @@ router.post('/batch', verifyToken, verifyAdmin, (req, res) => {
 
     // One at a time: 50 parallel decodes of multi-megapixel photos would spike memory.
     const urls = []
+    let rejected = 0
     for (const file of req.files) {
-      urls.push(`/uploads/${await optimizeUpload(file)}`)
+      const filename = await optimizeUpload(file)
+      if (filename) urls.push(`/uploads/${filename}`)
+      else rejected += 1
+    }
+    if (urls.length === 0) {
+      return res.status(400).json({ message: 'None of the files is a valid image' })
     }
 
     res.json({
-      message: 'Images uploaded successfully',
+      message: rejected ? `${urls.length} uploaded, ${rejected} rejected as not valid images` : 'Images uploaded successfully',
       urls: urls
     })
   })

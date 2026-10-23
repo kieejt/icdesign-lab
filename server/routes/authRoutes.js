@@ -1,3 +1,5 @@
+import crypto from 'crypto'
+
 import express from 'express'
 import jwt from 'jsonwebtoken'
 import User from '../models/User.js'
@@ -24,12 +26,41 @@ const SESSION_COOKIE = {
   path: '/',
 }
 
+const MIN_PASSWORD_LENGTH = 10
+
+/** Constant-time string comparison, so the setup token cannot be guessed byte by byte. */
+function safeEqual(a, b) {
+  const left = Buffer.from(String(a))
+  const right = Buffer.from(String(b))
+  return left.length === right.length && crypto.timingSafeEqual(left, right)
+}
+
+/*
+ * First-admin setup.
+ *
+ * This used to be open to anyone for as long as no admin existed, which on a
+ * fresh deployment is the first hours of its life on the public internet: the
+ * first visitor to POST here became the owner of the site. It now works only
+ * when ADMIN_SETUP_TOKEN is set on the server and the request presents it. The
+ * simpler route is `npm run create-admin` on the server (scripts/create-admin.js),
+ * which needs shell access instead of a secret.
+ */
 router.post('/register', async (req, res) => {
   try {
+    const setupToken = process.env.ADMIN_SETUP_TOKEN
+    if (!setupToken || !safeEqual(req.body?.setupToken ?? '', setupToken)) {
+      return res.status(403).json({ message: 'Registration is disabled.' })
+    }
+
     const { email, password } = req.body
 
-    if (!email || !password) {
+    if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
       return res.status(400).json({ message: 'Email and password are required' })
+    }
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      return res
+        .status(400)
+        .json({ message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` })
     }
 
     const adminExists = await User.exists({ role: 'admin' })
@@ -61,7 +92,7 @@ router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body
 
-    if (!email || !password) {
+    if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
       return res.status(400).json({ message: 'Email and password are required' })
     }
 
@@ -100,7 +131,7 @@ router.get('/me', (req, res) => {
   if (!token) return res.json({ user: null })
 
   try {
-    return res.json({ user: jwt.verify(token, process.env.JWT_SECRET) })
+    return res.json({ user: jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] }) })
   } catch {
     return res.json({ user: null })
   }
@@ -131,8 +162,13 @@ router.post('/students', verifyToken, async (req, res) => {
       return res.status(403).json({ message: 'Forbidden: Admin access required' })
     }
     const { email, password } = req.body
-    if (!email || !password) {
+    if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
       return res.status(400).json({ message: 'Email and password are required' })
+    }
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      return res
+        .status(400)
+        .json({ message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` })
     }
 
     const existingUser = await User.findOne({ email: email.toLowerCase() })

@@ -184,7 +184,22 @@ const chatLimiter = rateLimit({
   message: { message: 'Too many messages. Please wait a few minutes before asking again.' },
 })
 
+/*
+ * The analytics beacon is exempt from the general budget above (it must never
+ * eat a visitor's real calls), which also left it with no limit at all: a script
+ * could write page views as fast as the server would answer. A visitor navigating
+ * by hand never comes near this; a loop does.
+ */
+const trackLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many requests.' },
+})
+
 app.use('/api', apiLimiter)
+app.use('/api/analytics/track', trackLimiter)
 app.use('/api/auth/login', authLimiter)
 app.use('/api/auth/register', authLimiter)
 if (CHATBOT_ENABLED) app.use('/api/chat', chatLimiter)

@@ -10,6 +10,9 @@ import { extractListing } from '../services/scrapers/vietnamNews/sources/htmlLis
 import { prepareArticles } from '../services/agent.service.js'
 import { cleanText } from '../utils/html.js'
 
+// These tests serve fixtures from 127.0.0.1, which the outbound guard refuses by default.
+process.env.ALLOW_PRIVATE_FETCH = '1'
+
 /* ------------------------------ text -------------------------------------- */
 
 test('cleanText decodes the entities some Vietnamese feeds leave in titles', () => {

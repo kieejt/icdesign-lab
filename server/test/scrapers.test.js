@@ -10,6 +10,9 @@ import { extractCandidates, isBlockedPage } from '../services/scrapers/worldNews
 import { get, mapLimit, withDeadline } from '../services/scrapers/http.js'
 import { RunReport, trackSource } from '../services/runReport.js'
 
+// These tests serve fixtures from 127.0.0.1, which the outbound guard refuses by default.
+process.env.ALLOW_PRIVATE_FETCH = '1'
+
 /* ----------------------------- parsers ---------------------------------- */
 
 test('parseLinkedInCards reads title, company, link and the real posting date', () => {

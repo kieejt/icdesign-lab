@@ -587,7 +587,10 @@ too.
    Generate secrets with `openssl rand -base64 32`.
 4. Install `deploy/Caddyfile` as `/etc/caddy/Caddyfile` (set the domain) and create the two files it imports; see "Cloudflare in front". Then `sudo systemctl reload caddy`.
 5. `docker compose up -d --build --wait`. The first build takes several minutes.
-6. Create the first admin: `POST /api/auth/register` works only while no admin exists.
+6. Create the first admin on the server (the HTTP `register` endpoint is off unless
+   `ADMIN_SETUP_TOKEN` is set, so nobody can claim the site first):
+   `docker exec -e ADMIN_EMAIL=you@example.com -e ADMIN_PASSWORD='a long passphrase' icdesign-backend node scripts/create-admin.js`
+   (at least 10 characters; it refuses to run once an admin exists).
 7. Set the repository secrets `HOST`, `USERNAME`, `SSH_KEY` (a key used only by CI);
    from then on every push to `main` deploys.
 

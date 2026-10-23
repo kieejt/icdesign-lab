@@ -1,3 +1,8 @@
+import dns from 'node:dns'
+import http from 'node:http'
+import https from 'node:https'
+import net from 'node:net'
+
 import axios from 'axios'
 
 /*
@@ -11,6 +16,83 @@ import axios from 'axios'
  */
 
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/*
+ * Outbound requests are limited to the public internet.
+ *
+ * Every URL fetched here ultimately comes from somebody else: a feed item, a
+ * search result, a redirect. Without a check, a feed entry pointing at
+ * http://169.254.169.254/ (the cloud metadata service), http://localhost:5000/
+ * or the database host would make this server fetch it from the inside and
+ * feed the answer into article summaries. The check runs on the address a name
+ * actually resolves to (so DNS tricks and rebinding do not help) and again on
+ * every redirect. Tests that serve fixtures from 127.0.0.1 set
+ * ALLOW_PRIVATE_FETCH=1.
+ */
+const allowPrivate = () => process.env.ALLOW_PRIVATE_FETCH === '1'
+
+const MAX_RESPONSE_BYTES = 8 * 1024 * 1024
+
+/** True when `address` (IPv4 or IPv6 text) is a routable public address. */
+export function isPublicAddress(address) {
+  const kind = net.isIP(address)
+  if (kind === 4) {
+    const [a, b] = address.split('.').map(Number)
+    if (a === 0 || a === 10 || a === 127 || a >= 224) return false // this-net, private, loopback, multicast/reserved
+    if (a === 100 && b >= 64 && b <= 127) return false // carrier-grade NAT
+    if (a === 169 && b === 254) return false // link-local, incl. cloud metadata
+    if (a === 172 && b >= 16 && b <= 31) return false
+    if (a === 192 && (b === 168 || (b === 0 && address.startsWith('192.0.0.')))) return false
+    if (a === 198 && (b === 18 || b === 19)) return false // benchmarking
+    return true
+  }
+  if (kind === 6) {
+    const lower = address.toLowerCase()
+    const mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/)
+    if (mapped) return isPublicAddress(mapped[1])
+    if (lower === '::' || lower === '::1') return false
+    if (/^f[cd]/.test(lower) || /^fe[89ab]/.test(lower) || lower.startsWith('ff')) return false // ULA, link-local, multicast
+    return true
+  }
+  return false
+}
+
+/** `lookup` for http(s) agents: resolves normally, then refuses non-public results. */
+function guardedLookup(hostname, options, callback) {
+  const opts = typeof options === 'function' ? {} : options
+  const done = typeof options === 'function' ? options : callback
+  dns.lookup(hostname, opts, (error, address, family) => {
+    if (error || allowPrivate()) return done(error, address, family)
+
+    const list = Array.isArray(address) ? address : [{ address, family }]
+    const allowed = list.filter((entry) => isPublicAddress(entry.address))
+    if (allowed.length === 0) {
+      return done(Object.assign(new Error(`Blocked request to a non-public address (${hostname})`), { code: 'EBLOCKED' }))
+    }
+    return Array.isArray(address) ? done(null, allowed) : done(null, allowed[0].address, allowed[0].family)
+  })
+}
+
+const guardedAgents = {
+  httpAgent: new http.Agent({ lookup: guardedLookup }),
+  httpsAgent: new https.Agent({ lookup: guardedLookup }),
+}
+
+/** Rejects non-http(s) URLs and IP-literal hosts that are not public (those skip DNS, so `lookup` never sees them). */
+function assertFetchable(rawUrl) {
+  const url = new URL(rawUrl)
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw Object.assign(new Error(`Blocked request with protocol ${url.protocol}`), { code: 'EBLOCKED' })
+  }
+  const host = url.hostname.replace(/^\[|\]$/g, '')
+  if (!allowPrivate() && net.isIP(host) && !isPublicAddress(host)) {
+    throw Object.assign(new Error(`Blocked request to a non-public address (${host})`), { code: 'EBLOCKED' })
+  }
+}
+
+function checkRedirect(options) {
+  assertFetchable(`${options.protocol || 'https:'}//${options.hostname || options.host}/`)
+}
 
 const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504])
 const RETRYABLE_CODES = new Set(['ECONNRESET', 'ETIMEDOUT', 'ECONNABORTED', 'EAI_AGAIN', 'EPIPE'])
@@ -30,13 +112,22 @@ export async function request(config, { retries = 2, baseDelayMs = 700, signal }
 
   for (;;) {
     try {
-      return await axios({ timeout: 20_000, ...config, signal })
+      assertFetchable(config.url)
+      return await axios({
+        timeout: 20_000,
+        maxContentLength: MAX_RESPONSE_BYTES,
+        maxBodyLength: MAX_RESPONSE_BYTES,
+        ...guardedAgents,
+        beforeRedirect: checkRedirect,
+        ...config,
+        signal,
+      })
     } catch (error) {
       if (signal?.aborted || axios.isCancel(error)) throw error
 
       const status = error.response?.status
       const retryable = RETRYABLE_STATUS.has(status) || RETRYABLE_CODES.has(error.code)
-      if (!retryable || attempt >= retries) throw error
+      if (error.code === 'EBLOCKED' || !retryable || attempt >= retries) throw error
 
       const retryAfter = Number(error.response?.headers?.['retry-after'])
       const base = Number.isFinite(retryAfter) ? Math.min(retryAfter * 1000, 10_000) : baseDelayMs * 2 ** attempt

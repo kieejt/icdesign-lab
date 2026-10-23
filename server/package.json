@@ -8,6 +8,7 @@
     "start": "node index.js",
     "sync-indexes": "node scripts/syncIndexes.js",
     "db-audit": "node scripts/dbAudit.js",
+    "create-admin": "node scripts/create-admin.js",
     "test": "node --test"
   },
   "keywords": [],
