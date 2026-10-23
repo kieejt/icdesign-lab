@@ -38,6 +38,9 @@ For EACH article:
 Return ONE JSON object of this exact shape, with one entry for every index from 0 to ${n - 1}:
 {"items":[{"index":0,"reason":"<summary for article 0>","relevance":<0-10>}, ...]}
 
+Use only facts stated in the title and snippet. Some articles have just a headline: then say only what
+the headline states and never add details, numbers or names that are not in it.
+
 IMPORTANT: The "reason" field is shown to users as the news summary. Write pure factual summaries only.
 DO NOT use phrases like "This article is relevant because..." or "Selected due to...".
 

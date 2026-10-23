@@ -22,6 +22,12 @@ export const NEWS_RETENTION_LIMIT = 200
 /** Articles per category sent to the AI for judgement. */
 export const AI_CANDIDATES_PER_CATEGORY = 10
 
+/**
+ * Articles per category looked at before the AI sees any. Pages that list headlines
+ * only are fetched for their real date at this stage, and stale ones are dropped.
+ */
+export const AI_SHORTLIST_PER_CATEGORY = 25
+
 /** AI relevance (0-10) below this is treated as off-topic and not saved. */
 export const MIN_AI_RELEVANCE_TO_SAVE = 3
 

@@ -3,6 +3,7 @@ import * as cheerio from 'cheerio'
 import { trackSource } from '../../../runReport.js'
 import { BROWSER_UA } from '../../feeds.js'
 import { get, mapLimit } from '../../http.js'
+import { isBlockedPage } from '../../pages.js'
 
 // DIGITIMES (https://www.digitimes.com/topic/semiconductors/) was listed here but
 // answers every automated request with an "Access denied" page, so it never
@@ -32,14 +33,7 @@ async function fetchArticleDescription(url, signal) {
   }
 }
 
-/**
- * Bot-protection pages come back with status 200, so a status check alone treats
- * "Access denied" as a normal empty page. Recognise the common ones by title.
- */
-export function isBlockedPage(html) {
-  const title = String(html).match(/<title>([^<]*)/i)?.[1] ?? ''
-  return /access denied|attention required|just a moment|are you a robot|forbidden/i.test(title)
-}
+export { isBlockedPage }
 
 /** Candidate article links on a listing page: anchors whose text reads like a headline. */
 export function extractCandidates(html, source) {

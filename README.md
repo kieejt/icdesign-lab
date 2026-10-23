@@ -254,8 +254,36 @@ Groq summarise and judge a wider shortlist, and saves the best as pending review
   and ranking had silently not worked at all.
 
 Tests: `npm test --prefix server` (Node's built-in runner). They cover URL
-canonicalisation, de-duplication, AI reply validation, selection, retries and a
-full run against MongoDB with fake sources and a fake ranker; no network or key.
+canonicalisation, de-duplication, AI reply validation, selection, retries, every
+parser (fixtures) and a full run against MongoDB with fake sources and a fake
+ranker; no network or key.
+
+#### Sources (53 per run)
+
+Every candidate was measured before it was added (reachable? parseable? fresh? how
+many items are actually on topic?). The outlets' own technology feeds turned out to
+hold almost no semiconductor stories, so the weight moved to topic-filtered sources.
+
+| Kind | Sources | Notes |
+|---|---|---|
+| Keyword search feeds | Google News (5 Vietnamese + 2 English queries), Bing News (2) | 94-100 of 100 results on topic across *all* Vietnamese outlets. Google links are redirects and carry a headline only |
+| Vietnamese topic pages (HTML) | Tia Sáng, Tuổi Trẻ, Sài Gòn Giải Phóng, Báo Chính phủ, CafeF, Mekong ASEAN | No usable feed. Listings are read for headlines; the article page is fetched only for the shortlist (description, real date, image) |
+| General feeds | VnExpress, VietnamNet, Dân trí, VnEconomy, VietnamPlus, Genk, Tinh tế, VnExpress International | Broad tech sections; kept for coverage |
+| English IC / semiconductor | Semiconductor Engineering, SemiWiki, EE Times, EDN, IEEE Spectrum, Semiconductor Today, Chips and Cheese, Electronics Weekly, Semiconductor Digest, Siemens EDA, arXiv cs.AR, Tom's Hardware, others | |
+| Jobs | LinkedIn, VietnamWorks, Careerlink, CareerViet (HTML), NVIDIA / Marvell / Intel careers (Workday API) | Workday gives direct, dated postings from the employers |
+
+Tried and **not usable**: TopCV, JobsGO, Glints, Indeed, VOV (403), DIGITIMES (access
+denied page), ICDREC / NIC / VNU-HCM (JavaScript challenge or app shell, no HTML to
+read), ITviec (404). Other Workday tenants (Synopsys, Renesas, Qualcomm, AMD, ...)
+answered 422/401 or had no Vietnam postings.
+
+**Adding a source.** An RSS feed is one line in `worldNews/sources/rssSources.js` or
+`vietnamNews/sources/rssSources.js`. A site without a feed: add its tag or search
+page to `LISTINGS` in `vietnamNews/sources/htmlListings.js` with a `hrefPattern`
+describing what an article URL looks like. A Workday employer: add `{ company,
+tenant, wd, site }` to `COMPANIES` in `jobs/sources/workday.js` (all three come from
+its careers URL). Each run's source report in the admin News page shows immediately
+whether the new source returns anything.
 
 ### Database indexes in production
 

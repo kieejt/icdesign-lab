@@ -1,6 +1,10 @@
+import { fetchBingNews, fetchGoogleNews } from './scrapers/aggregators.js'
+import { fetchCareerViet } from './scrapers/jobs/sources/careerviet.js'
 import { fetchCareerlink } from './scrapers/jobs/sources/careerlink.js'
 import { fetchLinkedIn } from './scrapers/jobs/sources/linkedin.js'
 import { fetchVietnamWorks } from './scrapers/jobs/sources/vietnamworks.js'
+import { fetchWorkdayCompanies } from './scrapers/jobs/sources/workday.js'
+import { fetchVietnamListings } from './scrapers/vietnamNews/sources/htmlListings.js'
 import { fetchVietnamNewsRss } from './scrapers/vietnamNews/sources/rssSources.js'
 import { fetchWorldNewsHtml } from './scrapers/worldNews/sources/htmlScrapers.js'
 import { fetchWorldNewsRss } from './scrapers/worldNews/sources/rssSources.js'
@@ -18,9 +22,14 @@ export const SOURCE_GROUPS = [
   { name: 'World News RSS', run: fetchWorldNewsRss, deadlineMs: 60_000 },
   { name: 'World News pages', run: fetchWorldNewsHtml, deadlineMs: 60_000 },
   { name: 'Vietnam News RSS', run: fetchVietnamNewsRss, deadlineMs: 60_000 },
+  { name: 'Google News', run: fetchGoogleNews, deadlineMs: 60_000 },
+  { name: 'Bing News', run: fetchBingNews, deadlineMs: 60_000 },
+  { name: 'Vietnamese topic pages', run: fetchVietnamListings, deadlineMs: 90_000 },
   { name: 'VietnamWorks', run: fetchVietnamWorks, deadlineMs: 90_000 },
   { name: 'LinkedIn', run: fetchLinkedIn, deadlineMs: 120_000 },
   { name: 'Careerlink', run: fetchCareerlink, deadlineMs: 60_000 },
+  { name: 'CareerViet', run: fetchCareerViet, deadlineMs: 60_000 },
+  { name: 'Company careers (Workday)', run: fetchWorkdayCompanies, deadlineMs: 60_000 },
 ]
 
 /**

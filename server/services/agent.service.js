@@ -1,5 +1,6 @@
 import {
   AI_CANDIDATES_PER_CATEGORY,
+  AI_SHORTLIST_PER_CATEGORY,
   ARTICLES_PER_CATEGORY,
   AUTO_APPROVE_MIN_RELEVANCE,
   AUTO_APPROVE_SCORE_THRESHOLD,
@@ -17,9 +18,11 @@ import News from '../models/News.js'
 import SeenUrl from '../models/SeenUrl.js'
 import Setting from '../models/Setting.js'
 import { canonicalUrl, dedupeArticles, selectDiverse } from '../utils/articleIdentity.js'
+import { cleanText } from '../utils/html.js'
 import { acquireJobLock, isJobRunning } from '../utils/jobLock.js'
 import { matchesTopic, scoreArticle } from '../utils/scorer.js'
 import { rankAndSummarize } from './aiRanker.js'
+import { enrichArticles } from './enrich.js'
 import { RunReport } from './runReport.js'
 import { collectArticles } from './sources.js'
 
@@ -42,6 +45,14 @@ function isTooOld(item) {
   return Date.now() - published > limitDays * 24 * 3600 * 1000
 }
 
+/** Google News links are redirects; when the same story is also available directly, prefer that. */
+const isGoogleLink = (article) => /(^|\.)news\.google\.com$/.test(new URL(article.url, 'https://x').hostname)
+
+/** Sort key: score, minus a penalty for redirect links so a direct copy of the same story wins. */
+const rankValue = (article) => article.score - (isGoogleLink(article) ? 1.5 : 0)
+
+const byRank = (a, b) => rankValue(b) - rankValue(a) || new Date(b.publishedAt) - new Date(a.publishedAt)
+
 /**
  * Cleans raw scraper output: drops items without a URL or title or that are too
  * old, rewrites URLs to canonical form, scores everything, and removes duplicates (same canonical URL,
@@ -60,13 +71,13 @@ export function prepareArticles(raw) {
     if (!item?.url || !item?.title) continue
     if (isTooOld(item)) continue
     const url = canonicalUrl(item.url)
-    const article = { ...item, title: String(item.title).trim(), rawUrl: item.url, url }
+    const article = { ...item, title: cleanText(item.title), summary: cleanText(item.summary), rawUrl: item.url, url }
     article.score = scoreArticle(article)
     articles.push(article)
   }
 
   // Newer first on equal score, so ties favour fresh items.
-  articles.sort((a, b) => b.score - a.score || new Date(b.publishedAt) - new Date(a.publishedAt))
+  articles.sort(byRank)
 
   // Grouped by hand: Object.groupBy needs Node 21 and the images run Node 20.
   const byCategory = new Map()
@@ -77,7 +88,7 @@ export function prepareArticles(raw) {
 
   return [...byCategory.entries()]
     .flatMap(([category, list]) => dedupeArticles(list, { sameCompany: category === 'Jobs' }))
-    .sort((a, b) => b.score - a.score || new Date(b.publishedAt) - new Date(a.publishedAt))
+    .sort(byRank)
 }
 
 /**
@@ -193,10 +204,15 @@ async function saveArticles(chosen, autoApproveEnabled, category) {
 /**
  * Collects, selects and saves news for every category.
  *
- * @param {{collect?: Function, rank?: Function, report?: RunReport}} [deps]
+ * @param {{collect?: Function, rank?: Function, enrich?: Function, report?: RunReport}} [deps]
  *   injectable for tests; production uses the real sources and the Groq ranker
  */
-export const fetchAndProcessNews = async ({ collect = collectArticles, rank = rankAndSummarize, report = new RunReport() } = {}) => {
+export const fetchAndProcessNews = async ({
+  collect = collectArticles,
+  rank = rankAndSummarize,
+  enrich = enrichArticles,
+  report = new RunReport(),
+} = {}) => {
   const autoApproveSetting = await Setting.findOne({ key: AUTO_APPROVE_SETTING_KEY }).lean()
   const autoApproveEnabled = autoApproveSetting?.value === true
 
@@ -214,7 +230,18 @@ export const fetchAndProcessNews = async ({ collect = collectArticles, rank = ra
 
   for (const category of CATEGORIES) {
     const pool = articles.filter((a) => a.category === category)
-    const candidates = selectDiverse(pool, AI_CANDIDATES_PER_CATEGORY, Math.ceil(AI_CANDIDATES_PER_CATEGORY / 2))
+
+    // Listing pages show headlines only. Fetch the article itself (description,
+    // real date, image) for a slightly wider shortlist, then re-score: a story that
+    // turns out to be old drops out, and the shortlist is cut to what the AI sees.
+    // Wide enough that dropping the stale ones still leaves a full shortlist: topic
+    // pages list older articles too, and their real dates are only known here.
+    const wide = selectDiverse(pool, AI_SHORTLIST_PER_CATEGORY, Math.ceil(AI_SHORTLIST_PER_CATEGORY / 2))
+    const detailed = (await enrich(wide))
+      .map((article) => ({ ...article, score: scoreArticle(article) }))
+      .filter((article) => !isTooOld(article))
+      .sort(byRank)
+    const candidates = selectDiverse(detailed, AI_CANDIDATES_PER_CATEGORY, Math.ceil(AI_CANDIDATES_PER_CATEGORY / 2))
 
     if (candidates.length === 0) {
       console.warn(`[${category}] No new articles found.`)
