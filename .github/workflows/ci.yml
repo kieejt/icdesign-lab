@@ -42,15 +42,13 @@ jobs:
 
       - name: Lint
         working-directory: client
-        # The nine admin pages carry pre-existing violations of rules added later
-        # (react-hooks' newer set). Failing on them would block every unrelated
-        # change, so the gate is "no *new* errors outside admin"; the admin pages
-        # are tracked separately and reported, not enforced.
-        run: |
-          npx eslint src --ignore-pattern 'src/pages/admin/**'
-          echo "::group::Known issues in admin pages (not gating)"
-          npx eslint src/pages/admin || true
-          echo "::endgroup::"
+        run: npx eslint src
+
+      - name: Design tokens
+        working-directory: client
+        # Colours, corners and shadows must come from the design system. The admin
+        # console once drifted into its own palette because nothing checked.
+        run: node scripts/check-design-tokens.mjs
 
       - name: Build
         working-directory: client
@@ -154,6 +152,35 @@ jobs:
           echo "Smoke tests passed."
           kill "$(cat server.pid)"
 
+  frontend-image:
+    name: Frontend image — nginx config is valid
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the image
+        run: docker build -t icdesign-frontend ./client
+
+      - name: nginx accepts the configuration
+        # The deploy health check only probes the backend, so a config nginx
+        # refuses to load (a missing module, a typo) would otherwise ship and
+        # take the whole site down. `backend` is mapped to loopback because the
+        # upstream block resolves its hostname when the config is parsed.
+        run: docker run --rm --add-host backend:127.0.0.1 icdesign-frontend nginx -t
+
+      - name: Serves pre-compressed assets and the security headers
+        run: |
+          docker run -d --name fe --add-host backend:127.0.0.1 -p 8080:80 icdesign-frontend
+          for i in $(seq 1 15); do curl -fsS -o /dev/null http://localhost:8080/ && break; sleep 1; done
+
+          curl -sI -H 'Accept-Encoding: br' http://localhost:8080/ | grep -i '^content-security-policy'             || { echo "::error::CSP header missing"; docker logs fe; exit 1; }
+
+          JS=$(curl -s http://localhost:8080/ | grep -o '/assets/index-[^"]*\.js' | head -1)
+          curl -sI -H 'Accept-Encoding: br' "http://localhost:8080$JS" | grep -i '^content-encoding: br'             || { echo "::error::Brotli is not being served for $JS"; docker logs fe; exit 1; }
+
+          [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/people/students)" = "200" ]             || { echo "::error::SPA fallback broken"; exit 1; }
+          docker rm -f fe
+
   compose:
     name: Compose — configuration is valid
     runs-on: ubuntu-latest
@@ -179,7 +206,7 @@ jobs:
 
   deploy:
     name: Deploy to VPS
-    needs: [client, server, compose]
+    needs: [client, server, frontend-image, compose]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: production
