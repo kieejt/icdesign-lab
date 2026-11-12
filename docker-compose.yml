@@ -3,7 +3,7 @@ services:
     # 7.0 rather than 6.0: 6.0 reached end of life in July 2025 and no longer gets
     # security fixes. A data directory written by 6.0 opens directly under 7.0; see
     # "Upgrading MongoDB" in the README for the one follow-up command.
-    image: mongo:7.0
+    image: mongo:8.2
     container_name: icdesign-mongodb
     restart: unless-stopped
 
@@ -53,7 +53,7 @@ services:
   backup:
     # Nightly logical backup of the whole instance. Before this there was no copy
     # of the data anywhere except the one Docker volume it lives on.
-    image: mongo:7.0
+    image: mongo:8.2
     container_name: icdesign-backup
     restart: unless-stopped
     mem_limit: 256m
