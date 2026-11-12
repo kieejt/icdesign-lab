@@ -3,7 +3,7 @@
 # On the build machine's own architecture: the output is plain HTML/JS/CSS, the
 # same for every platform, so an arm64 image need not run Vite under emulation
 # (minutes instead of seconds). Only the nginx stage below is per-platform.
-FROM --platform=$BUILDPLATFORM node:20-alpine AS build
+FROM --platform=$BUILDPLATFORM node:24-alpine AS build
 
 # Set working directory
 WORKDIR /app

@@ -36,12 +36,22 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 1
+    ignore:
+      # Odd-numbered Node releases never become LTS and are supported for about
+      # six months; production stays on the current even-numbered LTS.
+      - dependency-name: node
+        versions: ['25.x', '27.x', '29.x']
 
   - package-ecosystem: docker
     directory: /server
     schedule:
       interval: monthly
     open-pull-requests-limit: 1
+    ignore:
+      # Odd-numbered Node releases never become LTS and are supported for about
+      # six months; production stays on the current even-numbered LTS.
+      - dependency-name: node
+        versions: ['25.x', '27.x', '29.x']
 
   # Images pinned in docker-compose.yml: mongo and cloudflared.
   - package-ecosystem: docker-compose
@@ -49,3 +59,10 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 1
+    ignore:
+      # A MongoDB major upgrade must go one release at a time with the
+      # featureCompatibilityVersion raised in between, against the real data
+      # directory; CI only ever starts an empty one. Done by hand (README,
+      # "Upgrading MongoDB"); minor and patch updates still come through.
+      - dependency-name: mongo
+        update-types: ['version-update:semver-major']

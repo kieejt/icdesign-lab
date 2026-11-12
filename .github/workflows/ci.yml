@@ -22,7 +22,7 @@ permissions:
 
 env:
   # Matches the Dockerfiles, so CI cannot pass on a version production never runs.
-  NODE_VERSION: '20'
+  NODE_VERSION: '24'
   # Images CI builds, tests and (on main) pushes; the server only pulls them.
   # Must match the `image:` names in docker-compose.yml. GHCR needs lowercase.
   IMAGE_REPO: ghcr.io/kieejt/icdesign-lab
