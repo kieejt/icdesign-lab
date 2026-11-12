@@ -23,6 +23,11 @@ permissions:
 env:
   # Matches the Dockerfiles, so CI cannot pass on a version production never runs.
   NODE_VERSION: '20'
+  # Images CI builds, tests and (on main) pushes; the server only pulls them.
+  # Must match the `image:` names in docker-compose.yml. GHCR needs lowercase.
+  IMAGE_REPO: ghcr.io/kieejt/icdesign-lab
+  # Pushing happens only for a push to main, never for a pull request.
+  PUBLISH: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
 
 jobs:
   client:
@@ -199,9 +204,13 @@ jobs:
           kill "$(cat server.pid)"
 
   backend-image:
-    name: Backend image — builds and loads native modules
+    name: Backend image — builds, loads native modules, publishes
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Write access to GHCR only here and in frontend-image, and only used on main.
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
 
@@ -225,10 +234,36 @@ jobs:
         run: |
           docker run --rm icdesign-backend:ci node -e "import('sharp').then(m => m.default({create:{width:2,height:2,channels:3,background:'#fff'}}).webp().toBuffer()).then(() => console.log('sharp ok'))"
 
+      - name: Log in to GHCR
+        if: env.PUBLISH == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish the tested image
+        # Same inputs and cache as the build above, so this re-uses every layer
+        # instead of building again. Tagged by commit: the deploy pulls exactly
+        # the revision that passed, and a rollback can pull the previous one.
+        if: env.PUBLISH == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./server
+          push: true
+          tags: ${{ env.IMAGE_REPO }}-backend:${{ github.sha }}
+          # Links the package to this repository, which is what lets the deploy
+          # job's own GITHUB_TOKEN pull it.
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          cache-from: type=gha,scope=backend
+
   frontend-image:
-    name: Frontend image — nginx config is valid
+    name: Frontend image — nginx config is valid, publishes
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
 
@@ -240,6 +275,9 @@ jobs:
           context: ./client
           load: true
           tags: icdesign-frontend:ci
+          # The same value docker-compose.yml passes: this image is the one that
+          # ships, so it must call the API on its own origin, not localhost:5000.
+          build-args: VITE_API_URL=/api
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,scope=frontend,mode=max
 
@@ -277,6 +315,30 @@ jobs:
 
           [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/people/students)" = "200" ] \
             || fail "SPA fallback broken"
+
+          # The shipped bundle must call the API on its own origin.
+          if docker exec fe sh -c "grep -l 'localhost:5000' /usr/share/nginx/html/assets/*.js" > /dev/null; then
+            fail "the bundle points at localhost:5000 - VITE_API_URL was not set"
+          fi
+
+      - name: Log in to GHCR
+        if: env.PUBLISH == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish the tested image
+        if: env.PUBLISH == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./client
+          push: true
+          tags: ${{ env.IMAGE_REPO }}-frontend:${{ github.sha }}
+          build-args: VITE_API_URL=/api
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          cache-from: type=gha,scope=frontend
 
   compose:
     name: Compose — configuration and backups
@@ -365,13 +427,26 @@ jobs:
       group: production-deploy
       cancel-in-progress: false
 
+    # Pull access to this repository's images on GHCR, for this job only.
+    permissions:
+      contents: read
+      packages: read
+
     steps:
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          # The job's own token: it can read this repository's packages and expires
+          # when the job ends, so no registry credential is ever stored on the server.
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE: ${{ github.sha }}
+          IMAGE_REPO: ${{ env.IMAGE_REPO }}
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
+          envs: GHCR_USER,GHCR_TOKEN,RELEASE,IMAGE_REPO
           script_stop: true
           command_timeout: 20m
           script: |
@@ -390,17 +465,33 @@ jobs:
               fi
             done
 
-            # Remember where to go back to if the new revision does not come up.
+            # Remember where to go back to if the new release does not come up.
             PREVIOUS=$(git rev-parse HEAD)
-            echo "Current revision: $PREVIOUS"
+            PREVIOUS_RELEASE=$(cat .image-tag 2>/dev/null || true)
+            echo "Current revision: $PREVIOUS (image: ${PREVIOUS_RELEASE:-built on this server})"
 
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            trap 'docker logout ghcr.io > /dev/null 2>&1 || true' EXIT
+
+            # The exact commit CI tested, not whatever main is by now, so the
+            # compose file always matches the images being pulled.
             git fetch origin main
-            git reset --hard origin/main
+            git reset --hard "$RELEASE"
 
-            # --- Build ahead of time -------------------------------------------
-            # Building first keeps the old containers serving for the whole build;
-            # only the swap in the next step touches live traffic.
-            docker compose build --pull
+            # Points the `current` tag (what docker-compose.yml runs) at a release,
+            # pulling its images first if they are not on disk.
+            use_release() {
+              for svc in backend frontend; do
+                img="$IMAGE_REPO-$svc"
+                docker image inspect "$img:$1" > /dev/null 2>&1 || docker pull -q "$img:$1" || return 1
+                docker tag "$img:$1" "$img:current" || return 1
+              done
+            }
+
+            # --- Fetch the release ----------------------------------------------
+            # The server never builds: CI built and tested these images. A failed
+            # pull stops here, before any running container is touched.
+            use_release "$RELEASE"
 
             # --- Start ----------------------------------------------------------
             # No `docker compose down`: `up` recreates only the services whose
@@ -408,7 +499,7 @@ jobs:
             # with a healthcheck reports healthy (or fails), so a container that
             # starts and immediately crashes is caught here, not by a visitor.
             healthy=1
-            docker compose up -d --remove-orphans --wait --wait-timeout 180 || healthy=0
+            docker compose up -d --no-build --remove-orphans --wait --wait-timeout 180 || healthy=0
 
             # --- Verify through the front door ---------------------------------
             # Probe the public path (nginx -> API), not just the backend port, so a
@@ -427,22 +518,31 @@ jobs:
             fi
 
             if [ "$healthy" != "1" ]; then
-              echo "New revision failed its health check — rolling back to $PREVIOUS"
+              echo "New release failed its health check — rolling back to $PREVIOUS"
               docker compose logs --tail 80 backend frontend || true
               git reset --hard "$PREVIOUS"
-              docker compose up -d --build --remove-orphans --wait --wait-timeout 180
+              if [ -n "$PREVIOUS_RELEASE" ] && use_release "$PREVIOUS_RELEASE"; then
+                docker compose up -d --no-build --remove-orphans --wait --wait-timeout 180
+              else
+                # Only the first deploy from GHCR has no previous image to return
+                # to; build the previous revision here as the old pipeline did.
+                docker compose up -d --build --remove-orphans --wait --wait-timeout 180
+              fi
               exit 1
             fi
+
+            echo "$RELEASE" > .image-tag
 
             # Indexes are not built at boot in production; this is a no-op when
             # nothing changed.
             docker compose exec -T backend npm run sync-indexes || \
               echo "Index sync failed — run 'npm run sync-indexes' manually."
 
-            # Each build leaves the previous image and its build cache behind;
-            # without this the disk fills up after enough deploys.
-            docker image prune -f
-            docker builder prune -f --filter 'until=168h'
+            # Releases stay on disk for a week for an instant rollback; GHCR keeps
+            # every one. The build cache is left over from when this server built
+            # images and is no longer used.
+            docker image prune -af --filter 'until=168h'
+            docker builder prune -af
 
             echo "Deployed $(git rev-parse --short HEAD) successfully."
 

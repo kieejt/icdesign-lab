@@ -496,6 +496,8 @@ the only workflow was the deploy itself.
 | `client` | eslint, production build, and a 1600 kB budget on total JS |
 | `server` | every file parses, then the API is booted against a real MongoDB and probed |
 | `compose` | `docker compose config` is valid, and still refuses to start without database credentials |
+| `backend-image` | the production image builds and `sharp` loads in it; on `main`, it is pushed to GHCR |
+| `frontend-image` | nginx accepts its config, serves Brotli and the headers, the bundle calls `/api`; on `main`, pushed to GHCR |
 
 There is no test suite yet, so the server job is the substitute: it starts the
 app and asserts the behaviour that a build cannot catch — public reads answer
@@ -510,6 +512,13 @@ nothing else in CI would notice.
 
 ### What deployment does differently
 
+- **The server never builds.** CI builds both images, tests them, and pushes them
+  to GHCR as `ghcr.io/kieejt/icdesign-lab-{backend,frontend}:<commit sha>`. The
+  deploy pulls that tag and points the local `current` tag (what
+  `docker-compose.yml` runs) at it. Building on the 2 GB server used to take
+  minutes of both vCPUs and most of the memory while the live site was serving.
+  The registry login uses the deploy job's own `GITHUB_TOKEN`, which expires with
+  the job; the server stores no registry credential.
 - **Pre-flight before anything stops.** It verifies `.env` and `server/.env`
   exist on the server first. The compose file requires database credentials, so
   discovering they are missing *after* stopping the containers turns a refused
@@ -517,11 +526,22 @@ nothing else in CI would notice.
 - **No `docker compose down`.** `up` recreates only the services whose image or
   configuration changed, so most deploys no longer take the site down for the
   duration of the build.
-- **Health check, then rollback.** If the new revision does not answer
-  `/api/health` within a minute, the previous commit is restored and rebuilt, and
-  the job fails.
+- **Health check, then rollback.** If the new release does not answer
+  `/api/health`, the previous commit and the previous images (the sha in
+  `~/icdesign-lab/.image-tag`) are restored, and the job fails. Only the very
+  first GHCR deploy, which has no previous image, falls back to building.
 - **Index sync and image prune** afterwards, since production runs with
-  `autoIndex` off and every build otherwise leaves its predecessor on disk.
+  `autoIndex` off. Releases older than a week are pruned from the server; GHCR
+  keeps all of them.
+
+To roll back by hand on the server (`<sha>` is any commit that was deployed;
+the package is public, otherwise `docker login ghcr.io` first):
+
+```bash
+cd ~/icdesign-lab && git reset --hard <sha>
+for s in backend frontend; do docker pull ghcr.io/kieejt/icdesign-lab-$s:<sha> && docker tag ghcr.io/kieejt/icdesign-lab-$s:<sha> ghcr.io/kieejt/icdesign-lab-$s:current; done
+docker compose up -d --no-build --wait && echo <sha> > .image-tag
+```
 
 ### Required repository secrets
 
@@ -542,6 +562,7 @@ browser --HTTPS--> Caddy (host, :443) --> nginx container (127.0.0.1:3000) --> A
 |---|---|
 | Region | `ap-southeast-2` (Sydney) |
 | Instance | `t3.small` (2 vCPU, 2 GB) + 2 GB swap, 20 GB encrypted gp3, Ubuntu 24.04 |
+| Memory budget | container limits in `docker-compose.yml`: MongoDB 512 MB (WiredTiger cache 0.25 GB), API 448 MB (V8 heap 320 MB), nginx 128 MB, backup 256 MB |
 | Network | Elastic IP; security group opens only 22 (key-only SSH, needed by CI), 80, 443 |
 | Cost | about 19 USD instance + 3.7 IPv4 + 2 disk per month (Sydney, on-demand) |
 
@@ -586,7 +607,8 @@ too.
    `CORS_ORIGINS=https://<domain>`, `SITE_URL=https://<domain>`, `GROQ_API_KEY`).
    Generate secrets with `openssl rand -base64 32`.
 4. Install `deploy/Caddyfile` as `/etc/caddy/Caddyfile` (set the domain) and create the two files it imports; see "Cloudflare in front". Then `sudo systemctl reload caddy`.
-5. `docker compose up -d --build --wait`. The first build takes several minutes.
+5. Either push to `main` and let the deploy pull the images, or start it by hand
+   with `docker compose up -d --build --wait` (builds on the server; several minutes).
 6. Create the first admin by inserting it into the database (there is no sign-up API):
    `docker exec -e ADMIN_EMAIL=you@example.com -e ADMIN_PASSWORD='a long passphrase' icdesign-backend node scripts/create-admin.js`
    (at least 6 characters; the script hashes the password and refuses to run once an admin exists).

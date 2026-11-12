@@ -38,3 +38,6 @@ server/config/cronTime.json
 
 # Playwright MCP session artefacts (browser snapshots and console logs)
 .playwright-mcp/
+
+# Release the server is running (written by the deploy job).
+.image-tag
