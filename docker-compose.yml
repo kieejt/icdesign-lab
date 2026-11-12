@@ -7,6 +7,13 @@ services:
     container_name: icdesign-mongodb
     restart: unless-stopped
 
+    # Sized for a ~2 GB VPS. WiredTiger otherwise reserves half of (RAM - 1 GB)
+    # for its cache (440 MB measured here) for a database of a few MB; 0.25 GB is
+    # its minimum and still holds the whole data set many times over. The
+    # container limit stops a runaway query from taking the API down with it.
+    command: ['--wiredTigerCacheSizeGB', '0.25']
+    mem_limit: 512m
+
     # No `ports:` on purpose.
     #
     # This used to publish 27017 to the host. Docker writes its own iptables
@@ -33,10 +40,15 @@ services:
 
     healthcheck:
       test: ['CMD', 'mongosh', '--quiet', '--eval', 'db.adminCommand("ping")']
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
+      # Each probe boots mongosh (a Node process, ~60 MB and a burst of CPU), so
+      # probing every 10 s cost a noticeable slice of a 2-vCPU box around the
+      # clock. Probe fast while starting (deploys still wait only seconds), then
+      # once a minute.
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+      start_interval: 2s
 
   backup:
     # Nightly logical backup of the whole instance. Before this there was no copy
@@ -44,6 +56,7 @@ services:
     image: mongo:7.0
     container_name: icdesign-backup
     restart: unless-stopped
+    mem_limit: 256m
 
     depends_on:
       mongodb:
@@ -78,6 +91,12 @@ services:
         done
 
   backend:
+    # Production pulls this image from GHCR, built and tested by CI; the server
+    # never builds. The deploy retags the release it is rolling out as `current`,
+    # so a manual `docker compose up -d` on the server keeps running exactly what
+    # was deployed. Locally, `docker compose up --build` builds from `build:` and
+    # writes the same tag.
+    image: ghcr.io/kieejt/icdesign-lab-backend:${IMAGE_TAG:-current}
     build:
       context: ./server
       dockerfile: Dockerfile
@@ -93,6 +112,16 @@ services:
       # in error responses, and autoIndex off (run `npm run sync-indexes` after a
       # schema change instead of rebuilding indexes on every boot).
       - NODE_ENV=production
+      # Keeps V8's heap below the container limit, so under pressure Node
+      # collects garbage harder instead of being OOM-killed mid-request.
+      - NODE_OPTIONS=--max-old-space-size=320
+      # Smaller pool: one Node process against a local Mongo never needs 20
+      # sockets, and each one costs memory on both sides.
+      - MONGO_POOL_SIZE=10
+      # libuv threads used by sharp, bcrypt and fs; matches the 2 vCPUs.
+      - UV_THREADPOOL_SIZE=2
+
+    mem_limit: 448m
 
     # Loopback only: the public entry point is the HTTPS proxy on the host (see
     # deploy/Caddyfile). Published on 0.0.0.0 these would reach the internet
@@ -111,10 +140,12 @@ services:
         - node
         - -e
         - "fetch('http://127.0.0.1:5000/api/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
+      # Every probe starts a second Node process; see the mongodb healthcheck.
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+      start_interval: 2s
 
     depends_on:
       mongodb:
@@ -123,6 +154,8 @@ services:
         condition: service_healthy
 
   frontend:
+    # See the note on the backend image.
+    image: ghcr.io/kieejt/icdesign-lab-frontend:${IMAGE_TAG:-current}
     build:
       context: ./client
       dockerfile: Dockerfile
@@ -132,16 +165,18 @@ services:
 
     container_name: icdesign-frontend
     restart: unless-stopped
+    mem_limit: 128m
 
     ports:
       - "127.0.0.1:3000:80"
 
     healthcheck:
       test: ['CMD', 'wget', '-q', '--spider', 'http://127.0.0.1/']
-      interval: 10s
+      interval: 30s
       timeout: 5s
-      retries: 5
-      start_period: 10s
+      retries: 3
+      start_period: 30s
+      start_interval: 2s
 
     depends_on:
       backend:

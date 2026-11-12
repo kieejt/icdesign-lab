@@ -3,6 +3,20 @@ import path from 'path'
 
 import sharp from 'sharp'
 
+/*
+ * Tuned for a small VPS. This module is loaded at boot, so the settings apply to
+ * every sharp call in the process (uploads too).
+ *
+ * - libvips keeps up to ~50 MB of decoded operations cached by default. Each
+ *   variant is encoded once and then served from disk / the nginx cache, so that
+ *   cache is never hit and is pure resident memory.
+ * - By default libvips runs one thread per core for every image. One thread per
+ *   image keeps a burst of uploads or cold variants from pinning both vCPUs
+ *   while visitors are waiting on the API.
+ */
+sharp.cache(false)
+sharp.concurrency(1)
+
 /**
  * Serves resized WebP copies of uploaded images on demand.
  *

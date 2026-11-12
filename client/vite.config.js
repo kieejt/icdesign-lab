@@ -84,7 +84,6 @@ export default defineConfig({
           }
           if (id.includes('react-router')) return 'router'
           if (id.includes('i18next')) return 'i18n'
-          if (id.includes('axios')) return 'http'
           if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('scheduler')) {
             return 'react'
           }
