@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 
 import api from '../../lib/api'
+import { SPREADSHEET_ACCEPT, SpreadsheetFormatError, downloadSheet, headerLabels, readFirstSheet } from '../../lib/spreadsheet'
 import { invalidateQueries, useApiQuery } from '../../hooks/useApiQuery'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
@@ -79,7 +80,7 @@ const TEMPLATE_ROWS = [
 
 /** Turns spreadsheet rows (header row first) into validated preview rows. */
 function parseDocumentRows(jsonData) {
-  const headers = jsonData[0].map((h) => String(h).trim())
+  const headers = headerLabels(jsonData[0])
   const rows = jsonData.slice(1)
 
   const findColIndex = (patterns) =>
@@ -176,21 +177,12 @@ function parseDocumentRows(jsonData) {
   return { rows: parsed }
 }
 
-/** xlsx is ~400 kB, so it is only fetched when someone actually uses Excel. */
-async function downloadSampleTemplate() {
-  const XLSX = await import('xlsx')
-  const wb = XLSX.utils.book_new()
-  const ws = XLSX.utils.aoa_to_sheet([TEMPLATE_HEADERS, ...TEMPLATE_ROWS])
-  XLSX.utils.book_append_sheet(wb, ws, 'Documents Template')
-  XLSX.writeFile(wb, 'ICDesign_Documents_Template.xlsx')
-}
-
-async function readWorkbookRows(file) {
-  const XLSX = await import('xlsx')
-  const data = new Uint8Array(await file.arrayBuffer())
-  const workbook = XLSX.read(data, { type: 'array' })
-  const worksheet = workbook.Sheets[workbook.SheetNames[0]]
-  return XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+/** The spreadsheet library is only fetched when someone actually uses Excel. */
+function downloadSampleTemplate() {
+  return downloadSheet([TEMPLATE_HEADERS, ...TEMPLATE_ROWS], {
+    sheet: 'Documents Template',
+    fileName: 'ICDesign_Documents_Template.xlsx',
+  })
 }
 
 /* -------------------------------------------------------------------------- */
@@ -307,8 +299,8 @@ function ImportPanel({ rows, importing, onFile, onClear, onConfirm }) {
         <label className="flex cursor-pointer flex-col items-center justify-center gap-3 border border-dashed border-paper-border bg-paper-sunken/50 p-8 text-center transition-colors focus-within:border-ink-900 hover:border-ink-900 md:col-span-2">
           <Icon name="document" className="h-8 w-8 text-ink-300" strokeWidth={1} />
           <span className="text-sm font-semibold text-ink-800">Upload Excel spreadsheet</span>
-          <span className="text-xs text-ink-500">Click to choose .xlsx or .xls files</span>
-          <input type="file" accept=".xlsx, .xls" className="sr-only" onChange={onFile} />
+          <span className="text-xs text-ink-500">Click to choose an .xlsx file</span>
+          <input type="file" accept={SPREADSHEET_ACCEPT} className="sr-only" onChange={onFile} />
         </label>
       </div>
 
@@ -626,7 +618,7 @@ export default function AdminDocumentsPage() {
     if (!file) return
 
     try {
-      const jsonData = await readWorkbookRows(file)
+      const jsonData = await readFirstSheet(file)
 
       if (jsonData.length === 0) {
         setBulkError('The Excel file is empty.')
@@ -643,7 +635,9 @@ export default function AdminDocumentsPage() {
       setBulkError('')
     } catch (err) {
       console.error(err)
-      setBulkError('Error reading Excel file. Please ensure it is a valid format.')
+      setBulkError(
+        err instanceof SpreadsheetFormatError ? err.message : 'Error reading Excel file. Please ensure it is a valid format.',
+      )
     } finally {
       // Lets the same file be picked again after "Clear File".
       input.value = ''

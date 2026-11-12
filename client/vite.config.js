@@ -70,18 +70,22 @@ export default defineConfig({
         /*
          * Split the heavy, rarely-changing dependencies into their own chunks.
          *
-         * The important one is `sheets`: xlsx + jszip + file-saver are ~700 kB
-         * and are only needed by two admin screens, but bundled together with
-         * everything else they were downloaded by every public visitor. Keeping
-         * them separate means the route that imports them pulls them in and
-         * nobody else pays.
+         * The important ones are `sheets` (Excel import/export, two admin
+         * screens) and `zip` (the gallery's album download). Bundled together
+         * with everything else they were downloaded by every public visitor.
+         * Keeping them separate means the route that imports them pulls them in
+         * and nobody else pays.
          */
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined
 
-          if (id.includes('xlsx') || id.includes('jszip') || id.includes('file-saver')) {
+          // Admin-only Excel import/export.
+          if (/[\\/](read-excel-file|write-excel-file|fflate|saxen|unzipper-esm|worker-f)[\\/]/.test(id)) {
             return 'sheets'
           }
+          // The gallery's "download album". Kept apart from the Excel code so a
+          // visitor saving an album does not download the spreadsheet library.
+          if (id.includes('jszip') || id.includes('file-saver')) return 'zip'
           if (id.includes('react-router')) return 'router'
           if (id.includes('i18next')) return 'i18n'
           if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('scheduler')) {

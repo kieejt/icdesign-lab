@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react'
 
 import api from '../../lib/api'
+import { SPREADSHEET_ACCEPT, SpreadsheetFormatError, downloadSheet, headerLabels, readFirstSheet } from '../../lib/spreadsheet'
 import { invalidateQueries, useApiQuery } from '../../hooks/useApiQuery'
 import {
   AdminCard,
@@ -58,19 +59,14 @@ function CitationLine({ title, authors, journal, date, link }) {
 }
 
 /**
- * Reads the first sheet of an Excel file into preview rows.
- * `XLSX` is passed in because the library is loaded on demand, not at module top.
+ * Turns the rows of a spreadsheet (header row first) into preview rows.
  *
  * @returns {{error: string} | {rows: object[]}}
  */
-function parsePublicationSheet(XLSX, buffer) {
-  const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' })
-  const worksheet = workbook.Sheets[workbook.SheetNames[0]]
-  const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
-
+function parsePublicationRows(jsonData) {
   if (jsonData.length === 0) return { error: 'The Excel file is empty.' }
 
-  const headers = jsonData[0].map((h) => String(h).trim())
+  const headers = headerLabels(jsonData[0])
   const findColIndex = (patterns) =>
     headers.findIndex((h) => patterns.some((p) => h.toLowerCase().includes(p.toLowerCase())))
 
@@ -189,15 +185,15 @@ function BulkImport({ onImported, onToast }) {
   const validCount = rows.filter((r) => r.isValid).length
   const errorCount = rows.length - validCount
 
-  const downloadTemplate = async () => {
-    const XLSX = await import('xlsx')
+  const downloadTemplate = () => {
     const sample = [
       'https://ieeexplore.ieee.org/document/example',
       '@article{example2025, title={Sample Paper Title}, author={Nguyen, Van A and Tran, Thi B}, journal={IEEE Transactions on Example}, year={2025}}',
     ]
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Link', 'BibTeX'], sample]), 'Publications Template')
-    XLSX.writeFile(wb, 'ICDesign_Publications_Template.xlsx')
+    return downloadSheet([['Link', 'BibTeX'], sample], {
+      sheet: 'Publications Template',
+      fileName: 'ICDesign_Publications_Template.xlsx',
+    })
   }
 
   const handleFile = async (e) => {
@@ -205,8 +201,7 @@ function BulkImport({ onImported, onToast }) {
     if (!file) return
 
     try {
-      const [XLSX, buffer] = await Promise.all([import('xlsx'), file.arrayBuffer()])
-      const result = parsePublicationSheet(XLSX, buffer)
+      const result = parsePublicationRows(await readFirstSheet(file))
       if (result.error) {
         setError(result.error)
         return
@@ -215,7 +210,9 @@ function BulkImport({ onImported, onToast }) {
       setError('')
     } catch (err) {
       console.error(err)
-      setError('Error reading Excel file. Please ensure it is a valid format.')
+      setError(
+        err instanceof SpreadsheetFormatError ? err.message : 'Error reading Excel file. Please ensure it is a valid format.',
+      )
     }
   }
 
@@ -257,8 +254,8 @@ function BulkImport({ onImported, onToast }) {
 
         <label className="flex cursor-pointer flex-col items-center justify-center border border-dashed border-ink-200 bg-paper-sunken/50 p-8 text-center transition-colors focus-within:border-ink-900 hover:border-ink-900 md:col-span-2">
           <span className="text-sm font-semibold text-ink-900">Upload Excel spreadsheet</span>
-          <span className="mt-1 text-xs text-ink-500">Click to choose a .xlsx or .xls file</span>
-          <input type="file" accept=".xlsx, .xls" className="sr-only" onChange={handleFile} />
+          <span className="mt-1 text-xs text-ink-500">Click to choose an .xlsx file</span>
+          <input type="file" accept={SPREADSHEET_ACCEPT} className="sr-only" onChange={handleFile} />
         </label>
       </div>
 

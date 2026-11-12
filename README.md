@@ -168,8 +168,11 @@ on `useSyncExternalStore`:
 ### Performance
 
 - **Route-level code splitting.** Every page is a `React.lazy` chunk; only the
-  homepage is eager. `xlsx`/`jszip`/`file-saver` (~525 kB) are isolated into a
-  `sheets` chunk that only the two admin screens that need them pull in.
+  homepage is eager. Excel import/export (`read-excel-file`/`write-excel-file`,
+  ~31 kB brotli, `.xlsx` only, see `client/src/lib/spreadsheet.js`) is a `sheets`
+  chunk loaded only when an admin uses it; the album download's `jszip`/`file-saver`
+  is a separate `zip` chunk. SheetJS (`xlsx`) was dropped: its npm releases end at
+  a version with unpatched high-severity advisories.
 - **Server caching.** Public GET endpoints set `Cache-Control` with
   `stale-while-revalidate` and are backed by a short in-process response cache
   (`server/middleware/cache.js`). Every write purges its namespace, so admin
