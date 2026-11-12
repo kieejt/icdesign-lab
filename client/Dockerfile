@@ -30,7 +30,7 @@ RUN npm run build
 # Brotli module, and a module has to match the exact nginx build it loads into.
 # Alpine's own `nginx` and `nginx-mod-http-brotli` packages are built together,
 # so they always agree.
-FROM alpine:3.20
+FROM alpine:3.24
 
 RUN apk add --no-cache nginx nginx-mod-http-brotli && \
     mkdir -p /var/cache/nginx/api /var/cache/nginx/uploads /etc/nginx/snippets /run/nginx && \
