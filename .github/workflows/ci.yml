@@ -242,20 +242,42 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # arm64 is built under emulation. The server is an AWS Graviton (arm64)
+      # instance; amd64 stays so the image also runs on an x86 machine.
+      - name: Emulation for arm64
+        if: env.PUBLISH == 'true'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
       - name: Publish the tested image
-        # Same inputs and cache as the build above, so this re-uses every layer
-        # instead of building again. Tagged by commit: the deploy pulls exactly
-        # the revision that passed, and a rollback can pull the previous one.
+        # The amd64 half re-uses every layer of the build above. Tagged by
+        # commit: the deploy pulls exactly the revision that passed, and a
+        # rollback can pull the previous one.
+        id: publish
         if: env.PUBLISH == 'true'
         uses: docker/build-push-action@v6
         with:
           context: ./server
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ env.IMAGE_REPO }}-backend:${{ github.sha }}
           # Links the package to this repository, which is what lets the deploy
           # job's own GITHUB_TOKEN pull it.
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
-          cache-from: type=gha,scope=backend
+          # A scope of its own: the amd64-only build above writes `backend`, and
+          # sharing it would drop the arm64 layers from the cache on every run.
+          cache-from: |
+            type=gha,scope=backend
+            type=gha,scope=backend-publish
+          cache-to: type=gha,scope=backend-publish,mode=max
+
+      - name: sharp loads in the arm64 image
+        # The same check as above, on the platform production runs.
+        if: env.PUBLISH == 'true'
+        run: |
+          docker run --rm --platform linux/arm64 "${{ env.IMAGE_REPO }}-backend@${{ steps.publish.outputs.digest }}" \
+            node -e "import('sharp').then(m => m.default({create:{width:2,height:2,channels:3,background:'#fff'}}).webp().toBuffer()).then(() => console.log('sharp ok (arm64)'))"
 
   frontend-image:
     name: Frontend image — nginx config is valid, publishes
@@ -329,16 +351,36 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Emulation for arm64
+        if: env.PUBLISH == 'true'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
       - name: Publish the tested image
+        # The Vite build runs once, natively (see client/Dockerfile); only the
+        # small nginx stage is built per platform.
+        id: publish
         if: env.PUBLISH == 'true'
         uses: docker/build-push-action@v6
         with:
           context: ./client
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ env.IMAGE_REPO }}-frontend:${{ github.sha }}
           build-args: VITE_API_URL=/api
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
-          cache-from: type=gha,scope=frontend
+          cache-from: |
+            type=gha,scope=frontend
+            type=gha,scope=frontend-publish
+          cache-to: type=gha,scope=frontend-publish,mode=max
+
+      - name: nginx accepts the configuration in the arm64 image
+        # The Brotli module is a separate Alpine package per architecture.
+        if: env.PUBLISH == 'true'
+        run: |
+          docker run --rm --platform linux/arm64 --add-host backend:127.0.0.1 \
+            "${{ env.IMAGE_REPO }}-frontend@${{ steps.publish.outputs.digest }}" nginx -t
 
   compose:
     name: Compose — configuration and backups
@@ -358,6 +400,16 @@ jobs:
           MONGO_ROOT_USER: ci
           MONGO_ROOT_PASSWORD: ci
         run: docker compose config --quiet
+
+      - name: The tunnel profile is valid
+        # Production starts cloudflared through this profile; a mistake in that
+        # service would otherwise only surface during a deploy.
+        env:
+          MONGO_ROOT_USER: ci
+          MONGO_ROOT_PASSWORD: ci
+          COMPOSE_PROFILES: tunnel
+          TUNNEL_TOKEN: ci
+        run: docker compose config --services | grep -qx cloudflared
 
       - name: Fail loudly when database credentials are missing
         # The compose file uses `${VAR:?}` so an unconfigured deploy stops before

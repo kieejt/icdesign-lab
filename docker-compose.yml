@@ -123,9 +123,9 @@ services:
 
     mem_limit: 448m
 
-    # Loopback only: the public entry point is the HTTPS proxy on the host (see
-    # deploy/Caddyfile). Published on 0.0.0.0 these would reach the internet
-    # directly whenever a firewall rule allowed them.
+    # Loopback only, for debugging from the host. Visitors arrive through the
+    # Cloudflare Tunnel (the `cloudflared` service below), which needs no
+    # published port at all.
     ports:
       - "127.0.0.1:5000:5000"
 
@@ -167,6 +167,8 @@ services:
     restart: unless-stopped
     mem_limit: 128m
 
+    # Loopback only: the deploy's health check probes it. Visitors reach nginx
+    # through `cloudflared` over the compose network.
     ports:
       - "127.0.0.1:3000:80"
 
@@ -182,6 +184,37 @@ services:
       backend:
         # nginx resolves the `backend` upstream when it starts, so the API
         # container has to exist (and be serving) first.
+        condition: service_healthy
+
+  cloudflared:
+    # Cloudflare Tunnel: the only way in for visitors. cloudflared dials *out* to
+    # Cloudflare and carries requests back to nginx over the compose network, so
+    # the server needs no open web port, no TLS certificate and no list of
+    # Cloudflare addresses to keep in sync.
+    #
+    # Opt-in per server, because it needs that server's token: set
+    # COMPOSE_PROFILES=tunnel and TUNNEL_TOKEN in `.env` (see .env.example).
+    # Without them this service is simply not started (CI, local development).
+    # The tunnel's public hostnames point at http://frontend:80 and are
+    # configured in the Cloudflare dashboard.
+    image: cloudflare/cloudflared:2026.10.7
+    container_name: icdesign-cloudflared
+    profiles: [tunnel]
+    restart: unless-stopped
+    # Measured at ~20-30 MB.
+    mem_limit: 128m
+
+    # --no-autoupdate: the image is the update mechanism (Dependabot bumps it).
+    command: ['tunnel', '--no-autoupdate', 'run']
+    environment:
+      # `:-` and not `:?`: compose interpolates every service, including ones whose
+      # profile is off, and a required variable would break every server and CI
+      # run that does not use the tunnel. cloudflared itself refuses to start
+      # without a token.
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+
+    depends_on:
+      frontend:
         condition: service_healthy
 
 volumes:

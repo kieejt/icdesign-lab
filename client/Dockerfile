@@ -1,5 +1,9 @@
 # Stage 1: Build React Application
-FROM node:20-alpine AS build
+#
+# On the build machine's own architecture: the output is plain HTML/JS/CSS, the
+# same for every platform, so an arm64 image need not run Vite under emulation
+# (minutes instead of seconds). Only the nginx stage below is per-platform.
+FROM --platform=$BUILDPLATFORM node:20-alpine AS build
 
 # Set working directory
 WORKDIR /app
