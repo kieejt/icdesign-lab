@@ -566,10 +566,10 @@ browser --HTTPS--> Cloudflare edge --tunnel (outbound from the server)--> cloudf
 | | |
 |---|---|
 | Region | `ap-southeast-2` (Sydney) |
-| Instance | `t3.small` (2 vCPU, 2 GB) + 2 GB swap, 20 GB encrypted gp3, Ubuntu 24.04 |
+| Instance | `t4g.small` (AWS Graviton, arm64: 2 vCPU, 2 GB) + 2 GB swap, 20 GB encrypted gp3, Ubuntu 24.04; CPU credits `standard` (throttles to baseline instead of billing surplus credits) |
 | Memory budget | container limits in `docker-compose.yml`: MongoDB 512 MB (WiredTiger cache 0.25 GB), API 448 MB (V8 heap 320 MB), nginx 128 MB, backup 256 MB |
 | Network | Elastic IP (needed for SSH by CI and for outbound IPv4: GHCR has no IPv6); security group opens only 22 (key-only SSH). No web port is open: traffic arrives through the tunnel |
-| Cost | about 19 USD instance + 3.7 IPv4 + 2 disk per month (Sydney, on-demand) |
+| Cost | about 15.5 USD instance + 3.7 IPv4 + 2 disk per month (Sydney, on-demand; a t3.small was 19.3) |
 
 **The AWS Free plan is not "12 months free".** It is 100 USD of credits, valid until
 the plan's expiry date (6 months from sign-up). At about 25 USD a month the credits
