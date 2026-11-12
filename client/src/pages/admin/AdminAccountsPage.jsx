@@ -217,7 +217,7 @@ function ImportForm({ onImported, onError }) {
           <ul className="mt-1 list-disc pl-5">
             {skipped.map((s) => (
               <li key={`${s.email}-${s.reason}`}>
-                {s.email || '(empty)'} — {s.reason}
+                {s.email || '(empty)'}: {s.reason}
               </li>
             ))}
           </ul>
@@ -253,7 +253,7 @@ function StudentRow({ student, busy, onEdit, onToggle, onReset, onDelete }) {
           <StatusBadge status={student.status} />
         </p>
       </div>
-      <span className="hidden font-mono text-sm text-ink-600 lg:block">{student.studentId || '—'}</span>
+      <span className="hidden font-mono text-sm text-ink-600 lg:block">{student.studentId || '-'}</span>
       <span className="hidden lg:block">
         <StatusBadge status={student.status} />
         {student.mustChangePassword && <span className="mt-1 block text-xs text-ink-400">Password not set yet</span>}

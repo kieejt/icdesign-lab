@@ -118,7 +118,7 @@ export default function FetchStatusPanel({ status }) {
       {sources.length > 0 && (
         <details>
           <summary className="cursor-pointer text-sm font-medium text-ink-700 hover:text-ink-950">
-            {sources.length} sources{problems > 0 ? ` — ${problems} need attention` : ' — all healthy'}
+            {sources.length} sources{problems > 0 ? `, ${problems} need attention` : ', all healthy'}
           </summary>
           <SourceList sources={sources} />
         </details>

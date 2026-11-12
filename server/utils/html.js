@@ -10,6 +10,18 @@ import { decodeHTML } from 'entities'
  *
  * @param {string} [value]
  */
+/**
+ * The site's copy uses no em dashes, and scraped headlines bring their own
+ * ("... in one day — PC market ..."). Saved text gets a plain hyphen instead.
+ * Identity matching (utils/articleIdentity.js) treats both the same, so this
+ * does not change which articles count as duplicates.
+ *
+ * @param {string} [value]
+ */
+export function withoutEmDash(value = '') {
+  return String(value ?? '').replace(/\s*\u2014\s*/g, ' - ')
+}
+
 export function cleanText(value = '') {
   return decodeHTML(String(value ?? ''))
     .replace(/<[^>]+>/g, ' ')

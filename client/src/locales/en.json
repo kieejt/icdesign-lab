@@ -76,7 +76,7 @@
   },
   "media": {
     "eventsTitle": "Lab Events",
-    "eventsSubtitle": "Seminars, thesis defences and workshops — upcoming and past.",
+    "eventsSubtitle": "Seminars, thesis defences and workshops, upcoming and past.",
     "noEvents": "No events found.",
     "past": "Past",
     "galleryTitle": "Gallery",
@@ -218,7 +218,7 @@
     "closedPosition": "Closed",
     "labTitle": "Integrated Circuit Design Laboratory",
     "aboutEyebrow": "About the lab",
-    "aboutBody1": "The IC design Lab at Hanoi University of Science and Technology conducts research and graduate training in integrated circuit design, embedded systems and computer engineering — spanning analog and mixed-signal design, digital and FPGA/ASIC implementation, and hardware for signal processing.",
+    "aboutBody1": "The IC design Lab at Hanoi University of Science and Technology conducts research and graduate training in integrated circuit design, embedded systems and computer engineering, spanning analog and mixed-signal design, digital and FPGA/ASIC implementation, and hardware for signal processing.",
     "aboutBody2": "The group publishes in peer-reviewed venues, supervises undergraduate and graduate theses, and collaborates with industry partners across Vietnam’s growing semiconductor sector.",
     "facultyAndMembers": "Faculty & members",
     "teachingMaterials": "Teaching materials",

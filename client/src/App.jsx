@@ -99,7 +99,7 @@ function AnalyticsTracker() {
 
 /** Titles for pages whose title doesn't depend on loaded data. */
 const STATIC_TITLES = {
-  '/': 'IC design Lab — Integrated Circuit Design Laboratory, HUST',
+  '/': 'IC design Lab | Integrated Circuit Design Laboratory, HUST',
   '/people/professor': 'Professors',
   '/people/students': 'Students',
   '/people/alumni': 'Alumni',

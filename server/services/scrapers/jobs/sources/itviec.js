@@ -46,7 +46,7 @@ export async function fetchItviec() {
 
         const article = buildJobArticle({
           title,
-          summary: company ? `${company} — ITviec` : `ITviec · ${slug}`,
+          summary: company ? `${company} · ITviec` : `ITviec · ${slug}`,
           url,
           source: 'ITviec',
           publishedAt: new Date(),

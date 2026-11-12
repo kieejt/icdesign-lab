@@ -18,7 +18,7 @@ import News from '../models/News.js'
 import SeenUrl from '../models/SeenUrl.js'
 import Setting from '../models/Setting.js'
 import { canonicalUrl, dedupeArticles, selectDiverse } from '../utils/articleIdentity.js'
-import { cleanText } from '../utils/html.js'
+import { cleanText, withoutEmDash } from '../utils/html.js'
 import { acquireJobLock, isJobRunning } from '../utils/jobLock.js'
 import { matchesTopic, scoreArticle } from '../utils/scorer.js'
 import { rankAndSummarize } from './aiRanker.js'
@@ -172,8 +172,8 @@ async function saveArticles(chosen, autoApproveEnabled, category) {
   if (chosen.length === 0) return { savedCount: 0, autoApprovedCount: 0 }
 
   const docs = chosen.map((article) => ({
-    title: article.title,
-    summary: article.summaryText || (article.summary || article.title).slice(0, 500),
+    title: withoutEmDash(article.title),
+    summary: withoutEmDash(article.summaryText || (article.summary || article.title).slice(0, 500)),
     url: article.url,
     source: article.source,
     category: article.category,

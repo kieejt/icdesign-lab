@@ -156,7 +156,7 @@ async function describePath(path) {
     return (
       album && {
         title: album.title,
-        description: `Photo album — ${album.category}`,
+        description: `Photo album: ${album.category}`,
         image: album.coverImage,
         type: 'article',
       }
@@ -177,7 +177,7 @@ router.get('/page', microCache('seo', 5 * 60_000), async (req, res) => {
   }
 
   const base = siteUrl(req)
-  const title = page ? `${page.title} — ${SITE_NAME}` : SITE_NAME
+  const title = page ? `${page.title} | ${SITE_NAME}` : SITE_NAME
   const description = clip(page?.description) || DEFAULT_DESCRIPTION
   const imagePath = page?.image || '/lab-hero.webp'
   const imageUrl = imagePath.startsWith('http') ? imagePath : base + imagePath

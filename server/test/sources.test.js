@@ -8,12 +8,19 @@ import { parseCareerVietJobs, parseUpdatedDate } from '../services/scrapers/jobs
 import { jobFromPosting, parsePostedOn } from '../services/scrapers/jobs/sources/workday.js'
 import { extractListing } from '../services/scrapers/vietnamNews/sources/htmlListings.js'
 import { prepareArticles } from '../services/agent.service.js'
-import { cleanText } from '../utils/html.js'
+import { cleanText, withoutEmDash } from '../utils/html.js'
 
 // These tests serve fixtures from 127.0.0.1, which the outbound guard refuses by default.
 process.env.ALLOW_PRIVATE_FETCH = '1'
 
 /* ------------------------------ text -------------------------------------- */
+
+test('withoutEmDash turns em dashes into plain hyphens', () => {
+  assert.equal(withoutEmDash('Market cap in one day \u2014 PC market bloodbath'), 'Market cap in one day - PC market bloodbath')
+  assert.equal(withoutEmDash('a\u2014b'), 'a - b')
+  assert.equal(withoutEmDash('No dash - here'), 'No dash - here')
+  assert.equal(withoutEmDash(undefined), '')
+})
 
 test('cleanText decodes the entities some Vietnamese feeds leave in titles', () => {
   assert.equal(cleanText('Smartphone Trung Quốc t&igrave;m nguồn cung DRAM t&aacute;i chế'), 'Smartphone Trung Quốc tìm nguồn cung DRAM tái chế')

@@ -258,7 +258,7 @@ function GalleryManager() {
             <FormField
               label="Add Images to Album (Max 50)"
               htmlFor="album-files"
-              hint={files?.length ? `${files.length} file(s) selected — uploaded when you save.` : undefined}
+              hint={files?.length ? `${files.length} file(s) selected, uploaded when you save.` : undefined}
             >
               <input
                 ref={fileInputRef}

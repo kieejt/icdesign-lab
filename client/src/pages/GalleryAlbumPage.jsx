@@ -62,7 +62,7 @@ function Lightbox({ images, index, title, onClose, onNavigate, onDownload, album
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={`${title} — photo ${index + 1} of ${images.length}`}
+      aria-label={`${title}, photo ${index + 1} of ${images.length}`}
       className="fixed inset-0 z-[100] flex animate-fade-in flex-col items-center justify-center bg-ink-950/95 p-4 backdrop-blur-sm sm:p-8"
       onClick={onClose}
     >
@@ -82,7 +82,7 @@ function Lightbox({ images, index, title, onClose, onNavigate, onDownload, album
         <img
           {...responsiveImage(images[index])}
           sizes="100vw"
-          alt={`${title} — ${index + 1}`}
+          alt={`${title}, photo ${index + 1}`}
           className="max-h-[78vh] max-w-full object-contain"
           onClick={(e) => e.stopPropagation()}
         />
@@ -374,7 +374,7 @@ export default function GalleryAlbumPage() {
                         <img
                           {...responsiveImage(src)}
                           sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
-                          alt={`${album.title} — ${index + 1}`}
+                          alt={`${album.title}, photo ${index + 1}`}
                           loading="lazy"
                           decoding="async"
                           className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"

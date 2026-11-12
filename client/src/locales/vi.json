@@ -76,7 +76,7 @@
   },
   "media": {
     "eventsTitle": "Sự kiện Lab",
-    "eventsSubtitle": "Hội thảo, bảo vệ đồ án và sự kiện — sắp diễn ra và đã qua.",
+    "eventsSubtitle": "Hội thảo, bảo vệ đồ án và sự kiện, sắp diễn ra và đã qua.",
     "past": "Đã diễn ra",
     "noEvents": "Không tìm thấy sự kiện nào.",
     "galleryTitle": "Thư viện Ảnh",
@@ -218,7 +218,7 @@
     "closedPosition": "Đã đóng",
     "labTitle": "Phòng thí nghiệm Thiết kế Vi mạch",
     "aboutEyebrow": "Giới thiệu về Lab",
-    "aboutBody1": "Phòng thí nghiệm Thiết kế Vi mạch tại Đại học Bách khoa Hà Nội nghiên cứu và đào tạo sau đại học trong lĩnh vực thiết kế vi mạch tích hợp, hệ thống nhúng và kỹ thuật máy tính — bao gồm thiết kế tương tự và tín hiệu hỗn hợp, thiết kế số và triển khai FPGA/ASIC, cùng phần cứng cho xử lý tín hiệu.",
+    "aboutBody1": "Phòng thí nghiệm Thiết kế Vi mạch tại Đại học Bách khoa Hà Nội nghiên cứu và đào tạo sau đại học trong lĩnh vực thiết kế vi mạch tích hợp, hệ thống nhúng và kỹ thuật máy tính, bao gồm thiết kế tương tự và tín hiệu hỗn hợp, thiết kế số và triển khai FPGA/ASIC, cùng phần cứng cho xử lý tín hiệu.",
     "aboutBody2": "Nhóm công bố trên các tạp chí và hội nghị có phản biện, hướng dẫn đồ án tốt nghiệp và luận văn, đồng thời hợp tác với các đối tác công nghiệp trong ngành bán dẫn đang phát triển của Việt Nam.",
     "facultyAndMembers": "Giảng viên & thành viên",
     "teachingMaterials": "Tài liệu giảng dạy",

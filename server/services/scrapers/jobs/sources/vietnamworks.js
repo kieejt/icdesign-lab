@@ -11,13 +11,13 @@ export function jobFromHit(job) {
   if (!job?.jobUrl) return null
 
   const summary =
-    stripHtml(job.jobDescription)?.slice(0, 500) || `${job.companyName || ''} — ${job.prettySalary || ''}`.trim()
+    stripHtml(job.jobDescription)?.slice(0, 500) || `${job.companyName || ''} · ${job.prettySalary || ''}`.trim()
   if (!isJobRelevant(job.jobTitle, summary)) return null
 
   return buildJobArticle({
     title: job.jobTitle,
     // Company first, so near-duplicate detection can tell employers apart.
-    summary: job.companyName ? `${job.companyName} — ${summary}` : summary,
+    summary: job.companyName ? `${job.companyName} · ${summary}` : summary,
     url: job.jobUrl,
     source: 'VietnamWorks',
     publishedAt: job.approvedOn || job.createdOn,

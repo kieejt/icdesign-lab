@@ -60,7 +60,7 @@ test('jobFromHit maps a VietnamWorks hit and keeps its approval date', () => {
     approvedOn: '2026-10-16T16:22:34+07:00',
   })
   assert.equal(job.source, 'VietnamWorks')
-  assert.match(job.summary, /^Chipco — /)
+  assert.match(job.summary, /^Chipco · /)
   assert.equal(job.publishedAt.toISOString(), '2026-10-16T09:22:34.000Z')
   assert.equal(jobFromHit({ jobTitle: 'Accountant', jobUrl: 'https://x/1', jobDescription: 'books' }), null)
   assert.equal(jobFromHit({ jobTitle: 'FPGA' }), null, 'a hit without a URL is unusable')

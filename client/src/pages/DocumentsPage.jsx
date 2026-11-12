@@ -267,7 +267,7 @@ export default function DocumentsPage() {
                               <Icon name="external" className="h-3.5 w-3.5" />
                             </a>
                           ) : (
-                            <span className="hidden text-ink-300 sm:inline">—</span>
+                            <span className="hidden text-ink-300 sm:inline">-</span>
                           )}
                         </td>
 
@@ -282,7 +282,7 @@ export default function DocumentsPage() {
                               {t('education.downloadGDrive')}
                             </button>
                           ) : (
-                            <span className="hidden text-ink-300 sm:inline">—</span>
+                            <span className="hidden text-ink-300 sm:inline">-</span>
                           )}
                         </td>
                       </tr>

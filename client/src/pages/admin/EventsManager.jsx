@@ -86,7 +86,7 @@ function EventDialog({ event, initial, onClose, onSaved }) {
             {status ? (
               <>
                 Will be listed as <Badge tone={status === 'Upcoming' ? 'ok' : 'neutral'}>{status}</Badge>
-                {' '}— it switches to Past by itself after the last day.
+                . It switches to Past by itself after the last day.
               </>
             ) : (
               'Pick a date to see how it will be listed.'
@@ -161,7 +161,7 @@ function EventDialog({ event, initial, onClose, onSaved }) {
         )}
         {legacyText && (
           <InlineNotice tone="info">
-            This event was saved with the text “{legacyText}”. {form.eventDate ? 'We read it as the date above — check it.' : 'Pick the date; it replaces the text.'}
+            This event was saved with the text “{legacyText}”. {form.eventDate ? 'We read it as the date above. Please check it.' : 'Pick the date; it replaces the text.'}
           </InlineNotice>
         )}
 
@@ -191,7 +191,7 @@ function DateBlock({ event }) {
   if (!date || Number.isNaN(date.getTime())) {
     return (
       <div className="flex h-14 w-14 shrink-0 items-center justify-center border border-dashed border-paper-border text-ink-300" title="Old entry: date is free text">
-        —
+        -
       </div>
     )
   }

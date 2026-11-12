@@ -10,7 +10,7 @@ const router = express.Router()
 
 router.use(invalidateOnWrite('research'))
 
-const BIBTEX_TITLE_ERROR = "Could not extract a title from the BibTeX entry — check for a 'title' field."
+const BIBTEX_TITLE_ERROR = "Could not extract a title from the BibTeX entry. Check for a 'title' field."
 
 router.get('/', httpCache(120, 600), microCache('research', 60_000), async (req, res) => {
   try {

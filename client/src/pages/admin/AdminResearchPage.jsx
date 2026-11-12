@@ -169,7 +169,7 @@ function PublicationRow({ item, expanded, onToggleBibtex, onEdit, onDelete }) {
             )}
           </div>
         ) : (
-          <p className="mt-2 text-xs italic text-ink-400">Legacy entry — no BibTeX stored.</p>
+          <p className="mt-2 text-xs italic text-ink-400">Legacy entry: no BibTeX stored.</p>
         )}
       </div>
       <RowActions onEdit={onEdit} onDelete={onDelete} />
@@ -558,7 +558,7 @@ export default function AdminResearchPage() {
             <FormField
               label="Link"
               htmlFor="pub-link"
-              hint="Optional — falls back to the BibTeX url/doi."
+              hint="Optional. Falls back to the BibTeX url/doi."
             >
               <input
                 id="pub-link"
@@ -607,13 +607,13 @@ export default function AdminResearchPage() {
                   />
                   {pubPreview.parsed.extraContentIgnored && (
                     <p className="mt-2 text-xs font-medium text-signal-warn">
-                      Only the first BibTeX entry was used — extra content after it was ignored.
+                      Only the first BibTeX entry was used; extra content after it was ignored.
                     </p>
                   )}
                 </>
               ) : (
                 <p className="text-sm font-medium text-signal-danger">
-                  Could not detect a &lsquo;title&rsquo; field yet — check the BibTeX syntax.
+                  Could not detect a &lsquo;title&rsquo; field yet. Check the BibTeX syntax.
                 </p>
               )}
             </div>
