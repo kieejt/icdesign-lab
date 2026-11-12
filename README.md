@@ -554,11 +554,13 @@ step if you ever want one.
 
 ## Hosting on AWS EC2 (single server)
 
-The production deploy target is one EC2 instance running the compose stack, with
-Caddy in front for HTTPS.
+The production deploy target is one EC2 instance running the compose stack.
+Visitors reach it only through a Cloudflare Tunnel: the `cloudflared` container
+dials out to Cloudflare and carries requests back over the compose network, so the
+server has no open web port and no TLS certificate of its own.
 
 ```
-browser --HTTPS--> Caddy (host, :443) --> nginx container (127.0.0.1:3000) --> API container (:5000) --> MongoDB
+browser --HTTPS--> Cloudflare edge --tunnel (outbound from the server)--> cloudflared --> nginx container (:80) --> API container (:5000) --> MongoDB
 ```
 
 | | |
@@ -566,7 +568,7 @@ browser --HTTPS--> Caddy (host, :443) --> nginx container (127.0.0.1:3000) --> A
 | Region | `ap-southeast-2` (Sydney) |
 | Instance | `t3.small` (2 vCPU, 2 GB) + 2 GB swap, 20 GB encrypted gp3, Ubuntu 24.04 |
 | Memory budget | container limits in `docker-compose.yml`: MongoDB 512 MB (WiredTiger cache 0.25 GB), API 448 MB (V8 heap 320 MB), nginx 128 MB, backup 256 MB |
-| Network | Elastic IP; security group opens only 22 (key-only SSH, needed by CI), 80, 443 |
+| Network | Elastic IP (needed for SSH by CI and for outbound IPv4: GHCR has no IPv6); security group opens only 22 (key-only SSH). No web port is open: traffic arrives through the tunnel |
 | Cost | about 19 USD instance + 3.7 IPv4 + 2 disk per month (Sydney, on-demand) |
 
 **The AWS Free plan is not "12 months free".** It is 100 USD of credits, valid until
@@ -574,13 +576,28 @@ the plan's expiry date (6 months from sign-up). At about 25 USD a month the cred
 last roughly four months; check `aws freetier get-account-plan-state` and AWS
 Settings > Billing. When they run out the project pauses until it is upgraded.
 
-### Why there is a proxy in front
+### Cloudflare Tunnel
 
-The session cookie is `Secure` in production, so login only works over HTTPS. Caddy
-gets and renews the certificate by itself. `client/nginx.conf` trusts
-`X-Forwarded-For` / `X-Forwarded-Proto` from private addresses only, so the API
-still sees the real visitor address (rate limits, analytics) and scheme. Both app
-ports are published on `127.0.0.1` only (`docker-compose.yml`).
+The session cookie is `Secure` in production, so login only works over HTTPS;
+Cloudflare terminates it at the edge. The tunnel `icdesign-lab` is configured in
+Cloudflare (Zero Trust > Networks > Tunnels): `tuankiet.page` and
+`www.tuankiet.page` go to `http://frontend:80`, anything else gets a 404. The DNS
+records are proxied CNAMEs to `<tunnel id>.cfargotunnel.com`.
+
+On the server, `.env` holds `COMPOSE_PROFILES=tunnel` and `TUNNEL_TOKEN` (see
+`.env.example`), which starts the `cloudflared` service. The token is the only
+secret: whoever holds it can serve the site's hostnames, so if it leaks, rotate it
+in the dashboard (or `POST .../cfd_tunnel/<id>/token` via the API) and update `.env`.
+
+`client/nginx.conf` trusts `X-Forwarded-For` / `X-Forwarded-Proto` from private
+addresses only (the cloudflared container), so the API still sees the real visitor
+address (rate limits, analytics) and scheme. Both app ports are published on
+`127.0.0.1` only, for the deploy's health check and for debugging.
+
+Because the tunnel connects outward, several servers can run the same token at
+once and Cloudflare spreads requests across them. That is how the server is
+replaced without downtime: start the new one with the same `.env`, check it, stop
+the old one.
 
 ### Edge caching and page speed
 
@@ -601,15 +618,18 @@ too.
 
 ### First-time setup of a new server
 
-1. Launch Ubuntu 24.04 with Docker, the compose plugin and Caddy (`docker`, `caddy`,
-   2 GB swap, Docker log rotation); allow ports 22/80/443 only.
-2. Point the domain's A record at the server's address.
+1. Launch Ubuntu 24.04 (arm64 for a Graviton instance; images are published for
+   both arm64 and amd64) with Docker and the compose plugin, 2 GB swap and Docker
+   log rotation; allow port 22 only.
+2. (Nothing to do for DNS: the records point at the tunnel, not at a server.)
 3. On the server: `git clone https://github.com/kieejt/icdesign-lab.git`, then create
    `.env` (MongoDB root credentials) and `server/.env` (`MONGO_URI` using those
    credentials with `@mongodb:27017/icdesign_lab?authSource=admin`, `JWT_SECRET`,
    `CORS_ORIGINS=https://<domain>`, `SITE_URL=https://<domain>`, `GROQ_API_KEY`).
-   Generate secrets with `openssl rand -base64 32`.
-4. Install `deploy/Caddyfile` as `/etc/caddy/Caddyfile` (set the domain) and create the two files it imports; see "Cloudflare in front". Then `sudo systemctl reload caddy`.
+   Generate secrets with `openssl rand -base64 32`. Add `COMPOSE_PROFILES=tunnel`
+   and `TUNNEL_TOKEN` to `.env` (see "Cloudflare Tunnel").
+4. Restore data if this replaces a server: a `mongorestore --archive --gzip` of the
+   latest backup, and the `uploads_data` volume (`tar` it across).
 5. Either push to `main` and let the deploy pull the images, or start it by hand
    with `docker compose up -d --build --wait` (builds on the server; several minutes).
 6. Create the first admin by inserting it into the database (there is no sign-up API):
@@ -629,21 +649,17 @@ visitors never talk to the server directly.
 | WAF | Cloudflare's managed Free ruleset and DDoS protection (on by default); custom rules block probes for `.env`, `.git`, `wp-*`, `phpmyadmin`, `*.php`, `vendor/` and unused HTTP methods, and challenge path-traversal attempts |
 | Rate limit | `POST /api/auth/login`: more than 5 per 10 s per address is blocked (the API has its own limiter on top) |
 | Bots | Bot Fight Mode on (it was already enabled). It challenges clients that are not browsers; verified crawlers such as Googlebot pass, but a link-preview bot it does not recognise (Zalo, for one) may be challenged |
-| Origin lock | Caddy requires Cloudflare's client certificate (Authenticated Origin Pulls), and the AWS security group allows ports 80/443 from Cloudflare's ranges only; a request straight to the server's address cannot complete the TLS handshake |
-| Real client IP | Caddy trusts `CF-Connecting-IP` from Cloudflare's ranges only and forwards a single `X-Forwarded-For`; nginx and the API see the visitor |
+| Origin lock | The origin has no public web port at all; the only path in is the tunnel, so the WAF and rate limits cannot be bypassed |
+| www | A Redirect Rule sends `www.tuankiet.page/*` to `https://tuankiet.page/*` (301, query string kept) at the edge |
+| HSTS | `Strict-Transport-Security: max-age=15552000`, sent by nginx (`client/nginx/security-headers.conf`) |
+| Real client IP | Cloudflare appends the visitor's address to `X-Forwarded-For`; nginx trusts that header only from private addresses (cloudflared), so the API sees the visitor |
 | Mail | The domain sends no mail: SPF `-all`, DMARC `reject`, null DKIM and a null MX stop anyone spoofing it. Change these before using the domain for email |
 | Injected scripts | Email obfuscation, Rocket Loader and Web Analytics auto-injection are off: the Content-Security-Policy only allows the site's own scripts |
 | DNSSEC | Enabled at Cloudflare; **it is only effective once the DS record is added at the registrar** (Cloudflare dashboard > DNS > Settings shows it) |
 
-Files on the server: `/etc/caddy/Caddyfile` (from `deploy/Caddyfile`),
-`/etc/caddy/cloudflare-ips.caddy` and `/etc/caddy/cloudflare-origin-pull-ca.pem`.
-Cloudflare changes its address ranges rarely. When it does, run
-`sudo /opt/icdesign/refresh-cloudflare-ips.sh` (Caddy) and add the new ranges to the
-security group's rules for ports 80 and 443.
-
-**Switching the proxy off** (grey cloud) breaks the site until you also (1) remove the
-`tls { client_auth ... }` block from the Caddyfile and reload Caddy, and (2) reopen
-ports 80/443 to `0.0.0.0/0` in the security group. Do both first, then change the DNS.
+**The proxy cannot be switched off** (grey cloud) for these records: a tunnel
+hostname only exists behind Cloudflare. Leaving Cloudflare would mean putting a
+reverse proxy with its own certificate back on the server and opening 80/443.
 
 Day to day: `ssh ubuntu@<host>` then `docker compose ps`, `docker compose logs -f backend`.
 Backups are written by the `backup` service; copy them off the machine (see Backups).

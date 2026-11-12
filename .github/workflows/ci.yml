@@ -320,6 +320,7 @@ jobs:
           HEADERS=$(curl -sI http://localhost:8080/)
           echo "$HEADERS" | grep -qi '^content-security-policy' || fail "CSP header missing"
           echo "$HEADERS" | grep -qi '^x-frame-options' || fail "security headers missing"
+          echo "$HEADERS" | grep -qi '^strict-transport-security' || fail "HSTS header missing"
           # Browsers must revalidate the shell (max-age=0); the shared cache in front
           # may keep it for a few minutes (s-maxage), and the deploy purges it.
           echo "$HEADERS" | grep -i '^cache-control' | grep -qi 'max-age=0'             || fail "index.html must be revalidated by browsers"
